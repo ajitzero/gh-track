@@ -33,6 +33,7 @@ Decisions made during the initial design interview on 2026-10-19. Each entry rec
 | D018 | Dry-run baseline, explicit-subject resources, and cache persistence |
 | D019 | Run writer, partial promotion, and resume semantics |
 | D020 | Compaction marker, prune scope, and export rows |
+| D021 | Diff point resolution, source limits, and subject filtering |
 
 ## D001 — Local files only
 
@@ -221,6 +222,25 @@ Decisions made during the initial design interview on 2026-10-19. Each entry rec
 **Rejected.** Marking days by the presence of history rows (cannot distinguish a day with no metrics from an uncompacted day); appending without removing the date (stale rows after a late complete run); pruning based only on age (would delete partial-only days and runs whose history was never written); a lock file for `--dry-run` (violates "writes nothing"); treating `export --format jsonl` as the JSON output contract (mixed machine contracts and made ANSI suppression ambiguous).
 
 **Consequence.** Pruning is reversible only from history, as D007 intends. A corrupt or deleted `compacted.json` is safe: compaction re-runs before any further pruning. Export is deterministic and directly consumable by `jq`/spreadsheets without post-processing.
+
+## D021 — Diff point resolution, source limits, and subject filtering
+
+**Context.** M5 adds `diff` over stored raw runs and compacted history. The spec defines the reference forms, the source limits, and the JSON shape, but not how compacted days participate in reference resolution, how a missing scalar key is represented, or how `--subject` treats a user's owned repositories.
+
+**Decision.**
+
+1. **Comparable points.** Every complete raw run is a point. A day with compacted history is also a point, unless a complete raw run for that day still exists; raw data always wins because it carries ids and follower identities. Points are ordered by UTC day and then run id. `latest` is the last point, `previous` is the point immediately before the resolved `--to`, and `YYYY-MM-DD` is the last point on or before that day. At least two points are required.
+2. **Run ids must still exist.** A run-id reference resolves only to a complete raw run on disk. A pruned run id yields `run_not_found` rather than silently substituting the day's history, because history stores only the day's chosen complete run. Date and keyword references may resolve to compacted days.
+3. **Compacted endpoints.** A compacted point reports the UTC date as `id` and `null` as `finishedAt`; the exact finish time was not retained. `source` is `raw` when both points are raw, `compacted` when both are compacted, and `mixed` otherwise.
+4. **Field limits.** Under `compacted` and `mixed`, repository fields are restricted to `stargazers_count` and `forks_count`, and follower results use counts with `added: null`, `removed: null`, and `identitiesAvailable: false`. Any change touching history therefore loses ids, renames, other scalar fields, and follower identities.
+5. **Repository matching.** Numeric `id` is authoritative; `full_name` is consulted only when an id is unavailable on one side. This makes a raw rename one `renamed` entry, while a rename across compacted history appears as an add plus a remove because history has no ids. All changed scalar fields are reported, including keys present on only one side; a missing side is represented as `null`, while an explicit `null` remains a value. Added, removed, and rename-only entries carry `fields: {}`.
+6. **Follower matching.** Raw followers are sets keyed by lowercased login, with display casing and numeric id taken from the newer side. Additions and removals are sorted by lowercased login. When either side is compacted, equal counts produce no entry because churn cannot be observed; differing counts produce a count-only entry.
+7. **Subject filtering.** Filtering is applied after the diff. `repo:<owner/name>` matches that repository, including its previous name when renamed. `user:<login>` matches that account's follower diff and every repository whose `full_name` owner is that login. This owner-prefix rule is the only attribution available in compacted history, so raw and history filtering behave identically.
+8. **Read-only.** `diff` takes no lock and writes nothing, including `state/` and locks. Rendering happens in the command, following the existing `compact`/`export` pattern.
+
+**Rejected.** Treating a compacted day as a synthetic run id (users cannot name it); resolving a pruned run id from its day (would substitute a different run and hide the data loss); persisting computed diffs (D008); restricting raw field comparisons to the three compacted metrics (defeats D006's full-payload purpose); matching repositories by name first (breaks renames); omitting scalar fields present on only one side (defeats the full-payload purpose); filtering before diffing (a filtered-out repository could hide a rename needed for attribution).
+
+**Consequence.** `diff` is deterministic across raw and compacted data and honestly declares its source. Users who need rename or identity data must run diffs before the retention window prunes the runs, or extend retention.
 
 ## Open questions
 

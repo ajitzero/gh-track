@@ -137,6 +137,18 @@ export function noHistory(details?: ErrorDetails): CliError {
   );
 }
 
+export function notEnoughRuns(details?: ErrorDetails): CliError {
+  return new CliError(
+    'not_enough_runs',
+    'At least two complete runs are required for a diff.',
+    details,
+  );
+}
+
+export function invalidRange(details?: ErrorDetails): CliError {
+  return new CliError('invalid_range', '--from must resolve to a point before --to.', details);
+}
+
 export function locked(lockPath: string, pid: number): CliError {
   return new CliError(
     'locked',

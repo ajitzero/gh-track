@@ -15,7 +15,8 @@ Execution plan for v1 (`0.1.0`). Contracts are in [01_SPEC.md](01_SPEC.md); this
 - **M2 — done (2026-10-20).** `github/client.ts`, `github/etag.ts`, `github/rateLimit.ts`, the `followers`/`repos`/`repo` URL builders, `store/state.ts`, `store/runs.ts`, and `fetch --dry-run`.
 - **M3 — done (2026-10-20).** `store/runWriter.ts`, `store/manifest.ts`, `store/lock.ts`, real `fetch` with conditional requests, complete/partial promotion, `pending` tracking, `--resume`, `runs ls|show|paths`, and `watch ls` last-run summaries.
 - **M4 — done (2026-10-20).** `store/history.ts`, `store/compact.ts`, `store/prune.ts`, `compact` with `--dry-run`/`--keep-days`, automatic compaction and pruning after complete fetches, `--no-compact`/`--keep-raw-days`, and `export` as JSON, JSONL, or CSV from compacted history.
-- **M5-M6 — not started.** `diff` remains in the help registry but exits `1` as not implemented.
+- **M5 — done (2026-10-20).** `diff/resolve.ts`, `diff/repos.ts`, `diff/followers.ts`, `diff/compacted.ts`, and `diff` with `latest`/`previous`/run-id/date references, id-based rename detection, scalar field deltas, named follower churn, compacted-history fallback, subject filtering, and table/JSON output.
+- **M6 — not started.** Hardening, docs, and final acceptance.
 
 ## Constraints
 
@@ -319,7 +320,7 @@ No test may read the network. Integration tests use an in-memory `fetchImpl` and
 
 ## Handoff notes for implementing agents
 
-1. Implement milestones in order. Do not start M5 before M3 is stable.
+1. Implement milestones in order. Do not start M6 before M5 is stable.
 2. Treat [01_SPEC.md](01_SPEC.md) as the contract. If it is wrong, amend it and log the change; do not silently deviate.
 3. Keep `src/github` free of filesystem imports; keep `src/store` free of HTTP imports.
 4. Return structured results from commands; render only in `src/output`.

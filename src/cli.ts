@@ -6,6 +6,7 @@ import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { renderHelpCommand } from './commands/help.js';
 import { runCompact } from './commands/compact.js';
+import { runDiff } from './commands/diff.js';
 import { runExport } from './commands/export.js';
 import { runFetch } from './commands/fetch.js';
 import { runRuns } from './commands/runs.js';
@@ -549,7 +550,14 @@ export async function run(
       return result.exitCode ?? 0;
     }
 
-    throw notImplemented(command, 5);
+    if (command === 'diff') {
+      const context = buildContext(io, options, rest, format, runOptions.signal);
+      const result = await runDiff(context);
+      emit(result, format, io);
+      return result.exitCode ?? 0;
+    }
+
+    throw notImplemented(command, 6);
   } catch (error) {
     const cliError = toCliError(error);
     renderError(cliError, format, verbose, io);

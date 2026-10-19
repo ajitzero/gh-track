@@ -147,6 +147,60 @@ export interface ExportRow {
   followers?: number;
 }
 
+export type DiffSource = 'raw' | 'compacted' | 'mixed';
+
+export type RepoChange = 'changed' | 'added' | 'removed' | 'renamed';
+
+/** The resolved endpoints reported by `diff` (§5.9). */
+export interface DiffRefInfo {
+  id: string;
+  finishedAt: string | null;
+}
+
+/** One scalar field comparison. Numeric pairs also carry a delta. */
+export interface DiffField {
+  from: unknown;
+  to: unknown;
+  delta?: number;
+}
+
+export interface RepoDiffEntry {
+  id: number | null;
+  repository: string;
+  previousRepository?: string | undefined;
+  change: RepoChange;
+  fields: Record<string, DiffField>;
+}
+
+export interface FollowerIdentity {
+  login: string;
+  id?: number | undefined;
+}
+
+export interface FollowerDiff {
+  from: number;
+  to: number;
+  delta: number;
+  added: FollowerIdentity[] | null;
+  removed: FollowerIdentity[] | null;
+  /** Present and false when the history fallback cannot provide identities. */
+  identitiesAvailable?: false | undefined;
+}
+
+export interface UserDiffEntry {
+  account: string;
+  followers: FollowerDiff;
+}
+
+/** `diff --format json` document (§5.9). */
+export interface DiffResult {
+  from: DiffRefInfo;
+  to: DiffRefInfo;
+  source: DiffSource;
+  repos: RepoDiffEntry[];
+  users: UserDiffEntry[];
+}
+
 export interface WatchedUser {
   subject: string;
   type: 'user';

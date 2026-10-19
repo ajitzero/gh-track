@@ -121,9 +121,12 @@ References:
 - At least two complete runs are required; otherwise exit `1` with `not_enough_runs`.
 - `--from` must resolve to a time before `--to`; otherwise exit `2` with `invalid_range`.
 - Raw data is used when both sides are within retention. If either side must come from compacted history, the output reports `"source": "compacted"` (or `"mixed"`) and limits fields to `stars`, `forks`, and `followers`, with no follower identities.
+- A run-id reference must name a complete run that is still on disk. Date and keyword references may resolve to a compacted day after its raw run is pruned.
+- A compacted endpoint reports the UTC date as `id` and `finishedAt: null`, because the exact finish time is not retained.
 - Repositories are matched by numeric `id`, falling back to `full_name`.
 - A repository present only in `--to` is `added`; only in `--from` is `removed`; same `id` with a different `full_name` is `renamed`.
 - Follower sets are compared case-insensitively by login.
+- `--subject repo:<owner/name>` restricts to that repository (and its previous name when renamed). `--subject user:<login>` restricts to that account's follower diff plus repositories owned by that login.
 
 ### 2.5 `compact`
 
@@ -454,6 +457,8 @@ Dry run:
 - `change`: `changed` | `added` | `removed` | `renamed`.
 - Under `compacted`/`mixed`, `fields` contains only `stargazers_count` and `forks_count`, and each `followers` object carries `"added": null`, `"removed": null`, `"identitiesAvailable": false`.
 - Field names mirror the GitHub payload (`stargazers_count`), not human aliases. Tables may render friendlier labels.
+- Scalar fields present on only one side are included with the missing side as `null`; an explicit `null` is a value, not a missing key. Added, removed, and rename-only entries carry `"fields": {}`.
+- A compacted `from`/`to` uses the UTC date as `id` and `null` as `finishedAt`.
 
 ### 5.10 `compact --format json`
 

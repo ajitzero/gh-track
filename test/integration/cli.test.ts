@@ -316,8 +316,9 @@ test('interactive watch rm can be declined without changing the config', async (
   assert.equal(parseConfig(await readFile(configPath, 'utf8')).config.subjects.length, 1);
 });
 
-test('unimplemented commands exit 1 with a milestone message', async () => {
-  const result = await invoke(['diff']);
+test('diff requires stored runs', async (t) => {
+  const dir = await tempDir(t);
+  const result = await invoke(['diff', '--data-dir', path.join(dir, 'data')]);
   assert.equal(result.code, 1);
-  assert.match(result.stderr, /not implemented yet/);
+  assert.match(result.stderr, /not_enough_runs/);
 });
