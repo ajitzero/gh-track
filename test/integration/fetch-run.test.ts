@@ -69,8 +69,8 @@ function jsonResponse(body: unknown, headers: Record<string, string> = {}): Resp
   return new Response(JSON.stringify(body), { status: 200, headers });
 }
 
-function notModified(): Response {
-  return new Response(null, { status: 304 });
+function notModified(headers: Record<string, string> = {}): Response {
+  return new Response(null, { status: 304, headers });
 }
 
 function notFound(): Response {
@@ -191,6 +191,100 @@ test('pagination follows Link and extends the plan dynamically', async (t) => {
   assert.equal(doc.run.stats.requests, 3);
   assert.equal(doc.run.stats.followers, 105);
   assert.equal(await exists(path.join(runsDir(dataDir), doc.run.id, 'accounts/octocat/followers/page-0002.json')), true);
+});
+
+test('pagination without Link follows a full page', async (t) => {
+  const { configPath, dataDir } = await workspace(t);
+  await addUser(configPath);
+
+  const page2 = followersUrl(GITHUB_API_BASE, 'octocat', 2);
+  const firstPage = Array.from({ length: 100 }, (_, index) => ({ login: `u${index}` }));
+  const secondPage = Array.from({ length: 26 }, (_, index) => ({ login: `v${index}` }));
+
+  const routes = happyRoutes({
+    [FOLLOWERS_1]: () => jsonResponse(firstPage, { etag: 'W/"f1"' }),
+    [page2]: () => jsonResponse(secondPage, { etag: 'W/"f2"' }),
+  });
+
+  const result = await invoke(
+    ['fetch', '--config', configPath, '--data-dir', dataDir, '--format', 'json'],
+    { fetchImpl: router(routes) },
+  );
+
+  assert.equal(result.code, 0, result.stderr);
+  const doc = JSON.parse(result.stdout) as { run: { id: string; stats: Record<string, number> } };
+  assert.equal(doc.run.stats.requests, 3);
+  assert.equal(doc.run.stats.followers, 126);
+  assert.equal(
+    await exists(path.join(runsDir(dataDir), doc.run.id, 'accounts/octocat/followers/page-0002.json')),
+    true,
+  );
+});
+
+test('a 304 on a full page still follows Link to the next page', async (t) => {
+  const { configPath, dataDir } = await workspace(t);
+  await addUser(configPath);
+
+  // GitHub's Link header can use a canonical path that differs from the URL we
+  // build (`/user/<id>/followers` here), so page 2 is not visible to the plan's
+  // URL-based ETag lookup. Pagination must still continue after a 304.
+  const page2 = `${GITHUB_API_BASE}/user/19947758/followers?per_page=100&page=2`;
+  const firstPage = Array.from({ length: 100 }, (_, index) => ({ login: `u${index}` }));
+  const secondPage = Array.from({ length: 26 }, (_, index) => ({ login: `v${index}` }));
+  const firstLink = `<${page2}>; rel="next"`;
+
+  const first = await invoke(
+    ['fetch', '--config', configPath, '--data-dir', dataDir, '--format', 'json'],
+    {
+      fetchImpl: router(
+        happyRoutes({
+          [FOLLOWERS_1]: () => jsonResponse(firstPage, { etag: 'W/"f1"', link: firstLink }),
+          [page2]: () => jsonResponse(secondPage, { etag: 'W/"f2"' }),
+        }),
+      ),
+    },
+  );
+  assert.equal(first.code, 0, first.stderr);
+
+  // The plan must find page 2 in the cache even though GitHub keyed it under a
+  // canonical path, so a dry run and the live request queue agree.
+  const dry = await invoke(
+    ['fetch', '--dry-run', '--config', configPath, '--data-dir', dataDir, '--format', 'json'],
+  );
+  assert.equal(dry.code, 0, dry.stderr);
+  const plan = JSON.parse(dry.stdout) as {
+    plan: Array<{ url: string; page: number; conditional: boolean }>;
+  };
+  const plannedPage2 = plan.plan.find((request) => request.url === page2);
+  assert.ok(plannedPage2);
+  assert.equal(plannedPage2.page, 2);
+  assert.equal(plannedPage2.conditional, true);
+
+  // Run ids are second-precision (D002); a same-second run is refused by design.
+  await new Promise((resolve) => setTimeout(resolve, 1_050));
+
+  const second = await invoke(
+    ['fetch', '--config', configPath, '--data-dir', dataDir, '--format', 'json'],
+    {
+      fetchImpl: router({
+        [FOLLOWERS_1]: () => notModified({ link: firstLink }),
+        [page2]: notModified,
+        [REPOS_1]: notModified,
+      }),
+    },
+  );
+
+  assert.equal(second.code, 0, second.stderr);
+  const doc = JSON.parse(second.stdout) as {
+    run: { id: string; stats: Record<string, number> };
+  };
+  assert.equal(doc.run.stats.followers, 126);
+  assert.equal(doc.run.stats.requests, 3);
+  assert.equal(doc.run.stats.notModified, 3);
+  assert.equal(
+    await exists(path.join(runsDir(dataDir), doc.run.id, 'accounts/octocat/followers/page-0002.json')),
+    true,
+  );
 });
 
 test('a 304 resolves to the previous run payload and copies it forward', async (t) => {

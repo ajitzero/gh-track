@@ -105,22 +105,77 @@ function toPlanSubject(subject: ConfigSubject): PlanSubject {
 }
 
 /**
- * Highest page number seen in the ETag cache for a paginated resource. Page 1
- * is the floor when the resource has never been fetched.
+ * Page URLs known from the ETag cache, keyed by page number. URLs are compared
+ * by origin, path, and every query parameter except `page`, so link-provided
+ * URLs with different parameter order still count. Entries are also matched by
+ * their stored source path, because GitHub's Link header can use a canonical
+ * path (`/user/<id>/followers`) that differs from the URL we build.
  */
-function knownPageCount(cache: EtagCache, urlForPage: (page: number) => string): number {
-  const prefix = urlForPage(1).replace(/page=1$/, 'page=');
-  let max = 0;
-  for (const url of Object.keys(cache)) {
-    if (!url.startsWith(prefix)) {
-      continue;
-    }
-    const page = Number(url.slice(prefix.length));
-    if (Number.isInteger(page) && page >= 1 && page > max) {
-      max = page;
+function knownPages(
+  cache: EtagCache,
+  urlForPage: (page: number) => string,
+  pagePathFor: (page: number) => string,
+): Map<number, string> {
+  const pages = new Map<number, string>();
+  let first: URL;
+  try {
+    first = new URL(urlForPage(1));
+  } catch {
+    return pages;
+  }
+
+  const fixedParams = new Map<string, string>();
+  for (const [key, value] of first.searchParams) {
+    if (key !== 'page') {
+      fixedParams.set(key, value);
     }
   }
-  return max >= 1 ? max : 1;
+
+  const pageSuffix = /page-\d+\.json$/;
+  const firstPath = pagePathFor(1);
+  const pagePathPrefix = pageSuffix.test(firstPath)
+    ? firstPath.replace(pageSuffix, 'page-')
+    : null;
+
+  for (const [url, entry] of Object.entries(cache)) {
+    let parsed: URL | null = null;
+    try {
+      parsed = new URL(url);
+    } catch {
+      parsed = null;
+    }
+
+    if (parsed !== null && parsed.origin === first.origin && parsed.pathname === first.pathname) {
+      let matches = true;
+      for (const [key, value] of fixedParams) {
+        if (parsed.searchParams.get(key) !== value) {
+          matches = false;
+          break;
+        }
+      }
+      if (matches) {
+        const page = Number(parsed.searchParams.get('page'));
+        if (Number.isInteger(page) && page >= 1) {
+          pages.set(page, url);
+        }
+      }
+    }
+
+    // The source path is independent of the URL GitHub chose for the page.
+    const sourcePath = entry.sourcePath;
+    if (
+      pagePathPrefix !== null &&
+      sourcePath !== undefined &&
+      sourcePath.startsWith(pagePathPrefix) &&
+      sourcePath.endsWith('.json')
+    ) {
+      const sourcePage = Number(sourcePath.slice(pagePathPrefix.length, -'.json'.length));
+      if (Number.isInteger(sourcePage) && sourcePage >= 1) {
+        pages.set(sourcePage, url);
+      }
+    }
+  }
+  return pages;
 }
 
 function addPaginated(
@@ -130,9 +185,22 @@ function addPaginated(
   resource: Resource,
   urlForPage: (page: number) => string,
 ): void {
-  const pages = knownPageCount(cache, urlForPage);
-  for (let page = 1; page <= pages; page += 1) {
-    const url = urlForPage(page);
+  const login = subjectLogin(subject);
+  const pagePathFor: (page: number) => string =
+    resource === 'followers'
+      ? (page) => followerPagePath(login, page)
+      : (page) => repoPagePath(login, page);
+
+  const pages = knownPages(cache, urlForPage, pagePathFor);
+  let max = 1;
+  for (const page of pages.keys()) {
+    if (page > max) {
+      max = page;
+    }
+  }
+
+  for (let page = 1; page <= max; page += 1) {
+    const url = pages.get(page) ?? urlForPage(page);
     requests.push({ subject, resource, url, page, conditional: etagFor(cache, url) !== undefined });
   }
 }
@@ -356,7 +424,12 @@ function payloadPathFor(request: PendingRequest): string {
   return standaloneRepoPath(subjectRepo(request.subject));
 }
 
-function nextRequestFor(request: PendingRequest, link: string | null, itemCount: number): PendingRequest | null {
+function nextRequestFor(
+  request: PendingRequest,
+  link: string | null,
+  itemCount: number,
+  apiBase: string,
+): PendingRequest | null {
   if (request.resource === 'followers' || request.resource === 'repos') {
     // Spec §9: never follow more than MAX_PAGES pages for one resource.
     if (request.page >= MAX_PAGES) {
@@ -370,11 +443,15 @@ function nextRequestFor(request: PendingRequest, link: string | null, itemCount:
     const url =
       nextPageUrl(link) ??
       (request.resource === 'followers'
-        ? followersUrl(GITHUB_API_BASE, login, request.page + 1)
-        : reposUrl(GITHUB_API_BASE, login, request.page + 1));
+        ? followersUrl(apiBase, login, request.page + 1)
+        : reposUrl(apiBase, login, request.page + 1));
     return { subject: request.subject, resource: request.resource, url, page: request.page + 1 };
   }
   return null;
+}
+
+function pageKey(request: PendingRequest): string {
+  return `${request.subject}\u0000${request.resource}\u0000${request.page}`;
 }
 
 function dedupePending(requests: readonly PendingRequest[]): PendingRequest[] {
@@ -480,13 +557,29 @@ async function executeRun(
   });
 
   const pendingQueue: PendingRequest[] = [...queue];
-  const scheduled = new Set<string>(pendingQueue.map((request) => request.url));
+  const scheduled = new Set<string>(pendingQueue.map((request) => pageKey(request)));
   const processed = new Set<string>();
   const failed: PendingRequest[] = [];
   let lastRateLimit: RateLimitHeaders | null = null;
   let stopped: 'cap' | 'rate' | 'interrupt' | null = null;
   let resumeAfter: string | null = null;
   let made = 0;
+
+  const enqueueNextPage = (
+    request: PendingRequest,
+    link: string | null,
+    itemCount: number,
+  ): void => {
+    const next = nextRequestFor(request, link, itemCount, client.apiBase);
+    if (next === null) {
+      return;
+    }
+    const key = pageKey(next);
+    if (!scheduled.has(key)) {
+      scheduled.add(key);
+      pendingQueue.push(next);
+    }
+  };
 
   while (pendingQueue.length > 0) {
     if (context.signal?.aborted === true) {
@@ -555,6 +648,14 @@ async function executeRun(
           sourceRun: writer.id,
           sourcePath: relativePath,
         });
+
+        // A 304 has no body, so pagination continues from the copied payload.
+        // Without this, a full unchanged page 1 would hide every later page.
+        enqueueNextPage(
+          request,
+          response.link,
+          Array.isArray(resolved.payload) ? resolved.payload.length : 0,
+        );
       } else if (response.status === 200) {
         const payload = response.payload ?? null;
         await writer.writePayload(relativePath, payload);
@@ -585,11 +686,7 @@ async function executeRun(
         manifest.requests.push(entry);
 
         const itemCount = Array.isArray(payload) ? payload.length : 0;
-        const next = nextRequestFor(request, response.link, itemCount);
-        if (next !== null && !scheduled.has(next.url)) {
-          scheduled.add(next.url);
-          pendingQueue.push(next);
-        }
+        enqueueNextPage(request, response.link, itemCount);
       } else if (response.status === 404) {
         manifest.errors.push({
           subject: request.subject,
