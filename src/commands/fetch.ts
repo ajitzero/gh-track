@@ -1,24 +1,57 @@
-/** `gh-track fetch`: request planning and `--dry-run` output. */
+/** `gh-track fetch`: planning, `--dry-run`, live runs, and `--resume`. */
 
-import { defaultDefaults, loadConfig } from '../config.js';
-import { emptyWatchlist, notImplemented, UsageError } from '../errors.js';
-import { etagFor, parseEtagCache, type EtagCache } from '../github/etag.js';
-import { GITHUB_API_BASE } from '../github/client.js';
+import { defaultConfig, defaultDefaults, loadConfig } from '../config.js';
+import {
+  emptyWatchlist,
+  httpError,
+  runNotFound,
+  UsageError,
+  toCliError,
+} from '../errors.js';
+import {
+  GITHUB_API_BASE,
+  hasNextPage,
+  nextPageUrl,
+  GitHubClient,
+  MAX_PAGES,
+} from '../github/client.js';
+import { etagFor, parseEtagCache, recordEtag, resolveNotModified, type EtagCache } from '../github/etag.js';
 import {
   effectiveMaxRequests,
   parseRateLimitState,
   quotaDerivedCap,
+  stateFromInfo,
+  type RateLimitHeaders,
 } from '../github/rateLimit.js';
-import { followersUrl } from '../github/resources/followers.js';
+import { FOLLOWERS_PER_PAGE, followersUrl } from '../github/resources/followers.js';
+import { REPOS_PER_PAGE, reposUrl } from '../github/resources/repos.js';
 import { repoUrl } from '../github/resources/repo.js';
-import { reposUrl } from '../github/resources/repos.js';
 import { renderTable } from '../output/table.js';
-import { readStateJson, STATE_ETAGS_FILE, STATE_LIMITS_FILE } from '../store/state.js';
+import { createManifest, readManifest } from '../store/manifest.js';
+import {
+  accountRepoPath,
+  cleanupTempRuns,
+  createRunWriter,
+  followerPagePath,
+  openRunWriter,
+  repoPagePath,
+  standaloneRepoPath,
+  type RunWriter,
+} from '../store/runWriter.js';
+import { acquireLock } from '../store/lock.js';
+import { latestPartialRun, readRunPayload } from '../store/runs.js';
+import { readStateJson, STATE_ETAGS_FILE, STATE_LIMITS_FILE, writeStateJson } from '../store/state.js';
+import { formatRunId } from '../store/paths.js';
 import { parseSubject, subjectKey } from '../subjects.js';
+import { VERSION } from '../version.js';
 import type {
   CommandContext,
   CommandResult,
+  Config,
   ConfigSubject,
+  Manifest,
+  ManifestRequestEntry,
+  PendingRequest,
   Resource,
   SubjectType,
 } from '../types.js';
@@ -47,6 +80,10 @@ export interface FetchPlan {
 
 const USER_DEFAULT_RESOURCES: readonly Resource[] = ['followers', 'repos'];
 const REPO_DEFAULT_RESOURCES: readonly Resource[] = ['repo'];
+
+// ---------------------------------------------------------------------------
+// Planning
+// ---------------------------------------------------------------------------
 
 function toPlanSubject(subject: ConfigSubject): PlanSubject {
   if (subject.type === 'user') {
@@ -147,7 +184,7 @@ export function buildFetchPlan(
 interface ResolvedSubjects {
   subjects: PlanSubject[];
   warnings: string[];
-  config: Awaited<ReturnType<typeof loadConfig>>;
+  config: Config | null;
 }
 
 async function resolveSubjects(
@@ -159,13 +196,12 @@ async function resolveSubjects(
 
   if (args.length === 0) {
     if (loaded === null) {
-      // `required: true` already threw config_missing; this keeps types honest.
       throw emptyWatchlist();
     }
     if (loaded.config.subjects.length === 0) {
       throw emptyWatchlist();
     }
-    return { subjects: loaded.config.subjects.map(toPlanSubject), warnings, config: loaded };
+    return { subjects: loaded.config.subjects.map(toPlanSubject), warnings, config: loaded.config };
   }
 
   const configured = new Map<string, ConfigSubject>();
@@ -206,7 +242,7 @@ async function resolveSubjects(
     );
   }
 
-  return { subjects, warnings, config: loaded };
+  return { subjects, warnings, config: loaded?.config ?? null };
 }
 
 function resolveToken(context: CommandContext, tokenEnv: string): string | undefined {
@@ -232,6 +268,10 @@ function parseMaxRequests(raw: string | undefined): number | undefined {
   return value;
 }
 
+// ---------------------------------------------------------------------------
+// Dry run
+// ---------------------------------------------------------------------------
+
 function renderPlanText(plan: FetchPlan, cap: number): string {
   if (plan.requests.length === 0) {
     return `Dry run: no requests planned; effective cap ${cap}.\n`;
@@ -248,14 +288,7 @@ function renderPlanText(plan: FetchPlan, cap: number): string {
   return `Dry run: ${plan.requests.length} request(s) planned; effective cap ${cap}.\n\n${table}\n`;
 }
 
-export async function runFetch(context: CommandContext): Promise<CommandResult> {
-  const dryRun = context.options.has('dry-run');
-
-  if (!dryRun) {
-    // The run writer, manifests, and resume land in M3.
-    throw notImplemented('fetch', 3);
-  }
-
+async function runDryRun(context: CommandContext): Promise<CommandResult> {
   if (context.options.has('resume')) {
     throw new UsageError('--dry-run cannot be combined with --resume.');
   }
@@ -267,7 +300,7 @@ export async function runFetch(context: CommandContext): Promise<CommandResult> 
   const plan = buildFetchPlan(subjects, cache, GITHUB_API_BASE);
 
   const limits = parseRateLimitState(await readStateJson(context.paths.dataDir, STATE_LIMITS_FILE));
-  const tokenEnv = config?.config.defaults.tokenEnv ?? defaultDefaults().tokenEnv;
+  const tokenEnv = config?.defaults.tokenEnv ?? defaultDefaults().tokenEnv;
   const hasToken = resolveToken(context, tokenEnv) !== undefined;
   const nowMs = Date.now();
   const quota = quotaDerivedCap(limits, hasToken, nowMs);
@@ -286,4 +319,445 @@ export async function runFetch(context: CommandContext): Promise<CommandResult> 
     text: renderPlanText(plan, cap),
     warnings,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Live fetch
+// ---------------------------------------------------------------------------
+
+function subjectLogin(subject: string): string {
+  return subject.slice('user:'.length);
+}
+
+function subjectRepo(subject: string): string {
+  return subject.slice('repo:'.length);
+}
+
+function payloadPathFor(request: PendingRequest): string {
+  if (request.resource === 'followers') {
+    return followerPagePath(subjectLogin(request.subject), request.page);
+  }
+  if (request.resource === 'repos') {
+    return repoPagePath(subjectLogin(request.subject), request.page);
+  }
+  return standaloneRepoPath(subjectRepo(request.subject));
+}
+
+function nextRequestFor(request: PendingRequest, link: string | null, itemCount: number): PendingRequest | null {
+  if (request.resource === 'followers' || request.resource === 'repos') {
+    // Spec §9: never follow more than MAX_PAGES pages for one resource.
+    if (request.page >= MAX_PAGES) {
+      return null;
+    }
+    const perPage = request.resource === 'followers' ? FOLLOWERS_PER_PAGE : REPOS_PER_PAGE;
+    if (!hasNextPage(link, itemCount, perPage)) {
+      return null;
+    }
+    const login = subjectLogin(request.subject);
+    const url =
+      nextPageUrl(link) ??
+      (request.resource === 'followers'
+        ? followersUrl(GITHUB_API_BASE, login, request.page + 1)
+        : reposUrl(GITHUB_API_BASE, login, request.page + 1));
+    return { subject: request.subject, resource: request.resource, url, page: request.page + 1 };
+  }
+  return null;
+}
+
+function dedupePending(requests: readonly PendingRequest[]): PendingRequest[] {
+  const seen = new Set<string>();
+  const pending: PendingRequest[] = [];
+  for (const request of requests) {
+    if (seen.has(request.url)) {
+      continue;
+    }
+    seen.add(request.url);
+    pending.push(request);
+  }
+  return pending;
+}
+
+async function expandRepos(writer: RunWriter, login: string, payload: unknown): Promise<void> {
+  if (!Array.isArray(payload)) {
+    return;
+  }
+  for (const entry of payload) {
+    if (typeof entry !== 'object' || entry === null) {
+      continue;
+    }
+    const fullName = (entry as { full_name?: unknown }).full_name;
+    if (typeof fullName === 'string' && fullName.length > 0) {
+      await writer.writePayload(accountRepoPath(login, fullName), entry);
+    }
+  }
+}
+
+async function recountStats(writer: RunWriter, manifest: Manifest): Promise<void> {
+  let repos = 0;
+  let followers = 0;
+  let notModified = 0;
+  for (const entry of manifest.requests) {
+    if (entry.status === 304) {
+      notModified += 1;
+    }
+    if (entry.path === undefined) {
+      continue;
+    }
+    if (entry.resource === 'repo') {
+      repos += 1;
+      continue;
+    }
+    if (entry.resource === 'followers' || entry.resource === 'repos') {
+      let payload: unknown = null;
+      try {
+        payload = await writer.readPayload(entry.path);
+      } catch {
+        payload = null;
+      }
+      if (Array.isArray(payload)) {
+        if (entry.resource === 'followers') {
+          followers += payload.length;
+        } else {
+          repos += payload.length;
+        }
+      }
+    }
+  }
+  manifest.stats = { repos, followers, requests: manifest.requests.length, notModified };
+}
+
+interface RunOutcome {
+  manifest: Manifest;
+  interrupted: boolean;
+  resumeAfter: string | null;
+}
+
+async function executeRun(
+  context: CommandContext,
+  writer: RunWriter,
+  manifest: Manifest,
+  queue: readonly PendingRequest[],
+  config: Config,
+  token: string | undefined,
+  warnings: string[],
+): Promise<RunOutcome> {
+  const dataDir = context.paths.dataDir;
+  const cache = parseEtagCache(await readStateJson(dataDir, STATE_ETAGS_FILE));
+  const limits = parseRateLimitState(await readStateJson(dataDir, STATE_LIMITS_FILE));
+  const override = parseMaxRequests(context.options.get('max-requests'));
+  const nowMs = Date.now();
+  const quota = quotaDerivedCap(limits, token !== undefined, nowMs);
+  const cap = effectiveMaxRequests(limits, { hasToken: token !== undefined, nowMs, override });
+  if (override !== undefined && override > quota) {
+    warnings.push(`--max-requests ${override} exceeds the quota-derived cap ${quota}; using ${quota}.`);
+  }
+
+  const client = new GitHubClient({
+    token,
+    timeoutMs: config.defaults.requestTimeoutMs,
+    maxRetries: config.defaults.maxRetries,
+    userAgent: `gh-track/${VERSION}`,
+    fetchImpl: context.fetchImpl,
+    sleep: context.sleepImpl,
+    onDiagnostic: (message) => {
+      if (context.verbose) {
+        warnings.push(message);
+      }
+    },
+  });
+
+  const pendingQueue: PendingRequest[] = [...queue];
+  const scheduled = new Set<string>(pendingQueue.map((request) => request.url));
+  const processed = new Set<string>();
+  const failed: PendingRequest[] = [];
+  let lastRateLimit: RateLimitHeaders | null = null;
+  let stopped: 'cap' | 'rate' | 'interrupt' | null = null;
+  let resumeAfter: string | null = null;
+  let made = 0;
+
+  while (pendingQueue.length > 0) {
+    if (context.signal?.aborted === true) {
+      stopped = 'interrupt';
+      break;
+    }
+    if (made >= cap) {
+      stopped = 'cap';
+      break;
+    }
+
+    const request = pendingQueue.shift();
+    if (request === undefined) {
+      break;
+    }
+    if (processed.has(request.url)) {
+      continue;
+    }
+    processed.add(request.url);
+    made += 1;
+
+    // A resumed request that succeeds replaces any error recorded earlier.
+    manifest.errors = manifest.errors.filter((entry) => entry.url !== request.url);
+
+    const cachedEtag = cache[request.url]?.etag ?? null;
+
+    try {
+      const response = await client.get(request.url, {
+        ifNoneMatch: cachedEtag,
+        signal: context.signal,
+      });
+      lastRateLimit = response.rateLimit;
+      const checkedAt = new Date().toISOString();
+      const relativePath = payloadPathFor(request);
+
+      if (response.status === 304) {
+        const entry = cache[request.url];
+        if (entry === undefined) {
+          throw httpError(304, `Received 304 without a cached validator: ${request.url}`, {
+            url: request.url,
+          });
+        }
+        const resolved = await resolveNotModified(entry, (runId, relativePath2) =>
+          readRunPayload(dataDir, runId, relativePath2),
+        );
+        await writer.writePayload(relativePath, resolved.payload);
+        if (request.resource === 'repos') {
+          await expandRepos(writer, subjectLogin(request.subject), resolved.payload);
+        }
+        manifest.requests.push({
+          subject: request.subject,
+          resource: request.resource,
+          url: request.url,
+          page: request.page,
+          status: 304,
+          etag: entry.etag,
+          path: relativePath,
+          sourceRun: resolved.sourceRun,
+          sourcePath: resolved.sourcePath,
+        });
+        recordEtag(cache, request.url, {
+          etag: entry.etag,
+          lastModified: entry.lastModified ?? null,
+          status: 304,
+          checkedAt,
+          sourceRun: writer.id,
+          sourcePath: relativePath,
+        });
+      } else if (response.status === 200) {
+        const payload = response.payload ?? null;
+        await writer.writePayload(relativePath, payload);
+        if (request.resource === 'repos') {
+          await expandRepos(writer, subjectLogin(request.subject), payload);
+        }
+        const entry: ManifestRequestEntry = {
+          subject: request.subject,
+          resource: request.resource,
+          url: request.url,
+          page: request.page,
+          status: 200,
+          path: relativePath,
+        };
+        if (response.etag !== null) {
+          entry.etag = response.etag;
+          recordEtag(cache, request.url, {
+            etag: response.etag,
+            lastModified: response.lastModified,
+            status: 200,
+            checkedAt,
+            sourceRun: writer.id,
+            sourcePath: relativePath,
+          });
+        } else {
+          delete cache[request.url];
+        }
+        manifest.requests.push(entry);
+
+        const itemCount = Array.isArray(payload) ? payload.length : 0;
+        const next = nextRequestFor(request, response.link, itemCount);
+        if (next !== null && !scheduled.has(next.url)) {
+          scheduled.add(next.url);
+          pendingQueue.push(next);
+        }
+      } else if (response.status === 404) {
+        manifest.errors.push({
+          subject: request.subject,
+          resource: request.resource,
+          url: request.url,
+          status: 404,
+          code: 'http_error',
+          message: 'Not Found',
+        });
+      }
+    } catch (error) {
+      const cliError = toCliError(error);
+      if (cliError.code === 'interrupted') {
+        pendingQueue.unshift(request);
+        stopped = 'interrupt';
+        break;
+      }
+      if (cliError.code === 'rate_limited') {
+        const detail = cliError.details?.resumeAfter;
+        resumeAfter = typeof detail === 'string' ? detail : null;
+        pendingQueue.unshift(request);
+        stopped = 'rate';
+        break;
+      }
+      manifest.errors.push({
+        subject: request.subject,
+        resource: request.resource,
+        url: request.url,
+        status: typeof cliError.details?.status === 'number' ? cliError.details.status : 0,
+        code: cliError.code,
+        message: cliError.message,
+      });
+      failed.push(request);
+    }
+  }
+
+  manifest.status = stopped === null && failed.length === 0 ? 'complete' : 'partial';
+  manifest.pending = dedupePending([...failed, ...pendingQueue]);
+  manifest.finishedAt = new Date().toISOString();
+
+  await recountStats(writer, manifest);
+  await writer.writeManifest(manifest);
+  await writer.promote();
+
+  await writeStateJson(dataDir, STATE_ETAGS_FILE, cache);
+  if (lastRateLimit !== null) {
+    const state = stateFromInfo(lastRateLimit, new Date().toISOString());
+    if (state !== null) {
+      await writeStateJson(dataDir, STATE_LIMITS_FILE, state);
+    }
+  }
+
+  return { manifest, interrupted: stopped === 'interrupt', resumeAfter };
+}
+
+function runSummary(manifest: Manifest): Record<string, unknown> {
+  return {
+    id: manifest.id,
+    status: manifest.status,
+    startedAt: manifest.startedAt,
+    finishedAt: manifest.finishedAt,
+    stats: manifest.stats,
+  };
+}
+
+function buildRunResult(outcome: RunOutcome, warnings: string[]): CommandResult {
+  const { manifest } = outcome;
+  const complete = manifest.status === 'complete';
+
+  const json = complete
+    ? {
+        run: runSummary(manifest),
+        compaction: { compactedDays: 0, prunedRuns: 0 },
+        pending: [],
+        resumeAfter: null,
+      }
+    : {
+        run: runSummary(manifest),
+        compaction: null,
+        pending: manifest.pending,
+        resumeAfter: outcome.resumeAfter,
+      };
+
+  const stats = manifest.stats;
+  let text: string;
+  if (complete) {
+    text = `Run ${manifest.id} complete: ${stats.requests} request(s), ${stats.notModified} not modified; ${stats.repos} repo(s), ${stats.followers} follower(s).\n`;
+  } else {
+    text = `Run ${manifest.id} ${manifest.status}: ${manifest.pending.length} pending. Resume with 'gh-track fetch --resume ${manifest.id}'.\n`;
+    if (outcome.resumeAfter !== null) {
+      text += `Rate limit exhausted; resume after ${outcome.resumeAfter}.\n`;
+    }
+  }
+
+  const exitCode = complete ? 0 : outcome.interrupted ? 130 : 3;
+  return { json, text, warnings, exitCode };
+}
+
+async function runLive(context: CommandContext): Promise<CommandResult> {
+  const resumeRequested = context.options.has('resume');
+  const resumeValue = context.options.get('resume') ?? '';
+  const warnings: string[] = [];
+
+  const loaded = await loadConfig(context.paths.configPath, { required: false });
+  const config = loaded?.config ?? defaultConfig();
+  if (loaded !== null) {
+    warnings.push(...loaded.warnings);
+  }
+  const token = resolveToken(context, config.defaults.tokenEnv);
+
+  const lock = await acquireLock(context.paths.dataDir);
+  try {
+    let writer: RunWriter;
+    let manifest: Manifest;
+    let queue: PendingRequest[];
+
+    if (resumeRequested) {
+      const existing =
+        resumeValue === ''
+          ? await latestPartialRun(context.paths.dataDir)
+          : await readManifest(context.paths.dataDir, resumeValue);
+      if (existing === null) {
+        throw runNotFound(resumeValue === '' ? 'latest partial' : resumeValue);
+      }
+      if (existing.status !== 'partial') {
+        throw new UsageError(
+          `Run ${existing.id} is ${existing.status}; only partial runs can be resumed.`,
+        );
+      }
+      if (context.positionals.length > 0) {
+        warnings.push('Subject arguments are ignored with --resume; using the run pending list.');
+      }
+      manifest = existing;
+      queue = dedupePending(existing.pending);
+      writer = await openRunWriter(context.paths.dataDir, existing.id);
+    } else {
+      const resolved = await resolveSubjects(context, context.positionals);
+      warnings.push(...resolved.warnings);
+      await cleanupTempRuns(context.paths.dataDir);
+
+      const startedAt = new Date();
+      const id = formatRunId(startedAt);
+      manifest = createManifest(
+        id,
+        startedAt.toISOString(),
+        resolved.subjects.map((subject) => ({
+          subject: subject.subject,
+          resources: [...subject.resources],
+        })),
+      );
+      writer = await createRunWriter(context.paths.dataDir, id);
+
+      const cache = parseEtagCache(
+        await readStateJson(context.paths.dataDir, STATE_ETAGS_FILE),
+      );
+      const plan = buildFetchPlan(resolved.subjects, cache, GITHUB_API_BASE);
+      queue = dedupePending(
+        plan.requests.map((request) => ({
+          subject: request.subject,
+          resource: request.resource,
+          url: request.url,
+          page: request.page,
+        })),
+      );
+    }
+
+    try {
+      const outcome = await executeRun(context, writer, manifest, queue, config, token, warnings);
+      return buildRunResult(outcome, warnings);
+    } catch (error) {
+      await writer.discard();
+      throw error;
+    }
+  } finally {
+    await lock.release();
+  }
+}
+
+export async function runFetch(context: CommandContext): Promise<CommandResult> {
+  if (context.options.has('dry-run')) {
+    return runDryRun(context);
+  }
+  return runLive(context);
 }

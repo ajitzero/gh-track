@@ -31,6 +31,7 @@ Decisions made during the initial design interview on 2026-10-19. Each entry rec
 | D016 | Test runner uses quoted globs, not a directory argument |
 | D017 | Interactive first-run setup for a missing watchlist |
 | D018 | Dry-run baseline, explicit-subject resources, and cache persistence |
+| D019 | Run writer, partial promotion, and resume semantics |
 
 ## D001 — Local files only
 
@@ -184,6 +185,24 @@ Decisions made during the initial design interview on 2026-10-19. Each entry rec
 **Rejected.** Assuming zero remaining quota when nothing is observed (`--dry-run` would report a useless cap of 0); ignoring `resetAt` (a stale entry would under-report the budget for up to an hour); always using default resources for explicit subjects (a `--resources followers` watch would silently refetch repositories); trusting the cached page count for real runs (the cache only feeds the dry-run estimate); letting `github/*` read the state files directly (couples HTTP code to the storage layout).
 
 **Consequence.** `--dry-run` is meaningful on a fresh machine and writes nothing. Real runs remain the source of truth for pagination, and `store/state.ts` is the single owner of the advisory caches.
+
+## D019 — Run writer, partial promotion, and resume semantics
+
+**Context.** M3 implements `store/runWriter.ts`, `store/manifest.ts`, `store/lock.ts`, the live `fetch` path, `runs ls|show|paths`, and `watch ls` last-run summaries. The spec fixes the run layout and JSON contracts; these are the operational choices it leaves open.
+
+**Decision.**
+
+1. **Atomic promotion.** A fresh run writes every payload and the final manifest into `runs/.tmp-<id>/`, then `rename()`s the directory to `runs/<id>/`. The manifest is written once, immediately before promotion, so a promoted run always has a complete manifest. A same-second id collision is an `io_error`, never an overwrite.
+2. **Partial triggers.** A run is promoted as `partial` when the request cap is reached, the primary rate limit is exhausted, the process is interrupted, or any request ultimately fails. Unstarted and failed requests are deduplicated into `pending`; a `404` is recorded in `errors` and does not make the run partial.
+3. **Exit codes.** `complete` exits `0`, `partial` exits `3`, and an interrupted run exits `130` after promoting. `resumeAfter` is set only for rate-limit stops.
+4. **Resume.** `--resume [<run-id>]` opens the newest partial run (or the named one) in place, refetches only `pending` URLs, ignores subject arguments with a warning, and refuses complete runs and `--dry-run`. Error entries for a URL are cleared when that URL later succeeds.
+5. **`304` copies forward.** A not-modified response copies the previous payload into the new run, so every promoted run is self-contained even after older runs are pruned. The manifest entry keeps `sourceRun`/`sourcePath` for provenance.
+6. **Locking.** One `pid` lock in `locks/fetch.lock` covers the whole live fetch, including cache writes. A dead pid is reclaimed; a live pid yields `locked` (exit `1`). `--dry-run` takes no lock. Leftover `.tmp-*` directories are removed by the next live fetch while it holds the lock.
+7. **Last-run lookup.** `watch ls` scans manifests newest-first, compares subjects case-insensitively, and ignores `failed` runs, so a subject that has never completed or partially fetched reports `null`.
+
+**Rejected.** Writing the manifest after every request (more atomicity for a hard kill, but much more I/O and no benefit once the next fetch cleans `.tmp-*`); keeping `<id>-2` suffixes for same-second runs (the collision is rare and an explicit error is honest); resolving `304` from a run that may later be pruned (breaks the self-contained invariant); making `404` a partial-run trigger (a missing repository should not force a resume); storing last-run data in config (derived state belongs with the runs).
+
+**Consequence.** Completed runs are immutable and self-contained, hard kills leave only temp garbage, and resuming never spends quota on requests that already succeeded. M4 can prune raw runs without breaking conditional responses from surviving runs.
 
 ## Open questions
 

@@ -317,7 +317,7 @@ test('interactive watch rm can be declined without changing the config', async (
 });
 
 test('unimplemented commands exit 1 with a milestone message', async () => {
-  const result = await invoke(['fetch']);
+  const result = await invoke(['diff']);
   assert.equal(result.code, 1);
   assert.match(result.stderr, /not implemented yet/);
 });

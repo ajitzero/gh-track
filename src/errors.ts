@@ -125,6 +125,18 @@ export function notImplemented(command: string, milestone: number): CliError {
   );
 }
 
+export function runNotFound(runId: string): CliError {
+  return new CliError('run_not_found', `Run not found: ${runId}`, { runId });
+}
+
+export function locked(lockPath: string, pid: number): CliError {
+  return new CliError(
+    'locked',
+    `Another fetch is already running (pid ${pid}). Wait for it to finish or remove ${lockPath}.`,
+    { path: lockPath, pid },
+  );
+}
+
 export function interrupted(): CliError {
   return new CliError('interrupted', 'Interrupted');
 }

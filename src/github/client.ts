@@ -1,9 +1,12 @@
 /** HTTP client for the GitHub REST API: headers, auth, timeout, retries, pagination. */
 
-import { httpError, networkError, rateLimited } from '../errors.js';
+import { httpError, interrupted, networkError, rateLimited } from '../errors.js';
 import { parseRateLimitHeaders, type RateLimitHeaders } from './rateLimit.js';
 
 export const GITHUB_API_BASE = 'https://api.github.com';
+
+/** Runaway-page guard from spec §9. */
+export const MAX_PAGES = 1000;
 
 const API_VERSION = '2022-11-28';
 const ACCEPT = 'application/vnd.github+json';
@@ -15,6 +18,7 @@ export interface GitHubResponse {
   status: number;
   etag: string | null;
   lastModified: string | null;
+  link: string | null;
   rateLimit: RateLimitHeaders;
   notModified: boolean;
   payload?: unknown;
@@ -37,6 +41,8 @@ export interface GitHubClientOptions {
 export interface RequestOptions {
   /** Sent as `If-None-Match` for conditional requests. */
   ifNoneMatch?: string | null | undefined;
+  /** Aborting this signal stops the request and throws `interrupted`. */
+  signal?: AbortSignal | undefined;
 }
 
 function defaultSleep(ms: number): Promise<void> {
@@ -47,6 +53,10 @@ function defaultSleep(ms: number): Promise<void> {
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function isAborted(signal: AbortSignal | undefined): boolean {
+  return signal !== undefined && signal.aborted;
 }
 
 export class GitHubClient {
@@ -117,11 +127,25 @@ export class GitHubClient {
     let attempt = 0;
 
     for (;;) {
+      if (isAborted(options.signal)) {
+        throw interrupted();
+      }
+
       attempt += 1;
       const controller = new AbortController();
       const timer = setTimeout(() => {
         controller.abort();
       }, this.timeoutMs);
+      const bridgeAbort = (): void => {
+        controller.abort();
+      };
+      if (options.signal !== undefined) {
+        options.signal.addEventListener('abort', bridgeAbort, { once: true });
+      }
+      const detach = (): void => {
+        clearTimeout(timer);
+        options.signal?.removeEventListener('abort', bridgeAbort);
+      };
 
       let response: Response;
       try {
@@ -131,7 +155,10 @@ export class GitHubClient {
           signal: controller.signal,
         });
       } catch (error) {
-        clearTimeout(timer);
+        detach();
+        if (isAborted(options.signal)) {
+          throw interrupted();
+        }
         const timedOut = controller.signal.aborted;
         if (attempt <= this.maxRetries) {
           this.diagnostic(
@@ -147,15 +174,16 @@ export class GitHubClient {
           { url },
         );
       }
-      clearTimeout(timer);
+      detach();
 
       const rateLimit = parseRateLimitHeaders(response.headers);
       const etag = response.headers.get('etag');
       const lastModified = response.headers.get('last-modified');
+      const link = response.headers.get('link');
       const status = response.status;
 
       if (status === 304) {
-        return { url, status, etag, lastModified, rateLimit, notModified: true };
+        return { url, status, etag, lastModified, link, rateLimit, notModified: true };
       }
 
       if (status === 403) {
@@ -189,7 +217,7 @@ export class GitHubClient {
       }
 
       if (status === 404) {
-        return { url, status, etag, lastModified, rateLimit, notModified: false };
+        return { url, status, etag, lastModified, link, rateLimit, notModified: false };
       }
 
       if (status >= 400) {
@@ -205,7 +233,7 @@ export class GitHubClient {
           throw httpError(status, `Malformed JSON response for ${url}`, { url });
         }
       }
-      return { url, status, etag, lastModified, rateLimit, notModified: false, payload };
+      return { url, status, etag, lastModified, link, rateLimit, notModified: false, payload };
     }
   }
 }

@@ -6,7 +6,7 @@ Entry point for agents and contributors. Keep this file short; the reasoning liv
 
 `gh-track` is a local-first CLI that fetches public GitHub REST payloads for watched accounts and repositories on demand, writes immutable timestamped snapshots, compacts old runs into a small history, and derives diffs between runs. It is built for one operator tracking their own account plus arbitrary public accounts.
 
-**Status:** Milestones 1 and 2 (M1, M2) are implemented: package/TypeScript setup, `config.ts`, `store/paths.ts`, `help.ts` registry, `watch add|ls|rm`, the prompt gate/wrappers, and the M2 GitHub layer (`github/client.ts`, ETag and rate-limit caches, `followers`/`repos`/`repo` URL builders) with `fetch --dry-run`. A real `fetch` (no `--dry-run`) still exits `1`; the run writer, manifests, and resume land in M3. `runs`, `diff`, `compact`, and `export` are registered for help only and exit `1` until their milestones land (M3-M5). `watch ls` reports `lastRun: null` until M3.
+**Status:** Milestones 1-3 (M1-M3) are implemented: package/TypeScript setup, `config.ts`, `store/paths.ts`, `help.ts` registry, `watch add|ls|rm`, the prompt gate/wrappers, the M2 GitHub layer (`github/client.ts`, ETag and rate-limit caches, `followers`/`repos`/`repo` URL builders) with `fetch --dry-run`, and the M3 run layer (`store/runWriter.ts`, `store/manifest.ts`, `store/lock.ts`, real `fetch`, partial runs and `--resume`, `runs ls|show|paths`, and `watch ls` last-run summaries). Complete-run JSON reports zero compaction until M4 wires compaction. `diff`, `compact`, and `export` are registered for help only and exit `1` until their milestones land (M4-M5).
 
 ## Read first
 

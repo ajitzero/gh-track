@@ -6,6 +6,7 @@ import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { renderHelpCommand } from './commands/help.js';
 import { runFetch } from './commands/fetch.js';
+import { runRuns } from './commands/runs.js';
 import { runWatch } from './commands/watch.js';
 import {
   CliError,
@@ -39,6 +40,15 @@ export interface CliIO {
   platform: NodeJS.Platform;
   home: string;
   prompts: PromptApi;
+  /** Injectable HTTP implementation, used by tests. */
+  fetchImpl?: ((input: string, init?: RequestInit) => Promise<Response>) | undefined;
+  /** Injectable retry delay, used by tests. */
+  sleepImpl?: ((ms: number) => Promise<void>) | undefined;
+}
+
+export interface RunOptions {
+  /** Aborted on SIGINT. */
+  signal?: AbortSignal | undefined;
 }
 
 type ValueKind = 'required' | 'optional' | 'none';
@@ -360,6 +370,7 @@ function buildContext(
   options: ParsedOptionBag,
   positionals: string[],
   format: OutputFormat,
+  signal: AbortSignal | undefined,
 ): CommandContext {
   const overrides: PathOverrides = {
     env: io.env,
@@ -403,6 +414,9 @@ function buildContext(
     }),
     prompts: io.prompts,
     env: io.env,
+    signal,
+    fetchImpl: io.fetchImpl,
+    sleepImpl: io.sleepImpl,
   };
 }
 
@@ -447,7 +461,11 @@ function renderError(
   }
 }
 
-export async function run(argv: readonly string[], io: CliIO): Promise<number> {
+export async function run(
+  argv: readonly string[],
+  io: CliIO,
+  runOptions: RunOptions = {},
+): Promise<number> {
   let format = peekFormat(argv);
   const verbose = argv.includes('--verbose');
 
@@ -490,20 +508,27 @@ export async function run(argv: readonly string[], io: CliIO): Promise<number> {
     }
 
     if (command === 'watch') {
-      const context = buildContext(io, options, rest, format);
+      const context = buildContext(io, options, rest, format, runOptions.signal);
       const result = await runWatch(context);
       emit(result, format, io);
-      return 0;
+      return result.exitCode ?? 0;
     }
 
     if (command === 'fetch') {
-      const context = buildContext(io, options, rest, format);
+      const context = buildContext(io, options, rest, format, runOptions.signal);
       const result = await runFetch(context);
       emit(result, format, io);
-      return 0;
+      return result.exitCode ?? 0;
     }
 
-    throw notImplemented(command, 3);
+    if (command === 'runs') {
+      const context = buildContext(io, options, rest, format, runOptions.signal);
+      const result = await runRuns(context);
+      emit(result, format, io);
+      return result.exitCode ?? 0;
+    }
+
+    throw notImplemented(command, 4);
   } catch (error) {
     const cliError = toCliError(error);
     renderError(cliError, format, verbose, io);
@@ -539,11 +564,25 @@ function isEntryPoint(): boolean {
 }
 
 if (isEntryPoint()) {
-  void run(process.argv.slice(2), createProcessIO()).then(
+  const controller = new AbortController();
+  let interrupts = 0;
+  const onSigint = (): void => {
+    interrupts += 1;
+    if (interrupts === 1) {
+      controller.abort();
+      return;
+    }
+    process.exit(130);
+  };
+  process.on('SIGINT', onSigint);
+
+  void run(process.argv.slice(2), createProcessIO(), { signal: controller.signal }).then(
     (code) => {
+      process.removeListener('SIGINT', onSigint);
       process.exitCode = code;
     },
     (error: unknown) => {
+      process.removeListener('SIGINT', onSigint);
       process.stderr.write('gh-track: internal: unexpected failure\n');
       if (error instanceof Error && error.stack !== undefined) {
         process.stderr.write(`${error.stack}\n`);

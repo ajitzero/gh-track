@@ -46,6 +46,62 @@ export interface LastRunSummary {
   followers: number;
 }
 
+/** One manifest request entry (§5.1). */
+export interface ManifestRequestEntry {
+  subject: string;
+  resource: Resource;
+  url: string;
+  page: number;
+  status: number;
+  etag?: string | undefined;
+  path?: string | undefined;
+  sourceRun?: string | undefined;
+  sourcePath?: string | undefined;
+}
+
+/** A request that has not completed yet and is retried by `--resume`. */
+export interface PendingRequest {
+  subject: string;
+  resource: Resource;
+  url: string;
+  page: number;
+}
+
+export interface ManifestErrorEntry {
+  subject: string;
+  resource: Resource;
+  url: string;
+  status: number;
+  code: string;
+  message: string;
+}
+
+export interface ManifestStats {
+  repos: number;
+  followers: number;
+  requests: number;
+  notModified: number;
+}
+
+export interface ManifestSubject {
+  subject: string;
+  resources: Resource[];
+}
+
+/** `manifest.json` for one run (§5.1). */
+export interface Manifest {
+  schemaVersion: 1;
+  id: string;
+  startedAt: string;
+  finishedAt: string | null;
+  status: RunStatus;
+  subjects: ManifestSubject[];
+  stats: ManifestStats;
+  requests: ManifestRequestEntry[];
+  pending: PendingRequest[];
+  errors: ManifestErrorEntry[];
+}
+
 export interface WatchedUser {
   subject: string;
   type: 'user';
@@ -118,6 +174,12 @@ export interface CommandContext {
   prompts: PromptApi;
   /** Environment used to resolve token_env and platform-specific defaults. */
   env: NodeJS.ProcessEnv;
+  /** Aborted by SIGINT so long-running commands can stop gracefully. */
+  signal?: AbortSignal | undefined;
+  /** Injectable HTTP implementation; tests pass a fake, production uses global fetch. */
+  fetchImpl?: ((input: string, init?: RequestInit) => Promise<Response>) | undefined;
+  /** Injectable delay used by retry backoff. */
+  sleepImpl?: ((ms: number) => Promise<void>) | undefined;
 }
 
 export interface CommandResult {
@@ -126,4 +188,6 @@ export interface CommandResult {
   /** Human-readable result used when --format table is active. */
   text: string;
   warnings: string[];
+  /** Process exit code for this command. Defaults to 0. */
+  exitCode?: number | undefined;
 }

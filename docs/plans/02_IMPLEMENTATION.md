@@ -11,10 +11,10 @@ Execution plan for v1 (`0.1.0`). Contracts are in [01_SPEC.md](01_SPEC.md); this
 
 ## Progress
 
-- **M1 — done (2026-10-20).** Skeleton, `config.ts`, `store/paths.ts`, `help.ts`, `watch add|ls|rm`, prompt gate and clack wrappers, offline tests. `fetch`, `runs`, `diff`, `compact`, and `export` are in the help registry but exit `1` as not implemented. `watch ls` reports `lastRun: null` until M3.
-- **M2 — done (2026-10-20).** `github/client.ts`, `github/etag.ts`, `github/rateLimit.ts`, the `followers`/`repos`/`repo` URL builders, `store/state.ts`, `store/runs.ts`, and `fetch --dry-run`. A real `fetch` (no `--dry-run`) still exits `1`; the run writer, manifests, and resume are M3.
-- **M3-M6 — not started.**
-- **M7 — planned (post-v1).** Interactive first-run setup for new users; depends on M1-M3 and comes last.
+- **M1 — done (2026-10-20).** Skeleton, `config.ts`, `store/paths.ts`, `help.ts`, `watch add|ls|rm`, prompt gate and clack wrappers, offline tests.
+- **M2 — done (2026-10-20).** `github/client.ts`, `github/etag.ts`, `github/rateLimit.ts`, the `followers`/`repos`/`repo` URL builders, `store/state.ts`, `store/runs.ts`, and `fetch --dry-run`.
+- **M3 — done (2026-10-20).** `store/runWriter.ts`, `store/manifest.ts`, `store/lock.ts`, real `fetch` with conditional requests, complete/partial promotion, `pending` tracking, `--resume`, `runs ls|show|paths`, and `watch ls` last-run summaries. Complete-run JSON reports zero compaction until M4 wires compaction.
+- **M4-M6 — not started.** `diff`, `compact`, and `export` remain in the help registry but exit `1` as not implemented.
 
 ## Constraints
 

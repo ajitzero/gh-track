@@ -3,6 +3,7 @@
 import { loadConfig, saveConfig, defaultConfig } from '../config.js';
 import { UsageError, unknownSubject } from '../errors.js';
 import { renderTable } from '../output/table.js';
+import { summarizeLastRun } from '../store/runs.js';
 import { parseExplicitSubject, parseSubject, subjectKey } from '../subjects.js';
 import type {
   CommandContext,
@@ -156,14 +157,15 @@ async function addSubject(context: CommandContext, args: string[]): Promise<Comm
   };
 }
 
-function toWatched(subject: ConfigSubject): WatchedSubject {
+async function toWatched(dataDir: string, subject: ConfigSubject): Promise<WatchedSubject> {
+  const lastRun = await summarizeLastRun(dataDir, subject.subject);
   if (subject.type === 'user') {
     return {
       subject: subject.subject,
       type: 'user',
       account: subject.account,
       resources: [...subject.resources],
-      lastRun: null,
+      lastRun,
     };
   }
   return {
@@ -171,7 +173,7 @@ function toWatched(subject: ConfigSubject): WatchedSubject {
     type: 'repo',
     repo: subject.repo,
     resources: ['repo'],
-    lastRun: null,
+    lastRun,
   };
 }
 
@@ -188,7 +190,9 @@ async function listSubjects(
     throw new UsageError('Config file is required for watch ls.');
   }
 
-  const watched = loaded.config.subjects.map(toWatched);
+  const watched = await Promise.all(
+    loaded.config.subjects.map((subject) => toWatched(context.paths.dataDir, subject)),
+  );
   const result: WatchListResult = {
     configPath: context.paths.configPath,
     dataDir: context.paths.dataDir,
