@@ -1,15 +1,33 @@
 {
   "name": "gh-track",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Track GitHub metadata with an offline history.",
   "keywords": [
     "github"
   ],
   "license": "MIT",
   "author": "Ajit Panigrahi",
-  "type": "commonjs",
-  "main": "index.js",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "gh-track": "dist/cli.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "bun run src/cli.ts",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "tsc -p tsconfig.test.json && node --test \"dist-test/test/**/*.test.js\"",
+    "test:unit": "tsc -p tsconfig.test.json && node --test \"dist-test/test/unit/**/*.test.js\""
+  },
+  "dependencies": {
+    "@clack/prompts": "^1.8.1",
+    "smol-toml": "^1.9.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "typescript": "^7.0.2"
   }
 }

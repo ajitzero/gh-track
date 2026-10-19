@@ -2,12 +2,19 @@
 title: "02 — Implementation"
 type: plan
 status: active
-updated: 2026-10-19
+updated: 2026-10-20
 ---
 
 # 02 — Implementation
 
 Execution plan for v1 (`0.1.0`). Contracts are in [01_SPEC.md](01_SPEC.md); this document covers order of work, file layout, and acceptance criteria.
+
+## Progress
+
+- **M1 — done (2026-10-20).** Skeleton, `config.ts`, `store/paths.ts`, `help.ts`, `watch add|ls|rm`, prompt gate and clack wrappers, offline tests. `fetch`, `runs`, `diff`, `compact`, and `export` are in the help registry but exit `1` as not implemented. `watch ls` reports `lastRun: null` until M3.
+- **M2 — done (2026-10-20).** `github/client.ts`, `github/etag.ts`, `github/rateLimit.ts`, the `followers`/`repos`/`repo` URL builders, `store/state.ts`, `store/runs.ts`, and `fetch --dry-run`. A real `fetch` (no `--dry-run`) still exits `1`; the run writer, manifests, and resume are M3.
+- **M3-M6 — not started.**
+- **M7 — planned (post-v1).** Interactive first-run setup for new users; depends on M1-M3 and comes last.
 
 ## Constraints
 
@@ -36,8 +43,8 @@ Versions are resolved at implementation time; do not guess exact numbers in adva
     "dev": "bun run src/cli.ts",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "tsc -p tsconfig.test.json && node --test dist-test/test",
-    "test:unit": "tsc -p tsconfig.test.json && node --test dist-test/test/unit"
+    "test": "tsc -p tsconfig.test.json && node --test \"dist-test/test/**/*.test.js\"",
+    "test:unit": "tsc -p tsconfig.test.json && node --test \"dist-test/test/unit/**/*.test.js\""
   },
   "dependencies": {
     "@clack/prompts": "<latest>",
@@ -51,6 +58,8 @@ Versions are resolved at implementation time; do not guess exact numbers in adva
 ```
 
 Keep `keywords`, `license`, and `author` as they are. Add `"files": ["dist"]` when publishing; not required for v1.
+
+The test scripts pass a quoted glob rather than the bare `dist-test/test` directory: Node >= 21 no longer expands a directory argument for `--test`. See [D016](03_DECISIONS.md).
 
 ## TypeScript config
 
@@ -110,6 +119,8 @@ src/
 │       └── repo.ts
 ├── store/
 │   ├── paths.ts            XDG resolution, run paths, locks
+│   ├── state.ts            ETag/rate-limit cache persistence (reads tolerant, writes atomic)
+│   ├── runs.ts             read a stored run payload
 │   ├── runWriter.ts        temp dir, atomic rename, file writes
 │   ├── manifest.ts         create/read/update manifests
 │   ├── history.ts          NDJSON read/upsert/sort
@@ -254,6 +265,45 @@ Acceptance:
 - `node dist/cli.js --help` works on a clean Node 20 install.
 - Manual QA: fresh data dir, no config, no token, small watchlist, rate-limit simulation, resume, compact, diff.
 
+### M7 — Interactive first-run setup (post-v1 enhancement)
+
+A new user with no config should not hit a dead end. Milestones M1-M6 treat a missing config as `config_missing` and exit `2`. This milestone adds an opt-out, interactive onboarding path on top of the existing watchlist commands. It is deliberately last: it depends on the prompt gate and clack wrappers from M1, on `fetch` from M2/M3, and on `watch ls` last-run data from M3.
+
+Deliver:
+
+- Extend the interactive `watch add` flow (no arguments) into a full setup wizard: type picker (`user` / `repo`), name input, and — for users only — a resource multi-select (`followers`, `repos`) with both preselected and at least one required. `repo` subjects skip the resource step and use the implicit `repo` resource. The existing select-then-text-then-confirm flow is extended, not replaced.
+- First-run trigger: when a command that needs the watchlist runs with no config and prompts are allowed, offer to create one using the same wizard, then continue the original command.
+  - `watch ls` → wizard, then list the new subject.
+  - `fetch` with no subject arguments → wizard, then proceed to the fetch plan.
+  - `watch rm` and `fetch <subject>` do not trigger it; `runs`, `diff`, `compact`, `export`, `help`, and `--version` are unaffected.
+- Reuse the atomic config write from `watch add`; no partial config is written on cancel.
+- `--resources` on `watch add` suppresses the resource multi-select and uses the given value.
+- `config_missing` keeps its current meaning and message when the wizard is not allowed, with the message extended to include the exact non-interactive invocation.
+
+Gate (unchanged rules; when not met, fail as today with `config_missing`, exit `2`):
+
+- Wizard runs only when `stdin.isTTY && stdout.isTTY`, format is `table`, and `--yes` is absent. `--format json` is always non-interactive.
+- Declining the wizard aborts it and lets the original command fail with `config_missing` (exit `2`); it is not treated as success. `Ctrl-C` exits `130` and applies no partial confirmation.
+- An existing but empty watchlist is **not** a trigger. `fetch` with no arguments keeps exiting `2` with `empty_watchlist`, and `watch ls` keeps reporting that no subjects are configured.
+
+Acceptance:
+
+- On a clean machine with no config, in a TTY: `watch ls` offers setup; completing the wizard writes a valid config atomically and then lists the new subject.
+- `fetch` with no arguments on a clean machine offers setup and continues to the request plan after completion.
+- `watch add` with no arguments walks type → name → resources (user) and type → name (repo), then confirms.
+- `watch add user octocat --resources followers` does not prompt for resources.
+- In `--format json`, without a TTY, or with `--yes`, every command still exits `2` with `config_missing` and prompts nothing.
+- Declining the wizard exits `2` with `config_missing`; `Ctrl-C` exits `130`; no `.tmp-*` or partial config remains either way.
+- JSON purity test from M6 still passes for every command.
+- No new dependencies; `grep -R "bun:" src test` still returns nothing.
+
+Spec changes to apply when this milestone is implemented:
+
+- [01_SPEC.md](01_SPEC.md) §2.2: document the resource multi-select in the interactive `watch add` flow.
+- §2.1 and §4: note that a watchlist-requiring command may offer first-run setup instead of `config_missing`, and that the failure is unchanged when the gate is not met.
+- §7: add the first-run setup rows to the prompt table; `fetch` may now ask a question when it has no config and no subject arguments.
+- [03_DECISIONS.md](03_DECISIONS.md): the decision is recorded as D017; amend it if the design changes.
+
 ## Test fixtures
 
 Fixtures are recorded public payloads with identities altered where necessary. Each fixture set contains at least:
@@ -289,6 +339,7 @@ No test may read the network. Integration tests use an in-memory `fetchImpl` and
 ## Deferred beyond v1
 
 - Interactive dashboard and metric picker ([04_DASHBOARD.md](04_DASHBOARD.md)).
+- Interactive first-run setup for users with no config (M7).
 - Required or stored authentication, keyring integration, private repositories.
 - Gzip-compressed raw runs (raw is retained only 30 days, so the size is bounded).
 - Starred-list tracking.

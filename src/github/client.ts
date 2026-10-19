@@ -1,0 +1,246 @@
+/** HTTP client for the GitHub REST API: headers, auth, timeout, retries, pagination. */
+
+import { httpError, networkError, rateLimited } from '../errors.js';
+import { parseRateLimitHeaders, type RateLimitHeaders } from './rateLimit.js';
+
+export const GITHUB_API_BASE = 'https://api.github.com';
+
+const API_VERSION = '2022-11-28';
+const ACCEPT = 'application/vnd.github+json';
+
+export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
+
+export interface GitHubResponse {
+  url: string;
+  status: number;
+  etag: string | null;
+  lastModified: string | null;
+  rateLimit: RateLimitHeaders;
+  notModified: boolean;
+  payload?: unknown;
+}
+
+export interface GitHubClientOptions {
+  fetchImpl?: FetchLike | undefined;
+  sleep?: ((ms: number) => Promise<void>) | undefined;
+  now?: (() => number) | undefined;
+  random?: (() => number) | undefined;
+  token?: string | undefined;
+  timeoutMs?: number | undefined;
+  maxRetries?: number | undefined;
+  userAgent?: string | undefined;
+  apiBase?: string | undefined;
+  /** Verbose diagnostics; never receives credentials. */
+  onDiagnostic?: ((message: string) => void) | undefined;
+}
+
+export interface RequestOptions {
+  /** Sent as `If-None-Match` for conditional requests. */
+  ifNoneMatch?: string | null | undefined;
+}
+
+function defaultSleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+export class GitHubClient {
+  readonly apiBase: string;
+
+  private readonly fetchImpl: FetchLike;
+  private readonly sleep: (ms: number) => Promise<void>;
+  private readonly now: () => number;
+  private readonly random: () => number;
+  private readonly token: string | undefined;
+  private readonly timeoutMs: number;
+  private readonly maxRetries: number;
+  private readonly userAgent: string;
+  private readonly onDiagnostic: ((message: string) => void) | undefined;
+
+  constructor(options: GitHubClientOptions = {}) {
+    this.apiBase = options.apiBase ?? GITHUB_API_BASE;
+    this.fetchImpl = options.fetchImpl ?? globalThis.fetch;
+    this.sleep = options.sleep ?? defaultSleep;
+    this.now = options.now ?? Date.now;
+    this.random = options.random ?? Math.random;
+    this.token = options.token;
+    this.timeoutMs = options.timeoutMs ?? 30_000;
+    this.maxRetries = options.maxRetries ?? 3;
+    this.userAgent = options.userAgent ?? 'gh-track';
+    this.onDiagnostic = options.onDiagnostic;
+  }
+
+  nowMs(): number {
+    return this.now();
+  }
+
+  private buildHeaders(ifNoneMatch: string | null | undefined): Record<string, string> {
+    const headers: Record<string, string> = {
+      accept: ACCEPT,
+      'user-agent': this.userAgent,
+      'x-github-api-version': API_VERSION,
+    };
+    if (this.token !== undefined && this.token.length > 0) {
+      headers.authorization = `Bearer ${this.token}`;
+    }
+    if (ifNoneMatch !== null && ifNoneMatch !== undefined) {
+      headers['if-none-match'] = ifNoneMatch;
+    }
+    return headers;
+  }
+
+  private diagnostic(message: string): void {
+    this.onDiagnostic?.(message);
+  }
+
+  private async backoff(attempt: number, retryAfterSeconds: number | null): Promise<void> {
+    if (retryAfterSeconds !== null) {
+      await this.sleep(Math.max(retryAfterSeconds * 1000, 1000));
+      return;
+    }
+    const base = 500 * 2 ** (attempt - 1);
+    const jitter = Math.floor(this.random() * base);
+    await this.sleep(base + jitter);
+  }
+
+  /**
+   * Performs one GET. Retries `5xx`, network errors, and secondary rate limits.
+   * Primary rate-limit exhaustion throws `rate_limited`; `404` is returned so
+   * the caller can record it as a subject error and continue.
+   */
+  async get(url: string, options: RequestOptions = {}): Promise<GitHubResponse> {
+    let attempt = 0;
+
+    for (;;) {
+      attempt += 1;
+      const controller = new AbortController();
+      const timer = setTimeout(() => {
+        controller.abort();
+      }, this.timeoutMs);
+
+      let response: Response;
+      try {
+        response = await this.fetchImpl(url, {
+          method: 'GET',
+          headers: this.buildHeaders(options.ifNoneMatch),
+          signal: controller.signal,
+        });
+      } catch (error) {
+        clearTimeout(timer);
+        const timedOut = controller.signal.aborted;
+        if (attempt <= this.maxRetries) {
+          this.diagnostic(
+            `retrying ${url} after ${timedOut ? 'timeout' : 'network error'} (attempt ${attempt})`,
+          );
+          await this.backoff(attempt, null);
+          continue;
+        }
+        throw networkError(
+          timedOut
+            ? `Request timed out after ${this.timeoutMs} ms: ${url}`
+            : `Network error for ${url}: ${errorText(error)}`,
+          { url },
+        );
+      }
+      clearTimeout(timer);
+
+      const rateLimit = parseRateLimitHeaders(response.headers);
+      const etag = response.headers.get('etag');
+      const lastModified = response.headers.get('last-modified');
+      const status = response.status;
+
+      if (status === 304) {
+        return { url, status, etag, lastModified, rateLimit, notModified: true };
+      }
+
+      if (status === 403) {
+        if (rateLimit.remaining === 0) {
+          throw rateLimited(rateLimit.resetAt ?? undefined);
+        }
+        if (rateLimit.retryAfterSeconds !== null && attempt <= this.maxRetries) {
+          this.diagnostic(`retrying ${url} after HTTP 403 (attempt ${attempt})`);
+          await this.backoff(attempt, rateLimit.retryAfterSeconds);
+          continue;
+        }
+        throw httpError(403, `GitHub returned HTTP 403 for ${url}`, { url });
+      }
+
+      if (status === 429) {
+        if (attempt <= this.maxRetries) {
+          this.diagnostic(`retrying ${url} after HTTP 429 (attempt ${attempt})`);
+          await this.backoff(attempt, rateLimit.retryAfterSeconds);
+          continue;
+        }
+        throw rateLimited(rateLimit.resetAt ?? undefined);
+      }
+
+      if (status >= 500) {
+        if (attempt <= this.maxRetries) {
+          this.diagnostic(`retrying ${url} after HTTP ${status} (attempt ${attempt})`);
+          await this.backoff(attempt, rateLimit.retryAfterSeconds);
+          continue;
+        }
+        throw httpError(status, `GitHub returned HTTP ${status} for ${url}`, { url });
+      }
+
+      if (status === 404) {
+        return { url, status, etag, lastModified, rateLimit, notModified: false };
+      }
+
+      if (status >= 400) {
+        throw httpError(status, `GitHub returned HTTP ${status} for ${url}`, { url });
+      }
+
+      const text = await response.text();
+      let payload: unknown = null;
+      if (text.length > 0) {
+        try {
+          payload = JSON.parse(text);
+        } catch {
+          throw httpError(status, `Malformed JSON response for ${url}`, { url });
+        }
+      }
+      return { url, status, etag, lastModified, rateLimit, notModified: false, payload };
+    }
+  }
+}
+
+const LINK_ENTRY = /<([^>]*)>\s*;\s*rel="([^"]*)"/;
+
+/** Parses a `Link` header into a map of `rel` to URL. */
+export function parseLinkHeader(header: string | null): Map<string, string> {
+  const links = new Map<string, string>();
+  if (header === null || header.length === 0) {
+    return links;
+  }
+  for (const segment of header.split(',')) {
+    const match = LINK_ENTRY.exec(segment.trim());
+    const url = match?.[1];
+    const rel = match?.[2];
+    if (url !== undefined && rel !== undefined) {
+      links.set(rel, url);
+    }
+  }
+  return links;
+}
+
+export function nextPageUrl(header: string | null): string | null {
+  return parseLinkHeader(header).get('next') ?? null;
+}
+
+/**
+ * Whether another page should be requested: a `rel="next"` link wins, and a
+ * full page is treated as "maybe more" when the header is absent.
+ */
+export function hasNextPage(
+  linkHeader: string | null,
+  itemCount: number,
+  perPage: number,
+): boolean {
+  return nextPageUrl(linkHeader) !== null || itemCount >= perPage;
+}

@@ -6,7 +6,7 @@ Entry point for agents and contributors. Keep this file short; the reasoning liv
 
 `gh-track` is a local-first CLI that fetches public GitHub REST payloads for watched accounts and repositories on demand, writes immutable timestamped snapshots, compacts old runs into a small history, and derives diffs between runs. It is built for one operator tracking their own account plus arbitrary public accounts.
 
-**Status:** documentation complete, implementation not started. The `src/` tree, `package.json` scripts, and `bin` entry described in the plans do not exist yet. `package.json` is still CommonJS and has no dependencies.
+**Status:** Milestones 1 and 2 (M1, M2) are implemented: package/TypeScript setup, `config.ts`, `store/paths.ts`, `help.ts` registry, `watch add|ls|rm`, the prompt gate/wrappers, and the M2 GitHub layer (`github/client.ts`, ETag and rate-limit caches, `followers`/`repos`/`repo` URL builders) with `fetch --dry-run`. A real `fetch` (no `--dry-run`) still exits `1`; the run writer, manifests, and resume land in M3. `runs`, `diff`, `compact`, and `export` are registered for help only and exit `1` until their milestones land (M3-M5). `watch ls` reports `lastRun: null` until M3.
 
 ## Read first
 
@@ -19,7 +19,7 @@ Entry point for agents and contributors. Keep this file short; the reasoning liv
 
 Do not start coding from this file alone.
 
-## Commands (target)
+## Commands
 
 Bun is the package manager and dev runner. The shipped CLI must run on Node >= 20.
 
@@ -34,18 +34,21 @@ bun run test                   # compile tests, then node --test on dist-test/
 
 There is no npm workflow. Do not add one.
 
-## Project layout (target)
+## Project layout
 
 ```
 src/cli.ts             entry, global flags, dispatch
 src/help.ts            command registry + help renderer
 src/config.ts          TOML load/validate/save
+src/subjects.ts        subject parsing and canonical keys
+src/errors.ts          typed errors and exit codes
 src/types.ts           shared types
-src/commands/          one file per top-level command
+src/version.ts         version constant, kept in sync with package.json
+src/commands/          one file per top-level command (fetch planning + dry-run lives here)
 src/prompts/           clack wrappers (TTY-gated)
-src/github/            client, ETag cache, rate limiter, resource fetchers
-src/store/             XDG paths, run writer, manifest, history, prune
-src/diff/              repo and follower diffs
+src/github/            client, ETag cache, rate limiter, resource URL builders (no filesystem imports)
+src/store/             XDG paths, state caches, run reads, run writer, manifest, history, prune
+src/diff/              repo and follower diffs (M5)
 src/output/            table, JSON, color
 test/                  node:test fixtures, no live network
 ```
