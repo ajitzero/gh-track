@@ -5,6 +5,8 @@ import { realpathSync } from 'node:fs';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { renderHelpCommand } from './commands/help.js';
+import { runCompact } from './commands/compact.js';
+import { runExport } from './commands/export.js';
 import { runFetch } from './commands/fetch.js';
 import { runRuns } from './commands/runs.js';
 import { runWatch } from './commands/watch.js';
@@ -339,14 +341,19 @@ function peekFormat(argv: readonly string[]): OutputFormat {
 }
 
 function resolveFormat(command: string | undefined, value: string | undefined): OutputFormat {
+  if (command === 'export') {
+    const format = value ?? 'jsonl';
+    if (format === 'json' || format === 'jsonl' || format === 'csv') {
+      return format;
+    }
+    throw new UsageError(
+      `Unsupported --format value: ${format}. Expected json, jsonl, or csv for export.`,
+    );
+  }
+
   const format = value ?? 'table';
   if (format === 'table' || format === 'json') {
     return format;
-  }
-  // export adds jsonl and csv; keep those acceptable so help/validation for
-  // that command remains forward-compatible.
-  if (command === 'export' && (format === 'jsonl' || format === 'csv')) {
-    return 'table';
   }
   throw new UsageError(`Unsupported --format value: ${format}. Expected table or json.`);
 }
@@ -528,7 +535,21 @@ export async function run(
       return result.exitCode ?? 0;
     }
 
-    throw notImplemented(command, 4);
+    if (command === 'compact') {
+      const context = buildContext(io, options, rest, format, runOptions.signal);
+      const result = await runCompact(context);
+      emit(result, format, io);
+      return result.exitCode ?? 0;
+    }
+
+    if (command === 'export') {
+      const context = buildContext(io, options, rest, format, runOptions.signal);
+      const result = await runExport(context);
+      emit(result, format, io);
+      return result.exitCode ?? 0;
+    }
+
+    throw notImplemented(command, 5);
   } catch (error) {
     const cliError = toCliError(error);
     renderError(cliError, format, verbose, io);

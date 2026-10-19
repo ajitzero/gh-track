@@ -27,6 +27,7 @@ import { FOLLOWERS_PER_PAGE, followersUrl } from '../github/resources/followers.
 import { REPOS_PER_PAGE, reposUrl } from '../github/resources/repos.js';
 import { repoUrl } from '../github/resources/repo.js';
 import { renderTable } from '../output/table.js';
+import { runCompaction } from '../store/compact.js';
 import { createManifest, readManifest } from '../store/manifest.js';
 import {
   accountRepoPath,
@@ -47,6 +48,7 @@ import { VERSION } from '../version.js';
 import type {
   CommandContext,
   CommandResult,
+  CompactionResult,
   Config,
   ConfigSubject,
   Manifest,
@@ -264,6 +266,17 @@ function parseMaxRequests(raw: string | undefined): number | undefined {
   const value = Number(raw);
   if (!Number.isInteger(value) || value < 1) {
     throw new UsageError('--max-requests must be a positive integer.');
+  }
+  return value;
+}
+
+function parseKeepRawDays(raw: string | undefined): number | undefined {
+  if (raw === undefined) {
+    return undefined;
+  }
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 1) {
+    throw new UsageError('--keep-raw-days must be a positive integer.');
   }
   return value;
 }
@@ -642,14 +655,21 @@ function runSummary(manifest: Manifest): Record<string, unknown> {
   };
 }
 
-function buildRunResult(outcome: RunOutcome, warnings: string[]): CommandResult {
+function buildRunResult(
+  outcome: RunOutcome,
+  warnings: string[],
+  compaction: CompactionResult | null,
+): CommandResult {
   const { manifest } = outcome;
   const complete = manifest.status === 'complete';
 
   const json = complete
     ? {
         run: runSummary(manifest),
-        compaction: { compactedDays: 0, prunedRuns: 0 },
+        compaction: {
+          compactedDays: compaction?.compacted.length ?? 0,
+          prunedRuns: compaction?.pruned.length ?? 0,
+        },
         pending: [],
         resumeAfter: null,
       }
@@ -664,6 +684,9 @@ function buildRunResult(outcome: RunOutcome, warnings: string[]): CommandResult 
   let text: string;
   if (complete) {
     text = `Run ${manifest.id} complete: ${stats.requests} request(s), ${stats.notModified} not modified; ${stats.repos} repo(s), ${stats.followers} follower(s).\n`;
+    if (compaction !== null && (compaction.compacted.length > 0 || compaction.pruned.length > 0)) {
+      text += `Compacted ${compaction.compacted.length} day(s); pruned ${compaction.pruned.length} run(s).\n`;
+    }
   } else {
     text = `Run ${manifest.id} ${manifest.status}: ${manifest.pending.length} pending. Resume with 'gh-track fetch --resume ${manifest.id}'.\n`;
     if (outcome.resumeAfter !== null) {
@@ -675,7 +698,10 @@ function buildRunResult(outcome: RunOutcome, warnings: string[]): CommandResult 
   return { json, text, warnings, exitCode };
 }
 
-async function runLive(context: CommandContext): Promise<CommandResult> {
+async function runLive(
+  context: CommandContext,
+  keepRawDays: number | undefined,
+): Promise<CommandResult> {
   const resumeRequested = context.options.has('resume');
   const resumeValue = context.options.get('resume') ?? '';
   const warnings: string[] = [];
@@ -745,7 +771,15 @@ async function runLive(context: CommandContext): Promise<CommandResult> {
 
     try {
       const outcome = await executeRun(context, writer, manifest, queue, config, token, warnings);
-      return buildRunResult(outcome, warnings);
+
+      let compaction: CompactionResult | null = null;
+      if (outcome.manifest.status === 'complete' && !context.options.has('no-compact')) {
+        compaction = await runCompaction(context.paths.dataDir, {
+          keepDays: keepRawDays ?? config.defaults.rawRetentionDays,
+          now: new Date(),
+        });
+      }
+      return buildRunResult(outcome, warnings, compaction);
     } catch (error) {
       await writer.discard();
       throw error;
@@ -756,8 +790,9 @@ async function runLive(context: CommandContext): Promise<CommandResult> {
 }
 
 export async function runFetch(context: CommandContext): Promise<CommandResult> {
+  const keepRawDays = parseKeepRawDays(context.options.get('keep-raw-days'));
   if (context.options.has('dry-run')) {
     return runDryRun(context);
   }
-  return runLive(context);
+  return runLive(context, keepRawDays);
 }

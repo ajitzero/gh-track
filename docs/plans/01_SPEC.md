@@ -135,6 +135,7 @@ gh-track compact [--keep-days <n>] [--dry-run]
 - Uses the last complete run of each day.
 - Upserts history lines by date.
 - Prunes raw runs only for days compacted in this invocation or previously marked compacted.
+- Compacted days are recorded in `state/compacted.json`; pruning reads that marker, so it never deletes a day that has only partial runs.
 - Idempotent. `--dry-run` reports what would change without writing or deleting.
 - No confirmation is required: it only deletes raw data that has already been compacted.
 
@@ -153,6 +154,8 @@ gh-track export [options]
 - `json` emits one object: `{"exportedAt":"...","rows":[...]}`.
 - `jsonl` emits one history row per line.
 - `csv` emits a header row: `date,kind,subject,stars,forks,followers`, where `kind` is `repo` or `user`, and unused cells are empty.
+- Rows are sorted by date, then `kind`, then subject. JSON and JSONL rows use the same fields as the CSV columns, omitting metrics that do not apply: repository rows have `stars` and `forks`, account rows have `followers`.
+- Malformed `--from`/`--to` values exit `2` with `usage`.
 - Exporting with no matching history exits `1` with `no_history`.
 
 ### 2.7 `help`
@@ -478,6 +481,33 @@ With `--format json`, errors are emitted to **stderr** as one object, and stdout
 
 Codes: `usage`, `config_invalid`, `config_missing`, `empty_watchlist`, `invalid_subject`, `unknown_subject`, `run_not_found`, `not_enough_runs`, `invalid_range`, `no_history`, `rate_limited`, `network`, `http_error`, `io_error`, `locked`, `interrupted`, `internal`.
 
+### 5.12 Compacted-day marker — `state/compacted.json`
+
+```json
+{
+  "days": ["2026-09-01", "2026-09-02"]
+}
+```
+
+- Sorted, unique UTC days whose raw runs have been compacted into history.
+- Written after the history upsert for a day and before pruning.
+- Advisory like the other state files: a missing or corrupt file means "no days compacted", so the next compaction re-runs and re-prunes rather than deleting unmarked data.
+
+### 5.13 `export --format json` rows
+
+```json
+{
+  "exportedAt": "2026-10-20T12:00:00.000Z",
+  "rows": [
+    { "date": "2026-09-01", "kind": "repo", "subject": "octocat/hello-world", "stars": 123, "forks": 4 },
+    { "date": "2026-09-01", "kind": "user", "subject": "octocat", "followers": 340 }
+  ]
+}
+```
+
+- Repository rows carry `stars` and `forks`; account rows carry `followers`. Unused metric fields are absent, not `null`.
+- `jsonl` emits exactly one row object per line in the same order.
+
 ## 6. Streams and exit codes
 
 | Stream | Content |
@@ -566,6 +596,7 @@ Examples:
 - Re-running compaction for a day replaces its history line (upsert by date).
 - History files are sorted by date after every write.
 - Deletion is recursive but confined to `runs/<id>/`; the code refuses to prune a path that does not match the run-id pattern.
+- Compacted days are tracked in `state/compacted.json`; only days in that marker are pruned.
 
 ## 11. Concurrency and locking
 

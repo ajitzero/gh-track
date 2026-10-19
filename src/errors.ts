@@ -129,6 +129,14 @@ export function runNotFound(runId: string): CliError {
   return new CliError('run_not_found', `Run not found: ${runId}`, { runId });
 }
 
+export function noHistory(details?: ErrorDetails): CliError {
+  return new CliError(
+    'no_history',
+    'No compacted history matches the requested filters. Run `gh-track compact` after data ages out of the raw window.',
+    details,
+  );
+}
+
 export function locked(lockPath: string, pid: number): CliError {
   return new CliError(
     'locked',

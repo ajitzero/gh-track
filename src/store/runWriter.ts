@@ -10,7 +10,7 @@ import { ensureDir, runsDir, runDir, tempRunDir } from './paths.js';
 
 const SAFE_SEGMENT = /[^A-Za-z0-9._-]/g;
 
-function safeSegment(value: string): string {
+export function safeSegment(value: string): string {
   return value.replace(SAFE_SEGMENT, '-');
 }
 

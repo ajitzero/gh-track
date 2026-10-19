@@ -32,6 +32,7 @@ Decisions made during the initial design interview on 2026-10-19. Each entry rec
 | D017 | Interactive first-run setup for a missing watchlist |
 | D018 | Dry-run baseline, explicit-subject resources, and cache persistence |
 | D019 | Run writer, partial promotion, and resume semantics |
+| D020 | Compaction marker, prune scope, and export rows |
 
 ## D001 — Local files only
 
@@ -203,6 +204,23 @@ Decisions made during the initial design interview on 2026-10-19. Each entry rec
 **Rejected.** Writing the manifest after every request (more atomicity for a hard kill, but much more I/O and no benefit once the next fetch cleans `.tmp-*`); keeping `<id>-2` suffixes for same-second runs (the collision is rare and an explicit error is honest); resolving `304` from a run that may later be pruned (breaks the self-contained invariant); making `404` a partial-run trigger (a missing repository should not force a resume); storing last-run data in config (derived state belongs with the runs).
 
 **Consequence.** Completed runs are immutable and self-contained, hard kills leave only temp garbage, and resuming never spends quota on requests that already succeeded. M4 can prune raw runs without breaking conditional responses from surviving runs.
+
+## D020 — Compaction marker, prune scope, and export rows
+
+**Context.** M4 implements `history.ts`, `compact.ts`, `prune.ts`, automatic post-fetch compaction, and `export`. The spec defines eligible days, history shapes, and the `compact`/`export` JSON contracts but leaves the bookkeeping between compaction and pruning, the export row shape, and locking details open.
+
+**Decision.**
+
+1. **Compacted-day marker.** `state/compacted.json` holds `{ "days": ["YYYY-MM-DD", ...] }`, sorted and unique. It is written after the day's history rows and before pruning. Pruning reads the marker and deletes only runs whose day is listed, which is what keeps partial-only days safe.
+2. **Day replacement, not blind append.** For each compacted day, rows for that date are removed from every history file before the chosen run's rows are written. The last complete run of the day is therefore authoritative: repositories or accounts absent from it do not keep stale lines for that date. Rewriting the same day is idempotent.
+3. **Prune scope.** Pruning considers only `runs/<valid-run-id>` directories and re-checks that each resolved path is directly under `runs/` before a recursive delete. `.tmp-*` and malformed directory names are ignored. ETag cache entries whose `sourceRun` is pruned are removed so a later conditional request cannot fail to resolve a `304`.
+4. **Export rows.** JSON and JSONL use one row shape aligned with the CSV columns: `{date, kind, subject, stars?, forks?, followers?}`. Repository rows include `stars`/`forks`; account rows include `followers`; unused fields are absent. Rows are sorted by date, then `kind`, then case-insensitive subject.
+5. **Locking.** `compact` takes the same exclusive fetch lock for real runs, because it writes history and deletes runs. `compact --dry-run` takes no lock and writes nothing. `export` is read-only and lock-free; atomic file writes and complete NDJSON lines make concurrent reads safe.
+6. **Automatic compaction.** A complete fetch compacts with `--keep-raw-days` or `config.defaults.raw_retention_days`, then reports `{compactedDays, prunedRuns}`. Partial runs never compact, and `--no-compact` skips both steps. A compaction error propagates after the run is already promoted, so the snapshot is never lost.
+
+**Rejected.** Marking days by the presence of history rows (cannot distinguish a day with no metrics from an uncompacted day); appending without removing the date (stale rows after a late complete run); pruning based only on age (would delete partial-only days and runs whose history was never written); a lock file for `--dry-run` (violates "writes nothing"); treating `export --format jsonl` as the JSON output contract (mixed machine contracts and made ANSI suppression ambiguous).
+
+**Consequence.** Pruning is reversible only from history, as D007 intends. A corrupt or deleted `compacted.json` is safe: compaction re-runs before any further pruning. Export is deterministic and directly consumable by `jq`/spreadsheets without post-processing.
 
 ## Open questions
 

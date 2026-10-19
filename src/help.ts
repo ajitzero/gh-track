@@ -23,7 +23,7 @@ export interface HelpNode {
 export const GLOBAL_OPTIONS: readonly HelpOption[] = [
   { flags: '--config <path>', summary: 'Config file (default: XDG config path)' },
   { flags: '--data-dir <path>', summary: 'Data directory (default: XDG data path)' },
-  { flags: '--format <fmt>', summary: 'table (default) or json' },
+  { flags: '--format <fmt>', summary: 'table (default) or json; export also accepts jsonl/csv' },
   { flags: '--no-color', summary: 'Disable ANSI color' },
   { flags: '--yes', summary: 'Assume "yes" for confirmations; never prompt' },
   { flags: '--verbose', summary: 'Extra diagnostics on stderr' },

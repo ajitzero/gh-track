@@ -7,6 +7,8 @@ import { stateDir } from './paths.js';
 
 export const STATE_ETAGS_FILE = 'etags.json';
 export const STATE_LIMITS_FILE = 'limits.json';
+/** UTC days whose raw runs have been compacted into history. */
+export const STATE_COMPACTED_FILE = 'compacted.json';
 
 /**
  * Reads a JSON state file. A missing, unreadable, or malformed file returns

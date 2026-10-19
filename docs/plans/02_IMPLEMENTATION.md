@@ -13,8 +13,9 @@ Execution plan for v1 (`0.1.0`). Contracts are in [01_SPEC.md](01_SPEC.md); this
 
 - **M1 — done (2026-10-20).** Skeleton, `config.ts`, `store/paths.ts`, `help.ts`, `watch add|ls|rm`, prompt gate and clack wrappers, offline tests.
 - **M2 — done (2026-10-20).** `github/client.ts`, `github/etag.ts`, `github/rateLimit.ts`, the `followers`/`repos`/`repo` URL builders, `store/state.ts`, `store/runs.ts`, and `fetch --dry-run`.
-- **M3 — done (2026-10-20).** `store/runWriter.ts`, `store/manifest.ts`, `store/lock.ts`, real `fetch` with conditional requests, complete/partial promotion, `pending` tracking, `--resume`, `runs ls|show|paths`, and `watch ls` last-run summaries. Complete-run JSON reports zero compaction until M4 wires compaction.
-- **M4-M6 — not started.** `diff`, `compact`, and `export` remain in the help registry but exit `1` as not implemented.
+- **M3 — done (2026-10-20).** `store/runWriter.ts`, `store/manifest.ts`, `store/lock.ts`, real `fetch` with conditional requests, complete/partial promotion, `pending` tracking, `--resume`, `runs ls|show|paths`, and `watch ls` last-run summaries.
+- **M4 — done (2026-10-20).** `store/history.ts`, `store/compact.ts`, `store/prune.ts`, `compact` with `--dry-run`/`--keep-days`, automatic compaction and pruning after complete fetches, `--no-compact`/`--keep-raw-days`, and `export` as JSON, JSONL, or CSV from compacted history.
+- **M5-M6 — not started.** `diff` remains in the help registry but exits `1` as not implemented.
 
 ## Constraints
 

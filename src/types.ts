@@ -5,7 +5,7 @@ export type SubjectType = 'user' | 'repo';
 /** Resources that can be fetched for a subject. */
 export type Resource = 'followers' | 'repos' | 'repo';
 
-export type OutputFormat = 'table' | 'json';
+export type OutputFormat = 'table' | 'json' | 'jsonl' | 'csv';
 
 export type RunStatus = 'complete' | 'partial' | 'failed';
 
@@ -100,6 +100,51 @@ export interface Manifest {
   requests: ManifestRequestEntry[];
   pending: PendingRequest[];
   errors: ManifestErrorEntry[];
+}
+
+/** One compacted repository day (§5.4). */
+export interface RepoHistoryRow {
+  date: string;
+  repository: string;
+  stars: number;
+  forks: number;
+}
+
+/** One compacted account day (§5.5). */
+export interface UserHistoryRow {
+  date: string;
+  account: string;
+  followers: number;
+}
+
+/** A day selected for compaction and its metrics (§5.10). */
+export interface CompactedDay {
+  date: string;
+  repos: number;
+  users: number;
+}
+
+/** A raw run directory removed after its day was compacted. */
+export interface PrunedRun {
+  id: string;
+  path: string;
+}
+
+/** Result of `compact` or automatic post-fetch compaction (§5.10). */
+export interface CompactionResult {
+  dryRun: boolean;
+  compacted: CompactedDay[];
+  pruned: PrunedRun[];
+}
+
+/** One export row, shaped to match the CSV columns in §2.6. */
+export interface ExportRow {
+  date: string;
+  kind: 'repo' | 'user';
+  subject: string;
+  stars?: number;
+  forks?: number;
+  followers?: number;
 }
 
 export interface WatchedUser {

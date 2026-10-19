@@ -118,7 +118,8 @@ On Windows (best effort), fall back to `%LOCALAPPDATA%\gh-track` and `%APPDATA%\
 $XDG_DATA_HOME/gh-track/
 ├── state/
 │   ├── etags.json
-│   └── limits.json
+│   ├── limits.json
+│   └── compacted.json
 ├── runs/
 │   ├── .tmp-2026-10-19T21-30-05Z/     # in progress, never considered a run
 │   └── 2026-10-19T21-30-05Z/
@@ -189,7 +190,7 @@ Two NDJSON families, one line per UTC day:
 {"date":"2026-10-19","account":"octocat","followers":340}
 ```
 
-Files are kept sorted by date. Compaction is an upsert keyed by date, so re-running it for a day replaces that line rather than duplicating it.
+Files are kept sorted by date. Compaction is an upsert keyed by date, so re-running it for a day replaces that line rather than duplicating it. The set of compacted UTC days is recorded in `state/compacted.json`; pruning deletes raw runs only for days listed there, so a day with only partial runs is never compacted or pruned.
 
 ## Run lifecycle and atomicity
 
