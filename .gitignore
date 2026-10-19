@@ -1,0 +1,15 @@
+node_modules/
+dist/
+dist-test/
+coverage/
+*.tsbuildinfo
+*.log
+npm-debug.log*
+bun-debug.log*
+.env
+.env.*
+.DS_Store
+Thumbs.db
+.idea/
+*.tgz
+
