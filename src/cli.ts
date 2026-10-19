@@ -11,12 +11,7 @@ import { runExport } from './commands/export.js';
 import { runFetch } from './commands/fetch.js';
 import { runRuns } from './commands/runs.js';
 import { runWatch } from './commands/watch.js';
-import {
-  CliError,
-  UsageError,
-  notImplemented,
-  toCliError,
-} from './errors.js';
+import { CliError, UsageError, toCliError } from './errors.js';
 import { renderHelp } from './help.js';
 import { createColors, shouldUseColor } from './output/color.js';
 import { renderJson } from './output/json.js';
@@ -557,7 +552,7 @@ export async function run(
       return result.exitCode ?? 0;
     }
 
-    throw notImplemented(command, 6);
+    throw new CliError('internal', `Unhandled command: ${command}`);
   } catch (error) {
     const cliError = toCliError(error);
     renderError(cliError, format, verbose, io);

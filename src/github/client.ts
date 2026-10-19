@@ -71,6 +71,7 @@ export class GitHubClient {
   private readonly maxRetries: number;
   private readonly userAgent: string;
   private readonly onDiagnostic: ((message: string) => void) | undefined;
+  private lastRateLimitHeaders: RateLimitHeaders | null = null;
 
   constructor(options: GitHubClientOptions = {}) {
     this.apiBase = options.apiBase ?? GITHUB_API_BASE;
@@ -87,6 +88,11 @@ export class GitHubClient {
 
   nowMs(): number {
     return this.now();
+  }
+
+  /** Headers from the most recent response, including failed responses. */
+  get lastRateLimit(): RateLimitHeaders | null {
+    return this.lastRateLimitHeaders;
   }
 
   private buildHeaders(ifNoneMatch: string | null | undefined): Record<string, string> {
@@ -177,6 +183,7 @@ export class GitHubClient {
       detach();
 
       const rateLimit = parseRateLimitHeaders(response.headers);
+      this.lastRateLimitHeaders = rateLimit;
       const etag = response.headers.get('etag');
       const lastModified = response.headers.get('last-modified');
       const link = response.headers.get('link');

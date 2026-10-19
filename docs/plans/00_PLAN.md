@@ -2,7 +2,7 @@
 title: "00 — Plans"
 type: plan
 status: active
-updated: 2026-10-19
+updated: 2026-10-20
 ---
 
 # 00 — Plans
@@ -58,7 +58,7 @@ updated: 2026-10-19
 
 | Plan | Status | Purpose |
 |---|---|---|
-| [01 — Spec](01_SPEC.md) | active | Exact CLI, config, and output contracts |
-| [02 — Implementation](02_IMPLEMENTATION.md) | active | Milestones, file layout, tests |
-| [03 — Decisions](03_DECISIONS.md) | active | Decision log and rejected alternatives |
+| [01 — Spec](01_SPEC.md) | done | Exact CLI, config, and output contracts |
+| [02 — Implementation](02_IMPLEMENTATION.md) | done | Milestones, file layout, tests |
+| [03 — Decisions](03_DECISIONS.md) | done | Decision log and rejected alternatives |
 | [04 — Dashboard](04_DASHBOARD.md) | draft | Deferred interactive dashboard and metric picker |

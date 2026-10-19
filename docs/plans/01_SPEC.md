@@ -1,8 +1,8 @@
 ---
 title: "01 — Spec"
 type: plan
-status: active
-updated: 2026-10-19
+status: done
+updated: 2026-10-20
 ---
 
 # 01 — Spec
@@ -608,7 +608,8 @@ Examples:
 - One `fetch` at a time per data directory.
 - Lock file: `locks/fetch.lock` containing `{ "pid": n, "startedAt": "..." }`.
 - If the pid is alive, exit `1` with `locked`. If the pid is dead, reclaim the lock.
-- `compact` and `runs` commands take a shared read lock only while compacting/reading; they never block a fetch for long.
+- `compact` takes the same exclusive lock because it writes history and deletes runs. `compact --dry-run` takes no lock and writes nothing.
+- `runs`, `diff`, and `export` read atomically written files without a lock.
 - Writers use temp file + rename. Readers must tolerate a missing `state/*.json` and rebuild it.
 
 ## 12. Compatibility

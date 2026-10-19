@@ -102,7 +102,7 @@ async function addSubject(context: CommandContext, args: string[]): Promise<Comm
   const parsed = parseExplicitSubject(type, value);
   const loaded = await loadConfig(context.paths.configPath, { required: false });
   const config: Config = loaded?.config ?? defaultConfig();
-  const warnings = loaded === undefined || loaded === null ? [] : [...loaded.warnings];
+  const warnings = loaded === null ? [] : [...loaded.warnings];
 
   const entry: ConfigSubject =
     parsed.type === 'user'
@@ -204,12 +204,16 @@ async function listSubjects(
     watched.length === 0
       ? "No subjects configured. Run 'gh-track watch add user <login>' or 'gh-track watch add repo <owner/name>'.\n"
       : `${renderTable(
-          ['SUBJECT', 'TYPE', 'RESOURCES', 'LAST RUN'],
+          ['SUBJECT', 'TYPE', 'RESOURCES', 'LAST RUN', 'STATUS', 'FINISHED', 'REPOS', 'FOLLOWERS'],
           watched.map((subject) => [
             subject.subject,
             subject.type,
             subject.resources.join(','),
             subject.lastRun === null ? 'never' : subject.lastRun.id,
+            subject.lastRun === null ? '' : subject.lastRun.status,
+            subject.lastRun === null ? '' : subject.lastRun.finishedAt,
+            subject.lastRun === null ? '' : String(subject.lastRun.repos),
+            subject.lastRun === null ? '' : String(subject.lastRun.followers),
           ]),
         )}\n`;
 

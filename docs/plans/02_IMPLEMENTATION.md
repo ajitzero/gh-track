@@ -1,7 +1,7 @@
 ---
 title: "02 — Implementation"
 type: plan
-status: active
+status: done
 updated: 2026-10-20
 ---
 
@@ -16,7 +16,8 @@ Execution plan for v1 (`0.1.0`). Contracts are in [01_SPEC.md](01_SPEC.md); this
 - **M3 — done (2026-10-20).** `store/runWriter.ts`, `store/manifest.ts`, `store/lock.ts`, real `fetch` with conditional requests, complete/partial promotion, `pending` tracking, `--resume`, `runs ls|show|paths`, and `watch ls` last-run summaries.
 - **M4 — done (2026-10-20).** `store/history.ts`, `store/compact.ts`, `store/prune.ts`, `compact` with `--dry-run`/`--keep-days`, automatic compaction and pruning after complete fetches, `--no-compact`/`--keep-raw-days`, and `export` as JSON, JSONL, or CSV from compacted history.
 - **M5 — done (2026-10-20).** `diff/resolve.ts`, `diff/repos.ts`, `diff/followers.ts`, `diff/compacted.ts`, and `diff` with `latest`/`previous`/run-id/date references, id-based rename detection, scalar field deltas, named follower churn, compacted-history fallback, subject filtering, and table/JSON output.
-- **M6 — not started.** Hardening, docs, and final acceptance.
+- **M6 — done (2026-10-20).** README quickstart, JSON purity matrix for every JSON-capable command on a fake TTY, rate-limit/resume integration coverage, `watch ls` last-run table fields, removal of the unimplemented-command fallback, full acceptance pass, and plan/AGENT status updates.
+- **M7 — not started (post-v1).** Interactive first-run setup for a missing watchlist.
 
 ## Constraints
 
@@ -142,14 +143,9 @@ src/
 
 ```
 test/
+├── helpers/seed.ts         shared run seeding for diff/history tests
 ├── unit/                   config, subjects, paths, help, rate limit, etag, diff, compaction
-├── integration/            fetch with fake client, resume, prune, export, prompts gate
-└── fixtures/
-    ├── followers-page-1.json
-    ├── followers-page-2.json
-    ├── repos-page-1.json
-    ├── repo.json
-    └── errors/{403-primary.json,429-secondary.json,404.json}
+└── integration/            fetch with fake client, JSON purity, resume, prune, export, prompts gate
 ```
 
 ## Design requirements
@@ -306,15 +302,16 @@ Spec changes to apply when this milestone is implemented:
 - §7: add the first-run setup rows to the prompt table; `fetch` may now ask a question when it has no config and no subject arguments.
 - [03_DECISIONS.md](03_DECISIONS.md): the decision is recorded as D017; amend it if the design changes.
 
-## Test fixtures
+## Test data
 
-Fixtures are recorded public payloads with identities altered where necessary. Each fixture set contains at least:
+Payloads are constructed inline, or through `test/helpers/seed.ts`, rather than committed as fixture files. Coverage includes:
 
-- A user with 150 followers across two pages (tests pagination).
-- A user with 3 repositories, one renamed between runs, one archived between runs.
+- A user with more than 100 followers across two pages, including Link-based and full-page pagination.
+- A user with multiple repositories, one renamed and one archived between runs.
 - A standalone repository.
 - Follower churn: one added, one removed.
-- Error responses listed above.
+- Primary rate-limit, secondary rate-limit, 404, 5xx, timeout, and malformed-JSON responses.
+- JSON purity for every JSON-capable command with a fake TTY.
 
 No test may read the network. Integration tests use an in-memory `fetchImpl` and a temp directory created under the OS temp dir, not the repo.
 

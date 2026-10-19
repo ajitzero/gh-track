@@ -698,6 +698,10 @@ async function executeRun(
         });
       }
     } catch (error) {
+      // A thrown rate-limit or HTTP error still carries the last response's
+      // quota headers; persist them so a resume does not immediately re-hit
+      // the same limit.
+      lastRateLimit = client.lastRateLimit ?? lastRateLimit;
       const cliError = toCliError(error);
       if (cliError.code === 'interrupted') {
         pendingQueue.unshift(request);

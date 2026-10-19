@@ -1,7 +1,7 @@
 ---
 title: "03 — Decisions"
 type: plan
-status: active
+status: done
 updated: 2026-10-20
 ---
 
@@ -34,6 +34,7 @@ Decisions made during the initial design interview on 2026-10-19. Each entry rec
 | D019 | Run writer, partial promotion, and resume semantics |
 | D020 | Compaction marker, prune scope, and export rows |
 | D021 | Diff point resolution, source limits, and subject filtering |
+| D022 | v1 hardening: JSON purity matrix, failed-response quotas, watch table |
 
 ## D001 — Local files only
 
@@ -241,6 +242,22 @@ Decisions made during the initial design interview on 2026-10-19. Each entry rec
 **Rejected.** Treating a compacted day as a synthetic run id (users cannot name it); resolving a pruned run id from its day (would substitute a different run and hide the data loss); persisting computed diffs (D008); restricting raw field comparisons to the three compacted metrics (defeats D006's full-payload purpose); matching repositories by name first (breaks renames); omitting scalar fields present on only one side (defeats the full-payload purpose); filtering before diffing (a filtered-out repository could hide a rename needed for attribution).
 
 **Consequence.** `diff` is deterministic across raw and compacted data and honestly declares its source. Users who need rename or identity data must run diffs before the retention window prunes the runs, or extend retention.
+
+## D022 — v1 hardening: JSON purity matrix, failed-response quotas, watch table
+
+**Context.** M6 is the acceptance pass for v1. It adds no commands, but closes gaps between the spec and the implementation found by running every command against a fake TTY and by simulating a primary rate-limit stop.
+
+**Decision.**
+
+1. **One JSON purity matrix.** A single integration test runs `watch add`, `watch ls`, `watch rm`, `fetch`, `fetch --dry-run`, `runs ls`, `runs show`, `runs paths`, `diff`, `compact`, and `export` with stdin, stdout, and stderr all marked as TTYs and `--format json`. Each command must leave stderr empty, emit one parseable document with a trailing newline and no ANSI, and pass the normal command assertions. A companion test checks that JSON errors leave stdout empty and put one parseable error document on stderr.
+2. **Quota headers survive failed responses.** `GitHubClient` records the parsed rate-limit headers from every response before handling its status. `fetch` persists those headers when a request throws, so a primary-limit stop writes `state/limits.json` with `remaining: 0` and the reset time. Without this, a resume immediately sees the previous (stale) quota and can hit the same limit again.
+3. **Watch table shows the full last-run summary.** `watch ls` renders the run id, status, finish time, repository count, and follower count, matching spec §2.2. Its JSON shape is unchanged.
+4. **Locking text follows the implementation.** Spec §11 now says `compact` takes the exclusive fetch lock and read-only commands take no lock, matching D020.
+5. **The unimplemented-command fallback is gone.** Every command in the registry is dispatched; an unknown dispatch is an internal error rather than a milestone placeholder.
+
+**Rejected.** Ad-hoc JSON checks in each command test (easy to miss a new command); persisting quota only from successful responses (loses the exact response that caused the stop); keeping the table to the run id (under-reports the documented summary); adding a lock to `runs`/`diff` (they read atomically written files and would block fetches without benefit).
+
+**Consequence.** JSON purity and rate-limit resume are enforced by the offline suite on every change. A primary-limit stop is now self-describing in state, and the human watchlist view matches the documented summary.
 
 ## Open questions
 

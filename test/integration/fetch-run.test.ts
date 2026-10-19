@@ -363,6 +363,66 @@ test('the request cap promotes a partial run and --resume completes it', async (
   assert.equal((await listRunsDir(dataDir)).some((entry) => entry.startsWith('.tmp-')), false);
 });
 
+test('primary rate-limit exhaustion promotes a partial run and resume completes it', async (t) => {
+  const { configPath, dataDir } = await workspace(t);
+  await addUser(configPath);
+  const resetAt = new Date(Math.floor(Date.now() / 1000) * 1000 + 3_600_000).toISOString();
+  const resetSeconds = String(Math.floor(Date.parse(resetAt) / 1000));
+
+  const limited = await invoke(
+    ['fetch', '--config', configPath, '--data-dir', dataDir, '--format', 'json'],
+    {
+      fetchImpl: async (url) => {
+        if (url === FOLLOWERS_1) {
+          return new Response('{"message":"API rate limit exceeded"}', {
+            status: 403,
+            headers: {
+              'x-ratelimit-limit': '60',
+              'x-ratelimit-remaining': '0',
+              'x-ratelimit-reset': resetSeconds,
+            },
+          });
+        }
+        throw new Error(`unexpected request: ${url}`);
+      },
+    },
+  );
+
+  assert.equal(limited.code, 3);
+  const partial = JSON.parse(limited.stdout) as {
+    run: { id: string; status: string };
+    pending: Array<{ resource: string }>;
+    resumeAfter: string;
+  };
+  assert.equal(partial.run.status, 'partial');
+  assert.deepEqual(partial.pending.map((request) => request.resource), ['followers', 'repos']);
+  assert.equal(partial.resumeAfter, resetAt);
+
+  // Simulate waiting past the reset window without spending a real hour.
+  const limitsPath = path.join(dataDir, 'state', 'limits.json');
+  const limits = JSON.parse(await readFile(limitsPath, 'utf8')) as Record<string, unknown>;
+  limits.resetAt = new Date(Date.now() - 1_000).toISOString();
+  await writeFile(limitsPath, `${JSON.stringify(limits, null, 2)}\n`, 'utf8');
+
+  const resumed = await invoke(
+    ['fetch', '--resume', partial.run.id, '--config', configPath, '--data-dir', dataDir, '--format', 'json'],
+    { fetchImpl: router(happyRoutes()) },
+  );
+
+  assert.equal(resumed.code, 0, resumed.stderr);
+  const complete = JSON.parse(resumed.stdout) as {
+    run: { id: string; status: string; stats: Record<string, number> };
+    pending: unknown[];
+    resumeAfter: unknown;
+  };
+  assert.equal(complete.run.id, partial.run.id);
+  assert.equal(complete.run.status, 'complete');
+  assert.equal(complete.run.stats.followers, 2);
+  assert.equal(complete.run.stats.repos, 1);
+  assert.deepEqual(complete.pending, []);
+  assert.equal(complete.resumeAfter, null);
+});
+
 test('a live lock refuses a second fetch', async (t) => {
   const { configPath, dataDir } = await workspace(t);
   await addUser(configPath);
@@ -469,6 +529,14 @@ test('watch ls reports the last run for each subject', async (t) => {
     repos: 1,
     followers: 2,
   });
+
+  const table = await invoke([
+    'watch', 'ls', '--config', configPath, '--data-dir', dataDir,
+  ]);
+  assert.equal(table.code, 0, table.stderr);
+  assert.match(table.stdout, /STATUS/);
+  assert.match(table.stdout, /complete/);
+  assert.match(table.stdout, /1\s+2/);
 });
 
 test('a 404 is recorded while the run stays complete', async (t) => {

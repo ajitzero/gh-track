@@ -116,15 +116,6 @@ export function httpError(status: number, message: string, details?: ErrorDetail
   return new CliError('http_error', message, { status, ...(details ?? {}) });
 }
 
-/** A command that is registered for help but whose milestone has not landed. */
-export function notImplemented(command: string, milestone: number): CliError {
-  return new CliError(
-    'internal',
-    `The "${command}" command is not implemented yet in this build.`,
-    { command, milestone },
-  );
-}
-
 export function runNotFound(runId: string): CliError {
   return new CliError('run_not_found', `Run not found: ${runId}`, { runId });
 }

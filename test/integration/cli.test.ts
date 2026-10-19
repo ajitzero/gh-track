@@ -213,6 +213,10 @@ test('watch ls table shows never for last run', async (t) => {
   const result = await invoke(['watch', 'ls', '--config', configPath]);
   assert.equal(result.code, 0);
   assert.match(result.stdout, /SUBJECT/);
+  assert.match(result.stdout, /STATUS/);
+  assert.match(result.stdout, /FINISHED/);
+  assert.match(result.stdout, /REPOS/);
+  assert.match(result.stdout, /FOLLOWERS/);
   assert.match(result.stdout, /never/);
 });
 

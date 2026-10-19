@@ -107,6 +107,8 @@ test('primary rate-limit exhaustion throws rate_limited with the reset time', as
   assert.equal(error?.code, 'rate_limited');
   assert.equal(error?.exitCode, 3);
   assert.deepEqual(error?.details, { resumeAfter: new Date(RESET_SECONDS * 1000).toISOString() });
+  assert.equal(client.lastRateLimit?.remaining, 0);
+  assert.equal(client.lastRateLimit?.resetAt, new Date(RESET_SECONDS * 1000).toISOString());
   assert.equal(calls, 1, 'primary exhaustion must not be retried in the same run');
 });
 

@@ -6,16 +6,17 @@ Entry point for agents and contributors. Keep this file short; the reasoning liv
 
 `gh-track` is a local-first CLI that fetches public GitHub REST payloads for watched accounts and repositories on demand, writes immutable timestamped snapshots, compacts old runs into a small history, and derives diffs between runs. It is built for one operator tracking their own account plus arbitrary public accounts.
 
-**Status:** Milestones 1-5 (M1-M5) are implemented: package/TypeScript setup, `config.ts`, `store/paths.ts`, `help.ts` registry, `watch add|ls|rm`, the prompt gate/wrappers, the M2 GitHub layer (`github/client.ts`, ETag and rate-limit caches, `followers`/`repos`/`repo` URL builders) with `fetch --dry-run`, the M3 run layer (`store/runWriter.ts`, `store/manifest.ts`, `store/lock.ts`, real `fetch`, partial runs and `--resume`, `runs ls|show|paths`, and `watch ls` last-run summaries), the M4 retention layer (`store/history.ts`, `store/compact.ts`, `store/prune.ts`, `compact`, automatic post-fetch compaction, and `export` as JSON/JSONL/CSV), and the M5 diff layer (`diff/resolve.ts`, `diff/repos.ts`, `diff/followers.ts`, `diff/compacted.ts`, and `diff` with raw and compacted history fallback). M6 hardening remains.
+**Status:** v1 is complete (M1-M6). The CLI implements `watch`, `fetch` (conditional requests, pagination, partial runs, and `--resume`), `runs`, `diff`, `compact`, `export`, and help. The offline suite covers JSON purity on a fake TTY, rate-limit stops and resume, compaction/pruning, export formats, and raw/compacted diffs. M7 (interactive first-run setup) remains post-v1.
 
 ## Read first
 
-1. [docs/00_GOAL.md](docs/00_GOAL.md) — why, success criteria, non-goals.
-2. [docs/01_ARCHITECTURE.md](docs/01_ARCHITECTURE.md) — components, storage, rate limits, failure modes.
-3. [docs/plans/00_PLAN.md](docs/plans/00_PLAN.md) — how the plans folder works.
-4. [docs/plans/01_SPEC.md](docs/plans/01_SPEC.md) — exact CLI, config, and JSON contracts.
-5. [docs/plans/02_IMPLEMENTATION.md](docs/plans/02_IMPLEMENTATION.md) — milestones, file layout, tests.
-6. [docs/plans/03_DECISIONS.md](docs/plans/03_DECISIONS.md) — why the design looks like this.
+1. [README.md](README.md) — quickstart for users.
+2. [docs/00_GOAL.md](docs/00_GOAL.md) — why, success criteria, non-goals.
+3. [docs/01_ARCHITECTURE.md](docs/01_ARCHITECTURE.md) — components, storage, rate limits, failure modes.
+4. [docs/plans/00_PLAN.md](docs/plans/00_PLAN.md) — how the plans folder works.
+5. [docs/plans/01_SPEC.md](docs/plans/01_SPEC.md) — exact CLI, config, and JSON contracts.
+6. [docs/plans/02_IMPLEMENTATION.md](docs/plans/02_IMPLEMENTATION.md) — milestones, file layout, tests.
+7. [docs/plans/03_DECISIONS.md](docs/plans/03_DECISIONS.md) — why the design looks like this.
 
 Do not start coding from this file alone.
 
