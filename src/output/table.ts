@@ -22,9 +22,19 @@ export function richCell(segments: readonly CellSegment[]): StyledCell {
   const plain = segments.map((segment) => segment.text).join('');
   return {
     text: plain,
-    paint: (padded) =>
-      segments.map((segment) => (segment.paint ?? ((text: string) => text))(segment.text)).join('') +
-      padded.slice(plain.length),
+    paint: (padded) => {
+      const painted = segments
+        .map((segment) => (segment.paint ?? ((text: string) => text))(segment.text))
+        .join('');
+      if (plain.length === 0) {
+        return padded;
+      }
+      const start = padded.indexOf(plain);
+      if (start < 0) {
+        return painted;
+      }
+      return `${padded.slice(0, start)}${painted}${padded.slice(start + plain.length)}`;
+    },
   };
 }
 
@@ -36,9 +46,19 @@ function paintCell(cell: TableCell, text: string): string {
   return typeof cell === 'string' ? text : cell.paint(text);
 }
 
+export type TableAlignment = 'left' | 'right';
+
+export interface TableOptions {
+  /** Per-column alignment; defaults to left. */
+  align?: readonly TableAlignment[] | undefined;
+  /** Per-column header alignment; falls back to `align`. */
+  headerAlign?: readonly TableAlignment[] | undefined;
+}
+
 export function renderTable(
   headers: readonly TableCell[],
   rows: readonly (readonly TableCell[])[],
+  options: TableOptions = {},
 ): string {
   const widths = headers.map((header, index) => {
     let width = cellText(header).length;
@@ -49,7 +69,7 @@ export function renderTable(
     return width;
   });
 
-  const renderRow = (cells: readonly TableCell[]): string => {
+  const renderRow = (cells: readonly TableCell[], header = false): string => {
     let last = cells.length - 1;
     while (last >= 0) {
       const cell = cells[last];
@@ -63,14 +83,26 @@ export function renderTable(
     }
 
     const parts: string[] = [];
+    const columnAlign = header
+      ? (options.headerAlign ?? options.align)
+      : options.align;
     for (let index = 0; index <= last; index += 1) {
       const cell = cells[index] ?? '';
       const text = cellText(cell);
-      const padded = index === last ? text : text.padEnd(widths[index] ?? 0);
+      const width = widths[index] ?? 0;
+      const alignment = columnAlign?.[index] ?? 'left';
+      let padded: string;
+      if (alignment === 'right') {
+        padded = text.padStart(width);
+      } else {
+        padded = index === last ? text : text.padEnd(width);
+      }
       parts.push(paintCell(cell, padded));
     }
     return parts.join('  ');
   };
 
-  return [renderRow(headers), ...rows.map(renderRow)].join('\n');
+  return [renderRow(headers, true), ...rows.map((row) => renderRow(row))]
+    .map((line) => line.replace(/[ \t]+$/, ''))
+    .join('\n');
 }

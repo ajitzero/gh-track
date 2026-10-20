@@ -123,10 +123,13 @@ Default `compact`:
 ```
 gh-track dashboard — my-repos (from 2026-09-01 to latest)
 
-NAME                          METRICS                          SINCE
-octocat/hello-world           stars 132 (+12) · forks 4 (+1)   2026-10-18
-octocat/spoon-knife           stars 48 (−2) · forks 1 (0)      2026-10-18
-@octocat                      followers 1,204~ (+9)            2026-10-01
+NAME                 METRICS                 SINCE
+octocat/hello-world      stars   132  (+12)  2026-10-17
+                         forks     4   (+1)
+octocat/spoon-knife      stars    48   (−2)  2026-10-17
+                         forks     1    (0)
+never/fetched                      —         —
+octocat              followers 1,204~  (+9)  2026-09-01
 
 ~ compacted history
 ```
@@ -135,23 +138,26 @@ octocat/spoon-knife           stars 48 (−2) · forks 1 (0)      2026-10-18
 
 ```
 Repositories
-NAME                        STARS          FORKS    SINCE
-octocat/hello-world         132 (+12)      4 (+1)   2026-10-18
+NAME                 STARS      FORKS   SINCE
+octocat/hello-world  132 (+12)  4 (+1)  2026-10-17
 
 Accounts
-NAME                        FOLLOWERS      SINCE
-@octocat                    1,204~ (+9)    2026-10-01
+NAME     FOLLOWERS    SINCE
+octocat  1,204~ (+9)  2026-09-01
 ```
 
-- Repository names and section headers are bold light blue (`1` + `94`); accounts are bold purple (`1` + `95`).
+- The compact layout gives each selected metric its own line. `NAME` and `SINCE` appear only on the first line; continuation lines leave both cells blank.
+- Compact metric values are right-aligned within the `METRICS` column; the header stays at the column's left edge. Labels (`stars`, `forks`, `followers`) take the variable width, counts reserve at least five characters, and deltas reserve at least five including parentheses. Values widen their fields instead of truncating.
+- The compacted `~` marker has its own one-character slot after the count, so compacted and raw values keep the same count and delta alignment.
+- A value without a baseline leaves the delta slot blank; a subject with no observation at all renders one `—` in the metrics block and `—` in `SINCE`.
+- Repository names and section headers are bold light blue (`1` + `94`); accounts are bold purple (`1` + `95`). Names are not prefixed with `@` in either layout; color carries the kind.
 - Values are bold. `(+n)` is green, `(−n)` is red, `(0)` is dim.
 - `SINCE` and the compacted `~` marker are dim. `~` is a literal character and survives `NO_COLOR`.
-- `@` prefixes accounts, so kind is readable without color.
 - Number formatting uses deterministic thousands separators, not locale.
 - Empty sections and unselected metric columns are omitted.
 - No totals, averages, or leaderboards.
 
-`output/table.ts` measures the plain text of a styled cell and paints it on render, so ANSI codes do not break alignment.
+`output/table.ts` measures the plain text of a styled cell and paints it on render, so ANSI codes do not break alignment. It also supports per-column alignment and trims trailing whitespace.
 
 ## JSON
 

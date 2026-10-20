@@ -1,6 +1,6 @@
 /** Dashboard table rendering for the compact and columns layouts. */
 
-import { renderTable, richCell, type TableCell } from '../output/table.js';
+import { renderTable, richCell, type CellSegment, type TableCell } from '../output/table.js';
 import type {
   Colors,
   DashboardLayout,
@@ -45,8 +45,7 @@ function deltaPaint(colors: Colors, delta: number): (text: string) => string {
 }
 
 function displayName(row: DashboardRow): string {
-  const name = row.subject.slice(row.subject.indexOf(':') + 1);
-  return row.kind === 'user' ? `@${name}` : name;
+  return row.subject.slice(row.subject.indexOf(':') + 1);
 }
 
 function nameCell(row: DashboardRow, colors: Colors): TableCell {
@@ -92,29 +91,116 @@ function metricSegments(
   return segments;
 }
 
-function metricsCell(row: DashboardRow, colors: Colors): TableCell {
-  const segments: { text: string; paint?: ((text: string) => string) | undefined }[] = [];
-  const metrics = METRIC_ORDER.filter((metric) => hasMetric(row, metric));
+interface CompactWidths {
+  count: number;
+  delta: number;
+}
 
-  if (metrics.every((metric) => metricValue(row, metric)?.value === null)) {
-    return richCell([{ text: '—', paint: colors.dim }]);
+const MIN_COUNT_WIDTH = 5;
+const MIN_DELTA_WIDTH = 5;
+
+function compactMetrics(row: DashboardRow): Metric[] {
+  return METRIC_ORDER.filter((metric) => hasMetric(row, metric));
+}
+
+function compactWidths(rows: readonly DashboardRow[]): CompactWidths {
+  let count = MIN_COUNT_WIDTH;
+  let delta = MIN_DELTA_WIDTH;
+  for (const row of rows) {
+    for (const metric of compactMetrics(row)) {
+      const value = metricValue(row, metric);
+      if (value === undefined || value.value === null) {
+        continue;
+      }
+      count = Math.max(count, formatCount(value.value).length);
+      if (value.delta !== null) {
+        delta = Math.max(delta, formatDelta(value.delta).length);
+      }
+    }
+  }
+  return { count, delta };
+}
+
+function nullMetricSegments(colors: Colors, widths: CompactWidths): CellSegment[] {
+  return [
+    { text: ' '.repeat(widths.count - 1) },
+    { text: '—', paint: colors.dim },
+    { text: ' ' },
+    { text: ' '.repeat(1 + widths.delta) },
+  ];
+}
+
+function metricLineCell(
+  label: string,
+  value: DashboardMetricValue,
+  colors: Colors,
+  compactedValue: boolean,
+  widths: CompactWidths,
+): TableCell {
+  if (value.value === null) {
+    return richCell([{ text: `${label} ` }, ...nullMetricSegments(colors, widths)]);
   }
 
-  metrics.forEach((metric, index) => {
-    const value = metricValue(row, metric);
-    if (value === undefined) {
-      return;
-    }
-    if (index > 0) {
-      segments.push({ text: ' · ', paint: colors.dim });
-    }
-    segments.push(...metricSegments(value, colors, compacted(row), METRIC_LABELS[metric]));
-  });
+  const count = formatCount(value.value);
+  const segments: CellSegment[] = [
+    { text: `${label} ` },
+    { text: ' '.repeat(widths.count - count.length) },
+    { text: count, paint: colors.bold },
+    compactedValue ? { text: '~', paint: colors.dim } : { text: ' ' },
+    { text: ' ' },
+  ];
 
-  if (segments.length === 0) {
-    return richCell([{ text: '—', paint: colors.dim }]);
+  if (value.delta === null) {
+    segments.push({ text: ' '.repeat(widths.delta) });
+  } else {
+    const delta = formatDelta(value.delta);
+    segments.push(
+      { text: ' '.repeat(widths.delta - delta.length) },
+      { text: delta, paint: deltaPaint(colors, value.delta) },
+    );
   }
+
   return richCell(segments);
+}
+
+function nullMetricsCell(colors: Colors, widths: CompactWidths): TableCell {
+  return richCell(nullMetricSegments(colors, widths));
+}
+
+function compactRows(result: DashboardResult, colors: Colors): TableCell[][] {
+  const widths = compactWidths(result.rows);
+  const rows: TableCell[][] = [];
+
+  for (const row of result.rows) {
+    const metrics = compactMetrics(row);
+    const anyValue = metrics.some((metric) => {
+      const value = metricValue(row, metric);
+      return value !== undefined && value.value !== null;
+    });
+
+    if (metrics.length === 0 || !anyValue) {
+      rows.push([
+        nameCell(row, colors),
+        nullMetricsCell(colors, widths),
+        sinceCell(row, colors),
+      ]);
+      continue;
+    }
+
+    metrics.forEach((metric, index) => {
+      const value = metricValue(row, metric);
+      if (value === undefined) {
+        return;
+      }
+      rows.push([
+        index === 0 ? nameCell(row, colors) : '',
+        metricLineCell(METRIC_LABELS[metric], value, colors, compacted(row), widths),
+        index === 0 ? sinceCell(row, colors) : '',
+      ]);
+    });
+  }
+
+  return rows;
 }
 
 function columnCell(row: DashboardRow, metric: Metric, colors: Colors): TableCell {
@@ -161,12 +247,10 @@ function unionMetrics(rows: readonly DashboardRow[]): Metric[] {
 }
 
 function renderCompact(result: DashboardResult, colors: Colors): string {
-  const rows = result.rows.map((row): TableCell[] => [
-    nameCell(row, colors),
-    metricsCell(row, colors),
-    sinceCell(row, colors),
-  ]);
-  return renderTable(['NAME', 'METRICS', 'SINCE'], rows);
+  return renderTable(['NAME', 'METRICS', 'SINCE'], compactRows(result, colors), {
+    align: ['left', 'right', 'left'],
+    headerAlign: ['left', 'left', 'left'],
+  });
 }
 
 function renderColumns(result: DashboardResult, colors: Colors): string {

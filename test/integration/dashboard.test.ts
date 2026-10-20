@@ -189,10 +189,12 @@ test('compact dashboard resolves each subject independently', async (t) => {
   assert.equal(result.code, 0, result.stderr);
   assert.equal(result.stderr, '');
 
-  assert.match(result.stdout, /octocat\/hello-world\s+stars 120 \(\+20\) · forks 4 \(\+1\)/);
-  assert.match(result.stdout, /history\/only\s+stars 50~/);
+  assert.match(result.stdout, /octocat\/hello-world\s+stars\s+120\s+\(\+20\)/);
+  assert.match(result.stdout, /\n\s+forks\s+4\s+\(\+1\)/);
+  assert.match(result.stdout, /history\/only\s+stars\s+50~/);
   assert.match(result.stdout, /never\/fetched\s+—\s+—/);
-  assert.match(result.stdout, /@octocat\s+followers 3 \(\+1\)/);
+  assert.match(result.stdout, /\noctocat\s+followers\s+3\s+\(\+1\)/);
+  assert.doesNotMatch(result.stdout, /@octocat/);
   assert.match(result.stdout, /~ compacted history/);
   assert.doesNotMatch(result.stdout, /999/);
 });
@@ -203,19 +205,22 @@ test('--from and --to bound each subject and mark compacted baselines', async (t
 
   const fromHistory = await invoke(args(w, 'dashboard', '--from', '2026-09-01'));
   assert.equal(fromHistory.code, 0, fromHistory.stderr);
-  assert.match(fromHistory.stdout, /stars 120 \(\+40\) · forks 4 \(\+2\)\s+2026-09-01~/);
-  assert.match(fromHistory.stdout, /@octocat\s+followers 3 \(\+2\)\s+2026-09-01~/);
-  assert.match(fromHistory.stdout, /history\/only\s+stars 50~/);
+  assert.match(fromHistory.stdout, /stars\s+120\s+\(\+40\)\s+2026-09-01~/);
+  assert.match(fromHistory.stdout, /\n\s+forks\s+4\s+\(\+2\)/);
+  assert.match(fromHistory.stdout, /\noctocat\s+followers\s+3\s+\(\+2\)\s+2026-09-01~/);
+  assert.match(fromHistory.stdout, /history\/only\s+stars\s+50~/);
 
   const early = await invoke(args(w, 'dashboard', '--to', '2026-09-15'));
   assert.equal(early.code, 0, early.stderr);
-  assert.match(early.stdout, /octocat\/hello-world\s+stars 80~ · forks 2~\s+—/);
-  assert.match(early.stdout, /history\/only\s+stars 50~/);
-  assert.match(early.stdout, /@octocat\s+followers 1~/);
+  assert.match(early.stdout, /octocat\/hello-world\s+stars\s+80~\s+—/);
+  assert.match(early.stdout, /\n\s+forks\s+2~/);
+  assert.match(early.stdout, /history\/only\s+stars\s+50~/);
+  assert.match(early.stdout, /\noctocat\s+followers\s+1~/);
 
   const runBound = await invoke(args(w, 'dashboard', '--to', A));
   assert.equal(runBound.code, 0, runBound.stderr);
-  assert.match(runBound.stdout, /stars 100 \(\+20\) · forks 3 \(\+1\)\s+2026-09-01~/);
+  assert.match(runBound.stdout, /stars\s+100\s+\(\+20\)\s+2026-09-01~/);
+  assert.match(runBound.stdout, /\n\s+forks\s+3\s+\(\+1\)/);
 });
 
 test('--from latest produces zero deltas', async (t) => {
@@ -224,15 +229,17 @@ test('--from latest produces zero deltas', async (t) => {
 
   const result = await invoke(args(w, 'dashboard', '--from', 'latest'));
   assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stdout, /stars 120 \(0\) · forks 4 \(0\)/);
-  assert.match(result.stdout, /@octocat\s+followers 3 \(0\)/);
+  assert.match(result.stdout, /stars\s+120\s+\(0\)/);
+  assert.match(result.stdout, /\n\s+forks\s+4\s+\(0\)/);
+  assert.match(result.stdout, /\noctocat\s+followers\s+3\s+\(0\)/);
 
   const bounded = await invoke(
     args(w, 'dashboard', '--from', 'latest', '--to', '2026-09-15'),
   );
   assert.equal(bounded.code, 0, bounded.stderr);
-  assert.match(bounded.stdout, /stars 80~ \(0\) · forks 2~ \(0\)/);
-  assert.match(bounded.stdout, /@octocat\s+followers 1~ \(0\)/);
+  assert.match(bounded.stdout, /stars\s+80~\s+\(0\)/);
+  assert.match(bounded.stdout, /\n\s+forks\s+2~\s+\(0\)/);
+  assert.match(bounded.stdout, /\noctocat\s+followers\s+1~\s+\(0\)/);
 });
 
 test('--view renders a saved columns snapshot and overrides flags', async (t) => {
@@ -251,7 +258,7 @@ test('--view renders a saved columns snapshot and overrides flags', async (t) =>
     args(w, 'dashboard', '--view', 'my-repos', '--layout', 'compact', '--from', 'latest'),
   );
   assert.equal(overridden.code, 0, overridden.stderr);
-  assert.match(overridden.stdout, /stars 120 \(0\)/);
+  assert.match(overridden.stdout, /stars\s+120\s+\(0\)/);
 });
 
 test('--subject replaces the selection and keeps configured metrics', async (t) => {
@@ -260,7 +267,8 @@ test('--subject replaces the selection and keeps configured metrics', async (t) 
 
   const onlyUser = await invoke(args(w, 'dashboard', '--subject', 'user:octocat'));
   assert.equal(onlyUser.code, 0, onlyUser.stderr);
-  assert.match(onlyUser.stdout, /@octocat/);
+  assert.match(onlyUser.stdout, /\noctocat\s+followers/);
+  assert.doesNotMatch(onlyUser.stdout, /@octocat/);
   assert.doesNotMatch(onlyUser.stdout, /octocat\/hello-world/);
 
   const never = await invoke(args(w, 'dashboard', '--subject', 'repo:never/fetched'));
@@ -356,8 +364,8 @@ test('first-run dashboard picker saves tracking', async (t) => {
     prompts,
   });
   assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stdout, /stars 120 \(\+20\)/);
-  assert.doesNotMatch(result.stdout, /forks 4/);
+  assert.match(result.stdout, /stars\s+120\s+\(\+20\)/);
+  assert.doesNotMatch(result.stdout, /forks\s+4/);
 
   const config = await configOf(w);
   assert.deepEqual(config.tracking, [
@@ -419,7 +427,8 @@ test('--subject skips first-run setup and does not write config', async (t) => {
     },
   });
   assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stdout, /@octocat/);
+  assert.match(result.stdout, /\noctocat\s+followers/);
+  assert.doesNotMatch(result.stdout, /@octocat/);
   assert.equal(await readFile(w.configPath, 'utf8'), before);
 });
 

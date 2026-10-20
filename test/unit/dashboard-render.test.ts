@@ -49,14 +49,18 @@ test('compact rendering uses blue repos, purple accounts, and delta colors', () 
   const plain = text.replace(/\u001b\[[0-9;]*m/g, '');
 
   assert.match(text, /\u001b\[1m\u001b\[94moctocat\/hello-world/);
-  assert.match(text, /\u001b\[1m\u001b\[95m@octocat/);
+  assert.match(text, /\u001b\[1m\u001b\[95moctocat/);
   assert.match(text, /\u001b\[1m1,204/);
-  assert.match(text, /\u001b\[32m \(\+24\)/);
-  assert.match(text, /\u001b\[31m \(−1\)/);
-  assert.match(text, /\u001b\[2m \(0\)/);
+  assert.match(text, /\u001b\[32m\(\+24\)/);
+  assert.match(text, /\u001b\[31m\(−1\)/);
+  assert.match(text, /\u001b\[2m\(0\)/);
   assert.match(text, /1,204\u001b\[0m\u001b\[2m~/);
   assert.match(text, /\u001b\[2m~ compacted history/);
   assert.match(plain, /never\/fetched\s+—/);
+  assert.doesNotMatch(plain, /@octocat/);
+  assert.match(plain, /octocat\/hello-world\s+stars\s+1,204\s+\(\+24\)/);
+  assert.match(plain, /\n\s+forks\s+4\s+\(−1\)/);
+  assert.match(plain, /\noctocat\s+followers\s+1,204~\s+\(0\)/);
 });
 
 test('columns rendering groups repositories and accounts', () => {
@@ -76,6 +80,44 @@ test('no-color rendering has no ANSI and keeps the compacted marker', () => {
   assert.equal(/\u001b\[[0-9;]*m/.test(text), false);
   assert.match(text, /1,204~/);
   assert.match(text, /~ compacted history/);
+});
+
+test('compact widths expand instead of truncating large values', () => {
+  const result: DashboardResult = {
+    layout: 'compact',
+    range: { from: 'previous', to: 'latest' },
+    rows: [
+      {
+        kind: 'repo',
+        subject: 'repo:big/numbers',
+        source: 'raw',
+        from: { id: '2026-10-01T10-00-00Z', finishedAt: '2026-10-01T10:00:00.000Z' },
+        to: { id: '2026-10-02T10-00-00Z', finishedAt: '2026-10-02T10:00:00.000Z' },
+        metrics: {
+          stars: { value: 1234567, from: 1, delta: 1234566 },
+        },
+      },
+    ],
+  };
+  const plain = renderDashboard(result, 'compact', createColors(false));
+  assert.match(plain, /stars\s+1,234,567\s+\(\+1,234,566\)/);
+});
+
+test('right alignment keeps styled leading padding and headers can differ', () => {
+  const colors = createColors(true);
+  const table = renderTable(
+    ['NAME', 'VALUE'],
+    [
+      ['a', richCell([{ text: '12', paint: colors.bold }])],
+      ['b', richCell([{ text: '1,204', paint: colors.bold }])],
+    ],
+    { align: ['left', 'right'], headerAlign: ['left', 'left'] },
+  );
+  const [header, first = ''] = table.split('\n');
+  assert.equal(header, 'NAME  VALUE');
+  assert.match(first, /\s{3}\u001b\[1m12\u001b\[0m$/);
+  assert.equal(first.replace(/\u001b\[[0-9;]*m/g, ''), 'a        12');
+  assert.equal(first, first.trimEnd());
 });
 
 test('styled cells are measured by their plain text', () => {
