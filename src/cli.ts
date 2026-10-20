@@ -83,9 +83,15 @@ const OPTION_SPECS: readonly OptionSpec[] = [
   { name: 'keep-days', flags: ['--keep-days'], value: 'required' },
   { name: 'view', flags: ['--view'], value: 'required' },
   { name: 'layout', flags: ['--layout'], value: 'required' },
-  { name: 'setup', flags: ['--setup'], value: 'none' },
+  { name: 'metrics', flags: ['--metrics'], value: 'required' },
+  { name: 'resources', flags: ['--resources'], value: 'required' },
   { name: 'item', flags: ['--item'], value: 'required', repeatable: true },
 ];
+
+/** Flags that used to exist; keep their removal errors actionable. */
+const REMOVED_FLAGS: Readonly<Record<string, string>> = {
+  '--setup': 'The --setup flag has been removed. Use: gh-track dashboard add',
+};
 
 const LONG_FLAGS = new Map<string, OptionSpec>();
 const SHORT_FLAGS = new Map<string, OptionSpec>();
@@ -124,7 +130,7 @@ const COMMAND_OPTIONS: Readonly<Record<string, ReadonlySet<string>>> = {
   diff: new Set(['from', 'to', 'subject']),
   compact: new Set(['dry-run', 'keep-days']),
   export: new Set(['subject', 'from', 'to']),
-  dashboard: new Set(['view', 'layout', 'setup', 'from', 'to', 'subject']),
+  dashboard: new Set(['view', 'layout', 'from', 'to', 'subject', 'metrics', 'resources', 'token']),
   track: new Set(['item', 'layout', 'from', 'to']),
   help: new Set(),
 };
@@ -203,6 +209,10 @@ function parseArgv(argv: readonly string[]): ParsedArgs {
       const inlineValue = equals >= 0 ? token.slice(equals + 1) : undefined;
       const spec = LONG_FLAGS.get(flag);
       if (spec === undefined) {
+        const removed = REMOVED_FLAGS[flag];
+        if (removed !== undefined) {
+          throw new UsageError(removed);
+        }
         throw new UsageError(`Unknown option: ${flag}`);
       }
 

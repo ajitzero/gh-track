@@ -172,7 +172,6 @@ gh-track dashboard [options]
   --to <ref>               Current bound (default: latest)
   --subject <s>            Repeatable; override the item set with configured subjects
   --layout <fmt>           compact (default) or columns
-  --setup                  Run the setup picker before rendering
 ```
 
 - Metrics are fixed: `stars` and `forks` for repositories, `followers` for accounts.
@@ -183,11 +182,33 @@ gh-track dashboard [options]
 - `--from latest` uses the same observation as `to`, so deltas are zero.
 - A run-id reference must name a complete run on disk, matching `diff`.
 - With no `--view`, no `--subject`, and no `[tracking]` entries, the dashboard uses every configured subject with default metrics.
-- On a TTY with the prompt gate open, that first-run case offers the setup picker and saves `[tracking]`. `--setup` forces it. With the gate closed, the defaults render without prompting.
+- On a TTY with the prompt gate open, that first-run case offers the setup picker and saves `[tracking]`. With the gate closed, the defaults render without prompting.
 - `--subject` replaces the item set with the named configured subjects. Their metrics come from the active view, then `[tracking]`, then defaults. An unconfigured subject exits `2` with `unknown_subject`.
 - An empty item set exits `2` with `no_selection`. An empty watchlist exits `2` with `empty_watchlist`.
 - `--view` names a missing view exits `2` with `unknown_view`.
 - `dashboard` takes no lock.
+
+#### 2.8.1 `dashboard add`
+
+Adds subjects to the default dashboard selection and, when needed, to the watchlist. It is additive: it never replaces the whole selection and never touches `[views]`.
+
+```
+gh-track dashboard add
+gh-track dashboard add user <login> [--resources followers,repos]
+gh-track dashboard add repo <owner/name> [--metrics stars,forks]
+gh-track dashboard add repo <owner> [--metrics stars,forks]
+gh-track dashboard add <subject> [--metrics stars,forks]
+```
+
+- A subject that is not in `[[subjects]]` is appended: users default to `resources = ["followers", "repos"]`; repositories use `["repo"]`. An existing entry keeps its resources unless `--resources` is supplied.
+- `add` with no arguments chooses a user or repository interactively, then asks for the login or repository. A bare owner in the repository path lists that owner's public repositories.
+- The subject's `[tracking]` entry is set to the chosen metrics. Explicit forms use `--metrics` for repositories and `followers` for users. Interactive forms prompt per repository with `stars` and `forks` preselected; an already-tracked repository starts from its current metrics.
+- `add repo <owner>` and the interactive repository path list the owner's public repositories from `GET /users/{owner}/repos` (paginated, `sort=updated`) and offer a multi-select. Repository listing uses `--token`, then the env var named by `defaults.token_env`. On `403`, `404`, a network failure, or an empty list, the command warns and asks for `owner/name` manually.
+- Interactive forms require the prompt gate. Without it they exit `2` and name the complete non-interactive form. `--format json` never prompts.
+- `--metrics` accepts a non-empty subset of `stars,forks` and is rejected when only users are added. `--resources` accepts a non-empty subset of `followers,repos` and is rejected for repositories.
+- Config is written atomically once, after all prompts. Cancelling writes nothing.
+- Exit `0` on success or a declined picker. `--format json` emits `{ "configPath", "added", "updated" }`, where each entry is `{ "subject", "metrics", "watched" }`. `added` lists subjects new to `[tracking]`; `updated` lists subjects that were already tracked.
+- `--setup` is removed and exits `2` with a message pointing at `dashboard add`.
 
 ### 2.9 `track`
 
@@ -212,7 +233,7 @@ gh-track track view rm <name>
 
 ## 3. Subject syntax
 
-| Canonical | Accepted in `fetch`, `diff --subject`, `watch rm` |
+| Canonical | Accepted in `fetch`, `diff --subject`, `dashboard add`, `watch rm` |
 |---|---|
 | `user:octocat` | `user:octocat`, `octocat` |
 | `repo:torvalds/linux` | `repo:torvalds/linux`, `torvalds/linux` |
@@ -655,7 +676,8 @@ Codes: `usage`, `config_invalid`, `config_missing`, `empty_watchlist`, `invalid_
 | `watch rm` with no subject | Select from configured subjects, then confirm |
 | `watch rm <subject>` | Confirm removal |
 | `dashboard` with no selection | Setup picker: subjects, then per-repository metrics; saves `[tracking]` |
-| `dashboard --setup` | The same setup picker, even when a selection exists |
+| `dashboard add` with no arguments | Select type (`user` / `repo`), then login or `owner/name`/owner, repository multi-select, and per-repository metrics |
+| `dashboard add repo <owner>` | List the owner's public repositories, then multi-select and per-repository metrics |
 | `track edit` | The same setup picker; saves `[tracking]` |
 | `track view save <name>` without `--item` | Setup picker plus layout and compare-from; saves the view |
 | `fetch` | Progress spinner only; never a question |

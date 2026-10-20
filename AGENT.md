@@ -6,7 +6,7 @@ Entry point for agents and contributors. Keep this file short; the reasoning liv
 
 `gh-track` is a local-first CLI that fetches public GitHub REST payloads for watched accounts and repositories on demand, writes immutable timestamped snapshots, compacts old runs into a small history, and derives diffs between runs. It is built for one operator tracking their own account plus arbitrary public accounts.
 
-**Status:** v1 is complete (M1-M6), and M8 adds the read-only `dashboard` plus the `track` selection commands (per-subject metrics, named views, clack setup picker). The CLI implements `watch`, `fetch` (conditional requests, pagination, partial runs, and `--resume`), `runs`, `diff`, `compact`, `export`, `dashboard`, `track`, and help. The offline suite covers JSON purity on a fake TTY, rate-limit stops and resume, compaction/pruning, export formats, raw/compacted diffs, and per-subject dashboard observations. M7 (interactive first-run setup) remains post-v1.
+**Status:** v1 is complete (M1-M6), and M8 adds the read-only `dashboard` plus the `track` selection commands (per-subject metrics, named views, clack setup picker). M8.1 adds `dashboard add`, which composes watch and tracking and can browse an owner's public repositories. The CLI implements `watch`, `fetch` (conditional requests, pagination, partial runs, and `--resume`), `runs`, `diff`, `compact`, `export`, `dashboard`, `dashboard add`, `track`, and help. The offline suite covers JSON purity on a fake TTY, rate-limit stops and resume, compaction/pruning, export formats, raw/compacted diffs, and per-subject dashboard observations. M7 (interactive first-run setup) remains post-v1.
 
 ## Read first
 

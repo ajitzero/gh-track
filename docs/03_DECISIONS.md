@@ -265,7 +265,7 @@ Decisions made during the initial design interview on 2026-10-19. Each entry rec
 3. **Tracking plus full-snapshot views.** `[tracking."<subject>"]` holds the unnamed default selection with per-subject metrics. `[views."<name>"]` holds a complete snapshot: `items`, `layout`, and `from`/`to`. A view is authoritative and does not inherit metrics from `[tracking]`, so what was saved is what renders. CLI flags override the view. Views live at the config root so control tables do not nest inside subject-keyed tables.
 4. **Two layouts, one palette.** `compact` is the default: one entity block with a `METRICS` column and a `SINCE` column, using one line per selected metric. `columns` groups repositories and accounts into sections with one column per selected metric. In compact, metric values are right-aligned within the block while the `METRICS` header stays at its left edge, with a variable-width label, a count field of at least five characters, a one-character compacted-marker slot, and a delta field of at least five characters including parentheses. Values widen rather than truncate; a missing baseline leaves the delta slot blank, and a subject with no observation renders one `—`. Repositories are bold light blue (`94`), accounts bold purple (`95`), values bold, deltas green/red, zero deltas and provenance dim. Names are unprefixed in both layouts; kind is carried by color. Compacted values carry a literal dim `~`, which survives `NO_COLOR`. `SINCE` is always present because per-subject baselines differ.
 5. **Never-fetched subjects are visible.** A selected subject with no observations renders `—` and resolves to `null` fields in JSON. Silently hiding it would make a selected subject easy to forget.
-6. **Setup is interactive, rendering is not.** `dashboard` with no selection and an open prompt gate offers a clack picker, saves `[tracking]`, then renders. `--setup` forces it. `track edit` and `track view save` reuse the picker. With the gate closed, `dashboard` renders all configured subjects with defaults and never prompts. `--format json` is always deterministic.
+6. **Setup is interactive, rendering is not.** `dashboard` with no selection and an open prompt gate offers a clack picker, saves `[tracking]`, then renders. `dashboard add` extends or edits the selection, `track edit` replaces it, and `track view save` reuses the picker. With the gate closed, `dashboard` renders all configured subjects with defaults and never prompts. `--format json` is always deterministic.
 7. **No totals.** D009 still applies. The dashboard has no sum, average, or leaderboard footer.
 8. **`--from` / `--to` only.** `--since` from the draft is dropped; the dashboard reuses diff reference forms rather than inventing a second range syntax.
 9. **Styled table cells.** `output/table.ts` accepts a cell whose width is measured from plain text and which is painted at render time, supports per-column alignment, and trims trailing whitespace. Existing string cells are unchanged.
@@ -291,6 +291,22 @@ Decisions made during the initial design interview on 2026-10-19. Each entry rec
 
 **Consequence.** The repository contains documentation, not work-in-progress plans. A fresh agent reads `AGENT.md`, uses its own plan tool, and records the outcome here. The full pre-restructure plan text remains in git history at `3deedbb`.
 
+## D025 — `dashboard add`: composite setup, repository browsing
+
+**Context.** `dashboard --setup` was the only way to re-run setup after the first run, but it expressed a flag rather than an intent, and it replaced the picker rather than adding to it. Adding a subject still required `watch add` plus `track set`/`track edit`, and selecting several repositories from one owner meant typing every full name. M7 (a general first-run wizard) remains separate and deferred.
+
+**Decision.**
+
+1. **`dashboard add` replaces `--setup` and is additive.** It appends missing subjects to `[[subjects]]` and sets their `[tracking]` entries. Explicit forms (`add user <login>`, `add repo <owner/name>`, `add <subject>`) are complete non-interactive commands; bare `add` runs a picker. Existing subject resources are preserved unless `--resources` is supplied.
+2. **Repository browsing.** `add repo <owner>` and the interactive repository path list `GET /users/{owner}/repos`, paginated and sorted by updated, with a multi-select and a per-repository metrics prompt. `owner/name` remains a direct add. Already-tracked repositories are marked, not preselected.
+3. **One save, no confirmation.** Config is written atomically after all prompts; cancelling or `Ctrl-C` writes nothing. Saved views are untouched.
+4. **Token parity with fetch.** Listing resolves `--token`, then the env var named by `defaults.token_env`. On `403`, `404`, network failure, or an empty list it warns and asks for `owner/name` manually.
+5. **Selection management stays under `track`.** `track edit/set/rm/ls/view` keep their semantics. `dashboard add` is the only new management surface.
+
+**Rejected.** Keeping `--setup` as an alias (two entry points with different scopes: the flag forced a picker, add is additive); making `dashboard add` tracking-only (forces a hidden second command on a fresh install); auto-watching without preserving existing resources (silently changes fetch cost); prompting for metrics on explicit forms (breaks the complete-command contract); filtering already-tracked repositories out of the listing (hides state); preselecting them (accidental metric re-prompts).
+
+**Consequence.** A fresh install reaches a populated dashboard with one command. Scripts using `--setup` must migrate to `dashboard add`; the error names the replacement. The dashboard still writes config only through the first-run picker and `dashboard add`.
+
 ## Plan history
 
 Active plans are owned by the coding harness and are never committed to this repository. This section is the durable record of what was planned, what shipped, and what remains. Statuses: `done`, `partial`, `not started`, `superseded`, `abandoned`.
@@ -299,6 +315,7 @@ Active plans are owned by the coding harness and are never committed to this rep
 |---|---|---|---|---|
 | v1 — core CLI (M1–M6) | 2026-10-19 → 2026-10-20 | done | `watch`, `fetch` with resume, `runs`, `diff`, `compact`, `export`; atomic immutable runs; JSON purity; offline test suite | M7 interactive first-run setup |
 | Dashboard (M8) | 2026-10-20 | done | `dashboard` and `track`; per-subject observations; `[tracking]` and `[views]`; compact/columns layouts; clack picker | None |
+| Dashboard add (M8.1) | 2026-10-20 | done | `dashboard add`; composite watch+track; public-repository browsing and multi-select; removed `--setup` | None |
 
 The retired `docs/plans/` files remain in git history at commit `3deedbb` (`feat: implement M8 dashboard and tracking`). This section replaces the folder as the place to answer "what has been done, and what is left?"
 

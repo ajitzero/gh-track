@@ -2,6 +2,7 @@
 
 import { configMissing, emptyWatchlist, UsageError } from '../errors.js';
 import { loadConfig, saveConfig } from '../config.js';
+import { runDashboardAdd } from './dashboard-add.js';
 import { pickSelection } from '../dashboard/picker.js';
 import { renderDashboard } from '../dashboard/render.js';
 import {
@@ -55,17 +56,23 @@ function observationSubjects(items: readonly SelectionItem[]): ObservationSubjec
 }
 
 export async function runDashboard(context: CommandContext): Promise<CommandResult> {
-  if (context.positionals.length > 0) {
+  const [subcommand, ...rest] = context.positionals;
+  if (subcommand === 'add') {
+    return runDashboardAdd({ ...context, positionals: rest });
+  }
+  if (subcommand !== undefined) {
     throw new UsageError(
-      `Unexpected argument ${JSON.stringify(context.positionals[0])}. Use: gh-track dashboard`,
+      `Unknown dashboard subcommand: ${subcommand}. Use: gh-track dashboard add`,
     );
   }
 
-  const setup = context.options.has('setup');
-  const view = context.options.get('view');
-  if (setup && view !== undefined) {
-    throw new UsageError('--setup and --view cannot be combined.');
+  for (const name of ['metrics', 'resources', 'token']) {
+    if (context.options.has(name)) {
+      throw new UsageError(`--${name} is only valid with 'gh-track dashboard add'.`);
+    }
   }
+
+  const view = context.options.get('view');
 
   const loaded = await loadConfig(context.paths.configPath, { required: true });
   if (loaded === null) {
@@ -91,38 +98,28 @@ export async function runDashboard(context: CommandContext): Promise<CommandResu
   }
 
   const firstRun =
-    !setup &&
     view === undefined &&
     config.tracking.length === 0 &&
     !context.options.has('subject');
-  if (setup || firstRun) {
-    if (!context.canPrompt) {
-      if (setup) {
-        throw new UsageError(
-          '--setup requires an interactive terminal. Use: gh-track track set --item <subject>=<metrics>',
-        );
-      }
-      // No selection and no prompts: render every subject with defaults.
-    } else {
-      const picked = await pickSelection(context, {
-        config,
-        initial: {
-          items: initialItems(config),
-          layout: 'compact',
-          from: 'previous',
-          to: 'latest',
-        },
-        askLayout: false,
-        askFrom: false,
-        confirmMessage: 'Save this dashboard selection?',
-        subjectMessage: 'Set up your dashboard',
-      });
-      if (picked === null) {
-        return cancelled();
-      }
-      config.tracking = toTracking(config, picked.items);
-      await saveConfig(context.paths.configPath, config);
+  if (firstRun && context.canPrompt) {
+    const picked = await pickSelection(context, {
+      config,
+      initial: {
+        items: initialItems(config),
+        layout: 'compact',
+        from: 'previous',
+        to: 'latest',
+      },
+      askLayout: false,
+      askFrom: false,
+      confirmMessage: 'Save this dashboard selection?',
+      subjectMessage: 'Set up your dashboard',
+    });
+    if (picked === null) {
+      return cancelled();
     }
+    config.tracking = toTracking(config, picked.items);
+    await saveConfig(context.paths.configPath, config);
   }
 
   const selection = resolveSelection(config, {

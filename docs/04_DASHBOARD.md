@@ -26,13 +26,14 @@ Recorded as [D023](03_DECISIONS.md).
 | Never fetched | Row is included with `—` |
 | Baseline | A `SINCE` column in both layouts |
 | Totals | Never (D009) |
-| Setup | clack picker when no selection exists, or with `--setup` |
+| Setup | clack picker when no selection exists; `dashboard add` for incremental setup |
 
 ## Commands
 
 ```
 gh-track dashboard [--view <name>] [--from <ref>] [--to <ref>]
-                   [--subject <s>]... [--layout compact|columns] [--setup]
+                   [--subject <s>]... [--layout compact|columns]
+gh-track dashboard add [user <login> | repo <owner/name> | repo <owner> | <subject>]
 gh-track track edit
 gh-track track set --item <subject>=<metrics>...
 gh-track track rm <subject>
@@ -41,7 +42,9 @@ gh-track track view save <name> [--item ...] [--layout ...] [--from ...] [--to .
 gh-track track view rm <name>
 ```
 
-- `dashboard` is read-only. It writes only when the setup picker runs.
+- `dashboard` is read-only. It writes only when the first-run picker runs.
+- `dashboard add` composes watch and tracking: it appends missing subjects to `[[subjects]]` and sets their `[tracking]` entry. It is additive and never touches `[views]`.
+- `dashboard add repo <owner>` and the interactive repository path list the owner's public repositories and allow a multi-select, with a per-repository metrics prompt. `--metrics` and `--resources` make the explicit forms non-interactive.
 - `--view` selects a full snapshot. `--subject` overrides the item set with configured subjects; their metrics come from the view, then `[tracking]`, then defaults.
 - `--from` / `--to` override the view's range. `--layout` overrides the view's layout.
 - `track edit` writes `[tracking]`; `track set` is its non-interactive equivalent.
@@ -55,7 +58,7 @@ The picker is clack, behind the existing prompt gate (`stdin` and `stdout` TTY, 
 Entry points:
 
 1. `dashboard` with no `[tracking]`, no `--view`, and no `--subject` offers setup, saves `[tracking]`, then renders.
-2. `dashboard --setup` always runs the picker, then renders.
+2. `dashboard add` adds subjects and saves `[tracking]` (and any new `[[subjects]]`); the bare form runs the add picker.
 3. `track edit` runs the picker and saves `[tracking]`.
 4. `track view save <name>` without `--item` runs the picker and saves the view.
 
@@ -66,9 +69,19 @@ Default-selection flow:
 3. Accounts skip step 2; `followers` is fixed.
 4. Confirm, then write the config atomically.
 
+Add flow:
+
+1. Select type: User or Repository. Accounts use `followers` and skip the metrics prompt.
+2. Repository input accepts `owner/name` (one repository) or a bare owner (browse).
+3. Browsing lists the owner's public repositories from `GET /users/{owner}/repos`, paginated and sorted by updated. Forks are marked; already-tracked repositories show their current metrics. The user multi-selects.
+4. For each selected repository, `multiselect` stars/forks, seeded from `--metrics`, the existing `[tracking]` metrics, or both.
+5. Write the config atomically. There is no separate confirmation; cancelling or `Ctrl-C` writes nothing.
+
+Repository listing uses `--token` or the env var named by `defaults.token_env`. On `403`, `404`, a network failure, or an empty list, the command warns and asks for `owner/name` manually.
+
 A view save adds layout (`compact` / `columns`) and compare-from (`previous observation` / custom date). Supplying `--layout` / `--from` / `--to` skips the corresponding prompt.
 
-When the gate is closed, `dashboard` with no selection renders every configured subject with defaults. `--setup` without a TTY exits `2` with the non-interactive invocation. `Ctrl-C` exits `130`; declining writes nothing.
+When the gate is closed, `dashboard` with no selection renders every configured subject with defaults. `dashboard add` without a TTY exits `2` with the non-interactive invocation, while its explicit forms (`add user <login>`, `add repo <owner/name>`, `add <subject>`) run without prompting. `Ctrl-C` exits `130`; declining writes nothing. `--setup` is removed and exits `2` with a message pointing at `dashboard add`.
 
 ## Config
 

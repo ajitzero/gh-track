@@ -74,7 +74,7 @@ function subjectOrder(config: Config): Map<string, number> {
   return order;
 }
 
-function sortTracking(config: Config, entries: TrackingEntry[]): TrackingEntry[] {
+export function sortTracking(config: Config, entries: TrackingEntry[]): TrackingEntry[] {
   const order = subjectOrder(config);
   entries.sort((left, right) => {
     const leftIndex = order.get(subjectKey(parseSubject(left.subject))) ?? Number.MAX_SAFE_INTEGER;
@@ -168,7 +168,7 @@ export function resolveSelection(
   items = dedupeItems(items);
   if (items.length === 0) {
     throw noSelection(
-      'No dashboard subjects are selected. Use `gh-track track set --item <subject>=<metrics>` or `gh-track dashboard --setup`.',
+      'No dashboard subjects are selected. Use `gh-track track set --item <subject>=<metrics>` or `gh-track dashboard add`.',
     );
   }
 

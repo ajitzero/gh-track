@@ -58,6 +58,7 @@ Use `--config <path>` and `--data-dir <path>` to override them.
 | `compact [--dry-run]` | Roll old runs into daily history |
 | `export [--format json\|jsonl\|csv]` | Export compacted history |
 | `dashboard [--view <name>]` | Show selected metrics and per-subject deltas |
+| `dashboard add [user <login> \| repo <owner/name> \| repo <owner>]` | Add and watch subjects; an owner browses their public repositories |
 | `track edit` | Pick subjects and metrics interactively |
 | `track set --item <subject>=<metrics>` | Set a subject's dashboard metrics |
 | `track rm <subject>` | Remove a subject from the default selection |
@@ -72,19 +73,23 @@ Run `gh-track help` or `gh-track <command> --help` for the full option reference
 `dashboard` is a read-only value view over the same data as `diff`. Metrics are fixed: stars and forks for repositories, followers for accounts. Each row compares against that subject's own previous observation, so subjects fetched at different times keep their values.
 
 ```bash
-# First run: choose subjects and metrics with the clack picker
-gh-track dashboard
+# Add and watch subjects interactively (user or repository)
+gh-track dashboard add
 
-# Or configure non-interactively
-gh-track track set --item repo:torvalds/linux=stars,forks
-gh-track track set --item user:octocat=followers
-gh-track dashboard
+# Or non-interactively
+gh-track dashboard add user octocat
+gh-track dashboard add repo torvalds/linux --metrics stars,forks
+
+# Browse an owner's public repositories and pick several at once
+gh-track dashboard add repo octocat
 
 # Save a named snapshot with its own layout and range
 gh-track track view save my-repos --item repo:torvalds/linux=stars \
   --layout columns --from 2026-09-01
 gh-track dashboard --view my-repos
 ```
+
+`dashboard add` writes both the watchlist and the default selection, so the next `fetch` picks the subject up. It only adds: use `track rm` to remove a subject and `track edit` to replace the whole selection.
 
 Selections live in `[tracking]`; named views live in `[views]` in the same TOML file. A compacted-history value carries a `~` marker, and `--format json` returns per-row `source` values (`raw`, `compacted`, `mixed`, or `null`).
 

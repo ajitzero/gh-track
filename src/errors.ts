@@ -128,6 +128,10 @@ export function httpError(status: number, message: string, details?: ErrorDetail
   return new CliError('http_error', message, { status, ...(details ?? {}) });
 }
 
+export function githubUserNotFound(login: string): CliError {
+  return new CliError('http_error', `GitHub user not found: ${login}`, { login, status: 404 });
+}
+
 export function runNotFound(runId: string): CliError {
   return new CliError('run_not_found', `Run not found: ${runId}`, { runId });
 }

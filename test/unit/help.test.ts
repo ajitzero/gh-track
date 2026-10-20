@@ -30,6 +30,24 @@ test('subcommand help renders the leaf page', () => {
   assert.match(text, /--resources <list>/);
 });
 
+test('dashboard help lists add and no removed setup flag', () => {
+  const text = renderHelp(['dashboard']);
+  assert.ok(text !== null);
+  assert.match(text, /Subcommands:/);
+  assert.match(text, /\badd\b {2,}add subjects to the dashboard/);
+  assert.doesNotMatch(text, /--setup/);
+});
+
+test('dashboard add help documents metrics, resources, and token', () => {
+  const text = renderHelp(['dashboard', 'add']);
+  assert.ok(text !== null);
+  assert.match(text, /^gh-track dashboard add — add subjects to the dashboard/);
+  assert.match(text, /--metrics <list>/);
+  assert.match(text, /--resources <list>/);
+  assert.match(text, /--token <token>/);
+  assert.match(text, /gh-track dashboard add repo octocat/);
+});
+
 test('examples render only when present', () => {
   const text = renderHelp(['watch', 'ls']);
   assert.ok(text !== null);

@@ -110,6 +110,23 @@ export interface TrackListResult {
   views: DashboardView[];
 }
 
+/** One subject written by `dashboard add`. */
+export interface DashboardAddEntry {
+  subject: string;
+  metrics: Metric[];
+  /** True when this run added the subject to `[[subjects]]`. */
+  watched: boolean;
+}
+
+/** `dashboard add --format json` document. */
+export interface DashboardAddResult {
+  configPath: string;
+  /** Subjects that were not in `[tracking]` before this run. */
+  added: DashboardAddEntry[];
+  /** Subjects that were already in `[tracking]`. */
+  updated: DashboardAddEntry[];
+}
+
 export interface LastRunSummary {
   id: string;
   status: RunStatus;
@@ -328,6 +345,19 @@ export interface PromptApi {
   watchAdd(): Promise<WatchAddAnswer | null>;
   selectSubject(subjects: readonly string[]): Promise<string | null>;
   confirmRemoval(subject: string): Promise<boolean | null>;
+  /** Select the subject type for `dashboard add`. */
+  selectAddType(): Promise<SubjectType | null>;
+  /** Enter a GitHub login during `dashboard add`. */
+  askUserLogin(): Promise<string | null>;
+  /** Enter `owner/name` or a bare owner to browse. */
+  askRepoInput(): Promise<string | null>;
+  /** Enter a full `owner/name` when repository listing is unavailable. */
+  askRepoName(message?: string): Promise<string | null>;
+  /** Multi-select public repositories for one login. */
+  selectRepos(
+    login: string,
+    choices: readonly SubjectChoice[],
+  ): Promise<string[] | null>;
   /** Multi-select dashboard subjects, prefilled with `initial`. */
   selectSubjects(
     choices: readonly SubjectChoice[],

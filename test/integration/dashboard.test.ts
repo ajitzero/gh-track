@@ -79,6 +79,11 @@ const inertPrompts: PromptApi = {
   watchAdd: async () => null,
   selectSubject: async () => null,
   confirmRemoval: async () => null,
+  selectAddType: async () => null,
+  askUserLogin: async () => null,
+  askRepoInput: async () => null,
+  askRepoName: async () => null,
+  selectRepos: async () => null,
   selectSubjects: async () => null,
   selectMetrics: async () => null,
   selectLayout: async () => null,
@@ -495,14 +500,19 @@ test('declining or cancelling the picker writes nothing', async (t) => {
   assert.equal(await readFile(w.configPath, 'utf8'), before);
 });
 
-test('--setup requires a prompt gate and JSON never prompts', async (t) => {
+test('--setup is removed with a targeted message', async (t) => {
   const w = await workspace(t);
   await seedWorkspace(w.dataDir);
 
   const setup = await invoke(args(w, 'dashboard', '--setup'));
   assert.equal(setup.code, 2);
-  assert.match(setup.stderr, /--setup requires an interactive terminal/);
-  assert.match(setup.stderr, /track set --item/);
+  assert.match(setup.stderr, /--setup flag has been removed/);
+  assert.match(setup.stderr, /dashboard add/);
+});
+
+test('JSON never prompts on the first run', async (t) => {
+  const w = await workspace(t);
+  await seedWorkspace(w.dataDir);
 
   const json = await invoke(args(w, 'dashboard', '--format', 'json'), {
     stdinIsTTY: true,

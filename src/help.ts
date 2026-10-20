@@ -168,6 +168,38 @@ const EXPORT: HelpNode = {
   ],
 };
 
+const DASHBOARD_ADD: HelpNode = {
+  name: 'add',
+  summary: 'add subjects to the dashboard and watch them',
+  usage: [
+    'gh-track dashboard add',
+    'gh-track dashboard add user <login> [--resources <list>]',
+    'gh-track dashboard add repo <owner/name> [--metrics <list>]',
+    'gh-track dashboard add repo <owner> [--metrics <list>]',
+    'gh-track dashboard add <subject> [--metrics <list>]',
+  ],
+  arguments: [
+    { name: 'subject', summary: 'any accepted subject form (bare login or owner/name)' },
+  ],
+  options: [
+    {
+      flags: '--metrics <list>',
+      summary: 'Comma-separated subset of stars,forks (repositories; default: both)',
+    },
+    {
+      flags: '--resources <list>',
+      summary: 'Comma-separated subset of followers,repos (users; default: both)',
+    },
+    { flags: '--token <token>', summary: "Token used when listing an owner's public repositories" },
+  ],
+  examples: [
+    'gh-track dashboard add',
+    'gh-track dashboard add user octocat',
+    'gh-track dashboard add repo torvalds/linux --metrics stars',
+    'gh-track dashboard add repo octocat',
+  ],
+};
+
 const DASHBOARD: HelpNode = {
   name: 'dashboard',
   summary: 'show selected metrics and per-subject deltas',
@@ -178,14 +210,14 @@ const DASHBOARD: HelpNode = {
     { flags: '--to <ref>', summary: 'Current point (default: latest)' },
     { flags: '--subject <s>', summary: 'Repeatable; override the selected subjects' },
     { flags: '--layout <fmt>', summary: 'compact (default) or columns' },
-    { flags: '--setup', summary: 'Run the setup picker before rendering' },
   ],
   examples: [
     'gh-track dashboard',
-    'gh-track dashboard --setup',
+    'gh-track dashboard add',
     'gh-track dashboard --view my-repos',
     'gh-track dashboard --format json',
   ],
+  children: [DASHBOARD_ADD],
 };
 
 const TRACK_EDIT: HelpNode = {

@@ -12,9 +12,9 @@ import {
   GITHUB_API_BASE,
   hasNextPage,
   nextPageUrl,
-  GitHubClient,
   MAX_PAGES,
 } from '../github/client.js';
+import { createGitHubClient, resolveToken } from '../github/runtime.js';
 import { etagFor, parseEtagCache, recordEtag, resolveNotModified, type EtagCache } from '../github/etag.js';
 import {
   effectiveMaxRequests,
@@ -44,7 +44,6 @@ import { latestPartialRun, readRunPayload } from '../store/runs.js';
 import { readStateJson, STATE_ETAGS_FILE, STATE_LIMITS_FILE, writeStateJson } from '../store/state.js';
 import { formatRunId } from '../store/paths.js';
 import { parseSubject, subjectKey } from '../subjects.js';
-import { VERSION } from '../version.js';
 import type {
   CommandContext,
   CommandResult,
@@ -315,18 +314,6 @@ async function resolveSubjects(
   return { subjects, warnings, config: loaded?.config ?? null };
 }
 
-function resolveToken(context: CommandContext, tokenEnv: string): string | undefined {
-  const explicit = context.options.get('token');
-  if (explicit !== undefined) {
-    return explicit;
-  }
-  if (tokenEnv.length === 0) {
-    return undefined;
-  }
-  const fromEnv = context.env[tokenEnv];
-  return fromEnv !== undefined && fromEnv.length > 0 ? fromEnv : undefined;
-}
-
 function parseMaxRequests(raw: string | undefined): number | undefined {
   if (raw === undefined) {
     return undefined;
@@ -542,19 +529,7 @@ async function executeRun(
     warnings.push(`--max-requests ${override} exceeds the quota-derived cap ${quota}; using ${quota}.`);
   }
 
-  const client = new GitHubClient({
-    token,
-    timeoutMs: config.defaults.requestTimeoutMs,
-    maxRetries: config.defaults.maxRetries,
-    userAgent: `gh-track/${VERSION}`,
-    fetchImpl: context.fetchImpl,
-    sleep: context.sleepImpl,
-    onDiagnostic: (message) => {
-      if (context.verbose) {
-        warnings.push(message);
-      }
-    },
-  });
+  const client = createGitHubClient(context, config, token, warnings);
 
   const pendingQueue: PendingRequest[] = [...queue];
   const scheduled = new Set<string>(pendingQueue.map((request) => pageKey(request)));

@@ -2,7 +2,7 @@
 
 import { confirm, isCancel, multiselect, select, text } from '@clack/prompts';
 import { interrupted } from '../errors.js';
-import { parseExplicitSubject } from '../subjects.js';
+import { isValidLogin, isValidRepoFullName, parseExplicitSubject } from '../subjects.js';
 import type {
   DashboardLayout,
   Metric,
@@ -19,6 +19,92 @@ function validateValue(type: SubjectType, input: string): string | undefined {
   } catch (error) {
     return error instanceof Error ? error.message : 'Invalid value';
   }
+}
+
+async function askAddType(): Promise<SubjectType | null> {
+  const type = await select<SubjectType>({
+    message: 'What do you want to add?',
+    options: [
+      { value: 'user', label: 'User', hint: 'track followers' },
+      { value: 'repo', label: 'Repository', hint: 'track stars and forks' },
+    ],
+  });
+  if (isCancel(type)) {
+    throw interrupted();
+  }
+  return type;
+}
+
+async function askUserLogin(): Promise<string | null> {
+  const value = await text({
+    message: 'GitHub login',
+    placeholder: 'octocat',
+    validate: (input) => (isValidLogin(input ?? '') ? undefined : 'Enter a valid GitHub login'),
+  });
+  if (isCancel(value)) {
+    throw interrupted();
+  }
+  return value;
+}
+
+async function askRepoInput(): Promise<string | null> {
+  const value = await text({
+    message: 'Repository (owner/name) or owner to browse',
+    placeholder: 'torvalds/linux or octocat',
+    validate: (input) => {
+      const raw = (input ?? '').trim();
+      if (raw.length === 0) {
+        return undefined;
+      }
+      if (raw.includes('/')) {
+        return isValidRepoFullName(raw) ? undefined : 'Use owner/name with exactly one slash';
+      }
+      return isValidLogin(raw) ? undefined : 'Enter a valid login or owner/name';
+    },
+  });
+  if (isCancel(value)) {
+    throw interrupted();
+  }
+  return value.trim();
+}
+
+async function askRepoName(
+  message = 'Repository (owner/name)',
+): Promise<string | null> {
+  const value = await text({
+    message,
+    placeholder: 'torvalds/linux',
+    validate: (input) => {
+      const raw = (input ?? '').trim();
+      if (raw.length === 0) {
+        return undefined;
+      }
+      return isValidRepoFullName(raw) ? undefined : 'Use owner/name with exactly one slash';
+    },
+  });
+  if (isCancel(value)) {
+    throw interrupted();
+  }
+  return value.trim();
+}
+
+async function askRepos(
+  login: string,
+  choices: readonly SubjectChoice[],
+): Promise<string[] | null> {
+  const selected = await multiselect<string>({
+    message: `Public repositories for ${login}`,
+    options: choices.map((choice) =>
+      choice.hint === undefined
+        ? { value: choice.value, label: choice.label }
+        : { value: choice.value, label: choice.label, hint: choice.hint },
+    ),
+    required: true,
+  });
+  if (isCancel(selected)) {
+    throw interrupted();
+  }
+  return selected;
 }
 
 async function askWatchAdd(): Promise<WatchAddAnswer | null> {
@@ -182,6 +268,11 @@ export function createPrompts(): PromptApi {
     watchAdd: askWatchAdd,
     selectSubject: askSelectSubject,
     confirmRemoval: askConfirmRemoval,
+    selectAddType: askAddType,
+    askUserLogin,
+    askRepoInput,
+    askRepoName,
+    selectRepos: askRepos,
     selectSubjects: askSubjects,
     selectMetrics: askMetrics,
     selectLayout: askLayout,

@@ -77,7 +77,7 @@ function renderSelection(config: Config): string {
       ),
     );
   } else {
-    sections.push('No dashboard selection. Run `gh-track track edit` or `gh-track dashboard --setup`.');
+    sections.push('No dashboard selection. Run `gh-track track edit` or `gh-track dashboard add`.');
   }
 
   if (config.views.length > 0) {

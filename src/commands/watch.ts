@@ -1,8 +1,10 @@
 /** `gh-track watch add|ls|rm`. */
 
 import { loadConfig, saveConfig, defaultConfig } from '../config.js';
+import { toConfigSubject, upsertSubject } from '../config-edit.js';
 import { UsageError, unknownSubject } from '../errors.js';
 import { renderTable } from '../output/table.js';
+import { USER_RESOURCES, parseResources } from '../resources.js';
 import { summarizeLastRun } from '../store/runs.js';
 import { parseExplicitSubject, parseSubject, subjectKey } from '../subjects.js';
 import type {
@@ -16,9 +18,6 @@ import type {
   WatchedSubject,
 } from '../types.js';
 
-const USER_RESOURCES: readonly Resource[] = ['followers', 'repos'];
-const USER_RESOURCE_SET = new Set<string>(USER_RESOURCES);
-
 const ADD_USAGE =
   'gh-track watch add user <login> [--resources followers,repos] or gh-track watch add repo <owner/name>';
 
@@ -28,26 +27,6 @@ function cancelled(): CommandResult {
     text: 'Cancelled.\n',
     warnings: [],
   };
-}
-
-function parseResources(value: string): Resource[] {
-  const parts = value.split(',').map((part) => part.trim());
-  if (parts.length === 0 || parts.some((part) => part.length === 0)) {
-    throw new UsageError(
-      `Invalid --resources value ${JSON.stringify(value)}. Expected a comma-separated subset of followers,repos.`,
-    );
-  }
-
-  const resources = new Set<Resource>();
-  for (const part of parts) {
-    if (!USER_RESOURCE_SET.has(part)) {
-      throw new UsageError(
-        `Invalid --resources value ${JSON.stringify(value)}. Expected a comma-separated subset of followers,repos.`,
-      );
-    }
-    resources.add(part as Resource);
-  }
-  return USER_RESOURCES.filter((resource) => resources.has(resource));
 }
 
 async function addSubject(context: CommandContext, args: string[]): Promise<CommandResult> {
@@ -93,40 +72,19 @@ async function addSubject(context: CommandContext, args: string[]): Promise<Comm
     throw new UsageError('--resources is only valid for user subjects.');
   }
 
-  const resources = type === 'user'
+  const resources: Resource[] = type === 'user'
     ? resourcesValue === undefined
       ? [...USER_RESOURCES]
       : parseResources(resourcesValue)
-    : (['repo'] as Resource[]);
+    : ['repo'];
 
   const parsed = parseExplicitSubject(type, value);
   const loaded = await loadConfig(context.paths.configPath, { required: false });
   const config: Config = loaded?.config ?? defaultConfig();
   const warnings = loaded === null ? [] : [...loaded.warnings];
 
-  const entry: ConfigSubject =
-    parsed.type === 'user'
-      ? {
-          subject: parsed.subject,
-          type: 'user',
-          account: parsed.account,
-          resources,
-        }
-      : {
-          subject: parsed.subject,
-          type: 'repo',
-          repo: parsed.repo,
-          resources,
-        };
-
-  const key = subjectKey(entry);
-  const existingIndex = config.subjects.findIndex((subject) => subjectKey(subject) === key);
-  const updated = existingIndex >= 0;
-  if (updated) {
-    config.subjects[existingIndex] = entry;
-  } else {
-    config.subjects.push(entry);
-  }
+  const entry = toConfigSubject(parsed, resources);
+  const updated = !upsertSubject(config, entry);
 
   await saveConfig(context.paths.configPath, config);
 
