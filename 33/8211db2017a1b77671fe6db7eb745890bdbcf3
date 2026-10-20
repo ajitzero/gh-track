@@ -1,0 +1,72 @@
+AGENT.md
+  h_1e9f70f2591550 9
+README.md
+  h_1e9f70f2591550 61,76-77,79-84,92-93
+docs/02_SPEC.md
+  h_1e9f70f2591550 185,191-212,236,679-680
+docs/03_DECISIONS.md
+  h_1e9f70f2591550 268,294-309,318
+docs/04_DASHBOARD.md
+  h_1e9f70f2591550 29,35-36,45-47,61,72-81,84
+src/cli.ts
+  h_1e9f70f2591550 86-87,91-95,133,212-215
+src/commands/dashboard-add.ts
+  h_1e9f70f2591550 1-479
+src/commands/dashboard.ts
+  h_1e9f70f2591550 5,59-63,65,69-72,75-76,104-119,121-122
+src/commands/fetch.ts
+  h_1e9f70f2591550 17,532
+src/commands/track.ts
+  h_1e9f70f2591550 80
+src/commands/watch.ts
+  h_1e9f70f2591550 4,7,75,79,86-87
+src/config-edit.ts
+  h_1e9f70f2591550 1-36
+src/dashboard/select.ts
+  h_1e9f70f2591550 77,171
+src/errors.ts
+  h_1e9f70f2591550 131-134
+src/github/repos-list.ts
+  h_1e9f70f2591550 1-84
+src/github/runtime.ts
+  h_1e9f70f2591550 1-40
+src/help.ts
+  h_1e9f70f2591550 171-202,216,220
+src/prompts/index.ts
+  h_1e9f70f2591550 5,24-109,271-275
+src/resources.ts
+  h_1e9f70f2591550 1-29
+src/types.ts
+  h_1e9f70f2591550 113-129,348-360
+test/integration/cli.test.ts
+  h_1e9f70f2591550 20-24
+test/integration/compact-export.test.ts
+  h_1e9f70f2591550 28-32
+test/integration/dashboard-add.test.ts
+  h_1e9f70f2591550 1-447
+test/integration/dashboard.test.ts
+  h_1e9f70f2591550 82-86,503,509-515
+test/integration/diff.test.ts
+  h_1e9f70f2591550 28-32
+test/integration/fetch-dry-run.test.ts
+  h_1e9f70f2591550 19-23
+test/integration/fetch-run.test.ts
+  h_1e9f70f2591550 30-34
+test/integration/json-purity.test.ts
+  h_1e9f70f2591550 29-33
+test/unit/help.test.ts
+  h_1e9f70f2591550 33-50
+test/unit/repos-list.test.ts
+  h_1e9f70f2591550 1-39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "338211db2017a1b77671fe6db7eb745890bdbcf3",
+  "prompts": {},
+  "humans": {
+    "h_1e9f70f2591550": {
+      "author": "Ajit Panigrahi <ajitzero@gmail.com>"
+    }
+  }
+}
