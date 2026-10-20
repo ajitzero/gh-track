@@ -13,10 +13,9 @@ Entry point for agents and contributors. Keep this file short; the reasoning liv
 1. [README.md](README.md) — quickstart for users.
 2. [docs/00_GOAL.md](docs/00_GOAL.md) — why, success criteria, non-goals.
 3. [docs/01_ARCHITECTURE.md](docs/01_ARCHITECTURE.md) — components, storage, rate limits, failure modes.
-4. [docs/plans/00_PLAN.md](docs/plans/00_PLAN.md) — how the plans folder works.
-5. [docs/plans/01_SPEC.md](docs/plans/01_SPEC.md) — exact CLI, config, and JSON contracts.
-6. [docs/plans/02_IMPLEMENTATION.md](docs/plans/02_IMPLEMENTATION.md) — milestones, file layout, tests.
-7. [docs/plans/03_DECISIONS.md](docs/plans/03_DECISIONS.md) — why the design looks like this.
+4. [docs/02_SPEC.md](docs/02_SPEC.md) — exact CLI, config, and JSON contracts.
+5. [docs/03_DECISIONS.md](docs/03_DECISIONS.md) — decisions, plan history, and open backlog.
+6. [docs/04_DASHBOARD.md](docs/04_DASHBOARD.md) — dashboard design and observation model.
 
 Do not start coding from this file alone.
 
@@ -68,12 +67,22 @@ test/                  node:test fixtures, no live network
 - Runtime data never lives in the repo and is never committed.
 - Config is TOML at `~/.config/gh-track/config.toml`.
 
+## Implementation rules
+
+- Inject `fetch` and time. Paths, config, and caches are passed explicitly; no global state.
+- Errors are typed domain errors; `cli.ts` maps them to exit codes once.
+- Commands return structured results; only `src/output` renders them.
+- Add a dependency only with an entry in `docs/03_DECISIONS.md`.
+- Tests construct payloads inline through `test/helpers/seed.ts`; no committed fixtures and no live network.
+
 ## Docs rules
 
 - Everything under `docs/` is an Obsidian vault. Use relative Markdown links (they render on GitHub too); do not use wikilinks.
-- Frontmatter keys: `title`, `type` (`core` for `docs/` root, `plan` for `docs/plans/`), `status`, `updated`. Do not add tags.
-- Plans are numbered. `docs/plans/00_PLAN.md` is folder metadata and is never repurposed.
-- If behavior changes, update `docs/plans/01_SPEC.md` and add an entry to `docs/plans/03_DECISIONS.md`.
+- No YAML frontmatter or H1 heading. The filename carries the title and git history carries dates. Do not add tags.
+- Docs are numbered. Take the next free number and never renumber an existing doc.
+- Do not create plan or scratch Markdown files in the repo. Active plans belong to the harness: OpenCode uses `~/.opencode/plan`; use the equivalent directory for Claude, Hermes, or any other agent. If a harness insists on a project-local plan directory, ignore it in `.gitignore` instead of committing it.
+- Completed plans and open work are recorded in `docs/03_DECISIONS.md` under **Plan history** and **Open backlog**. There is no `docs/plans/` folder.
+- If behavior changes, update `docs/02_SPEC.md` and add an entry to `docs/03_DECISIONS.md`.
 
 ## Legacy
 

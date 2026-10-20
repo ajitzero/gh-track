@@ -1,12 +1,3 @@
----
-title: "00 — Goal"
-type: core
-status: active
-updated: 2026-10-19
----
-
-# 00 — Goal
-
 `gh-track` is a local-first CLI that snapshots public GitHub metadata on demand, keeps a durable history, and shows exactly what changed between any two runs.
 
 ## The problem
@@ -46,7 +37,7 @@ One operator. The primary use case is watching your own account (its repositorie
 
 ## Non-goals for v1
 
-- Full-screen TUI or alternate-screen app. The dashboard is a rendered table (see [04_DASHBOARD.md](plans/04_DASHBOARD.md)).
+- Full-screen TUI or alternate-screen app. The dashboard is a rendered table (see [04_DASHBOARD.md](04_DASHBOARD.md)).
 - Scheduling: no cron, daemon, or background worker. You run it.
 - Required authentication, stored credentials, or keyring integration.
 - Private repositories, organization membership, traffic/clone/view data.
@@ -69,7 +60,6 @@ One operator. The primary use case is watching your own account (its repositorie
 ## Reading order
 
 1. [Architecture](01_ARCHITECTURE.md) — how the system is put together.
-2. [Plans](plans/00_PLAN.md) — how the plans folder is organized.
-3. [Spec](plans/01_SPEC.md) — exact command, config, and output contracts.
-4. [Implementation](plans/02_IMPLEMENTATION.md) — milestones and file layout.
-5. [Decisions](plans/03_DECISIONS.md) — the reasoning and rejected alternatives.
+2. [Spec](02_SPEC.md) — exact command, config, and output contracts.
+3. [Decisions](03_DECISIONS.md) — reasoning, rejected alternatives, plan history, and open backlog.
+4. [Dashboard](04_DASHBOARD.md) — dashboard design and observation model.

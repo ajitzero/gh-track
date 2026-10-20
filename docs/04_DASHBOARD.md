@@ -1,19 +1,10 @@
----
-title: "04 — Dashboard"
-type: plan
-status: done
-updated: 2026-10-20
----
-
-# 04 — Dashboard
-
 Post-v1. A read-only, per-entity value view with a clack setup picker. Not a full-screen TUI and not interactive after rendering.
 
 ## Goal
 
 Answer "what are my watched subjects at right now, and how did they move?" without reading raw runs. The dashboard shows one row per selected entity, the entity's selected metrics, and a delta against that entity's previous observation.
 
-The two inputs are the same as [diff](01_SPEC.md):
+The two inputs are the same as [diff](02_SPEC.md):
 
 - complete raw runs (30 days by default), which carry every scalar field;
 - compacted history (`history/`), which carries only stars, forks, and followers.
@@ -209,7 +200,7 @@ None. The four questions from the draft are resolved by D023:
 
 ## Related
 
-- [Goal](../00_GOAL.md)
-- [Spec](01_SPEC.md)
-- [Implementation](02_IMPLEMENTATION.md)
+- [Goal](00_GOAL.md)
+- [Architecture](01_ARCHITECTURE.md)
+- [Spec](02_SPEC.md)
 - [Decisions](03_DECISIONS.md)

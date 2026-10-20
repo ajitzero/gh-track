@@ -1,12 +1,3 @@
----
-title: "01 — Spec"
-type: plan
-status: done
-updated: 2026-10-20
----
-
-# 01 — Spec
-
 Binding contract for the CLI. If implementation and this document disagree, either fix the code or amend this document and record the change in [03_DECISIONS.md](03_DECISIONS.md).
 
 ## 1. Invocation
@@ -755,6 +746,7 @@ Examples:
 
 ## Related
 
-- [Architecture](../01_ARCHITECTURE.md)
-- [Implementation](02_IMPLEMENTATION.md)
+- [Goal](00_GOAL.md)
+- [Architecture](01_ARCHITECTURE.md)
 - [Decisions](03_DECISIONS.md)
+- [Dashboard](04_DASHBOARD.md)

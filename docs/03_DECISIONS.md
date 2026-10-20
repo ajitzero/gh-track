@@ -1,12 +1,3 @@
----
-title: "03 — Decisions"
-type: plan
-status: done
-updated: 2026-10-20
----
-
-# 03 — Decisions
-
 Decisions made during the initial design interview on 2026-10-19. Each entry records the choice, the alternatives rejected, and the consequence. Amend this file when a decision changes; do not rewrite history.
 
 ## Summary
@@ -36,6 +27,7 @@ Decisions made during the initial design interview on 2026-10-19. Each entry rec
 | D021 | Diff point resolution, source limits, and subject filtering |
 | D022 | v1 hardening: JSON purity matrix, failed-response quotas, watch table |
 | D023 | Dashboard: narrow metrics, per-subject observations, full-snapshot views |
+| D024 | Flat docs and harness-owned plans |
 
 ## D001 — Local files only
 
@@ -153,6 +145,8 @@ Decisions made during the initial design interview on 2026-10-19. Each entry rec
 
 **Decision.** `docs/` is the vault root. Documents use relative Markdown links (which also render on GitHub), frontmatter with `title`, `type` (`core` or `plan`), `status`, and `updated`. No tags. `.obsidian/` is tracked. `docs/plans/00_PLAN.md` is folder metadata; plans start at `01_`.
 
+**Amended 2026-10-20.** The `docs/plans/` layout and the `plan` type are superseded by [D024](#d024--flat-docs-and-harness-owned-plans). The Obsidian and relative-link rules still apply. Frontmatter and H1 headings were removed from all docs on 2026-10-20; see D024.
+
 **Rejected.** Wikilinks (do not render on GitHub); tags (optional in Obsidian, and the user preferred a `type` field); ignoring `.obsidian/` (the user wants vault settings tracked).
 
 **Consequence.** The docs work in Obsidian and in a plain Git browser. Numbering is stable and never reused.
@@ -163,11 +157,11 @@ Decisions made during the initial design interview on 2026-10-19. Each entry rec
 
 **Rejected.** `node --test dist-test/test` (the original plan): Node no longer expands a directory argument for `--test`, so on Node 21+ it tries to load `dist-test/test` as a module and fails. Relying on shell glob expansion instead (unreliable across shells, and `**` needs globstar).
 
-**Consequence.** The scripts work unchanged on Node >= 20 (where the runner also accepts glob patterns) and Node 24. `02_IMPLEMENTATION.md` now shows the globs.
+**Consequence.** The scripts work unchanged on Node >= 20 (where the runner also accepts glob patterns) and Node 24. The package scripts use the quoted globs.
 
 ## D017 — Interactive first-run setup
 
-**Status.** Planned, post-v1. Specified by milestone M7 in [02_IMPLEMENTATION.md](02_IMPLEMENTATION.md); not implemented yet.
+**Status.** Planned, post-v1. Tracked in [§ Open backlog](#open-backlog); not implemented yet.
 
 **Decision.** When a command that requires the watchlist runs interactively with no config, offer to create one instead of failing immediately. Reuse the `watch add` flow as the wizard: type picker, name input, and — for users — a resource multi-select (`followers`, `repos`) with both preselected and at least one required. `repo` skips the resource step. After the wizard, the original command continues. The wizard runs only under the existing gate (both TTYs, `table`, no `--yes`); otherwise the command fails exactly as today with `config_missing`, exit `2`, with the message naming the non-interactive invocation. Declining the wizard does not count as success: the original command still fails with `config_missing`. `Ctrl-C` exits `130`. An existing-but-empty watchlist is not a trigger.
 
@@ -281,16 +275,50 @@ Decisions made during the initial design interview on 2026-10-19. Each entry rec
 
 **Consequence.** The dashboard needs no new storage and no new dependencies. Every value is available for the entire timeline. Diffs remain global and unchanged; only the dashboard resolves observations per subject. A saved view is reproducible from config alone, and a first-run user reaches a rendered dashboard through the same clack-based flow as the rest of the tool.
 
-## Open questions
+## D024 — Flat docs and harness-owned plans
 
-1. **Compaction width.** Resolved by [D023](#d023--dashboard-narrow-metrics-per-subject-observations-full-snapshot-views): the dashboard exposes only stars, forks, and followers, so the history schema is not widened.
-2. **Token features.** `--token` exists, but private-repository support, per-subject authentication, and keyring storage are deferred.
-3. **Same-second runs.** Currently an error. If it ever matters, add a short suffix to the run id.
-4. **Starred-list tracking.** Rejected for v1; revisit only if the original use case resurfaces.
+**Context.** `docs/plans/` mixed stable contracts (spec, decisions, dashboard design) with working plans (milestones and progress). The coding harness already provides a plan store, so keeping a second copy in the repository duplicated the workflow and left completed plans to rot.
+
+**Decision.**
+
+1. **Flat docs, no frontmatter or H1.** `docs/` holds numbered, lasting documents only: goal, architecture, spec, decisions, and dashboard. Documents have no YAML frontmatter and no H1 heading: the filename carries the title, and git tracks dates. `type`, `status`, and `updated` are retired.
+2. **No plans folder.** `docs/plans/` is removed. `00_PLAN.md` (folder rules) and `02_IMPLEMENTATION.md` (milestones and progress) are retired; their durable content moved into this document and `AGENT.md`.
+3. **Harness-owned active plans.** Agents write plan and scratch files only to the plan directory provided by their harness (OpenCode: `~/.opencode/plan`; the equivalent for Claude, Hermes, or another agent). These files are never committed.
+4. **One durable record.** Completed plans, their achievements, and unfinished work live in § Plan history and § Open backlog in this file. A plan is recorded when it lands, not while it is being written.
+5. **Spec and dashboard stay.** `01_SPEC.md` and `04_DASHBOARD.md` are contracts, not plans; they move to `docs/02_SPEC.md` and `docs/04_DASHBOARD.md`.
+
+**Rejected.** Keeping `docs/plans/` alongside harness plans (two sources of truth, and the folder inevitably accumulates stale status); a separate `WORKLOG.md` (one more top-level file when the decision log already owns durable history); deleting the spec and dashboard docs (they hold the CLI/JSON contract and the dashboard design, which the architecture intentionally does not duplicate); rewriting D015 in place (the decision log records changes, it does not erase them); YAML frontmatter or an H1 heading (every field was the filename, always the same, or already tracked by git).
+
+**Consequence.** The repository contains documentation, not work-in-progress plans. A fresh agent reads `AGENT.md`, uses its own plan tool, and records the outcome here. The full pre-restructure plan text remains in git history at `3deedbb`.
+
+## Plan history
+
+Active plans are owned by the coding harness and are never committed to this repository. This section is the durable record of what was planned, what shipped, and what remains. Statuses: `done`, `partial`, `not started`, `superseded`, `abandoned`.
+
+| Plan | Dates | Status | Delivered | Not done / carried forward |
+|---|---|---|---|---|
+| v1 — core CLI (M1–M6) | 2026-10-19 → 2026-10-20 | done | `watch`, `fetch` with resume, `runs`, `diff`, `compact`, `export`; atomic immutable runs; JSON purity; offline test suite | M7 interactive first-run setup |
+| Dashboard (M8) | 2026-10-20 | done | `dashboard` and `track`; per-subject observations; `[tracking]` and `[views]`; compact/columns layouts; clack picker | None |
+
+The retired `docs/plans/` files remain in git history at commit `3deedbb` (`feat: implement M8 dashboard and tracking`). This section replaces the folder as the place to answer "what has been done, and what is left?"
+
+## Open backlog
+
+Not started or deliberately deferred. Each item links to its decision where one exists.
+
+- **M7 — interactive first-run setup.** Post-v1; decision and behavior in [D017](#d017--interactive-first-run-setup).
+- **Authentication and private repositories.** `--token` exists, but stored credentials, keyring integration, per-subject authentication, and private-repository support are deferred (D004).
+- **Gzip-compressed raw runs.** Deferred; the 30-day raw window bounds current disk usage (D014).
+- **Starred-list tracking.** Rejected for v1; revisit only if the original use case resurfaces (D005).
+- **Scheduling helpers.** No cron, daemon, or `--if-due` in v1.
+- **Multi-machine sync.** Out of scope; local-first files only (D001).
+- **Same-second run suffix.** Same-second runs currently error; add a suffix only if it ever matters (D002).
+
+The former open question about compaction width is resolved by [D023](#d023--dashboard-narrow-metrics-per-subject-observations-full-snapshot-views): the history schema stays narrow.
 
 ## Related
 
-- [Goal](../00_GOAL.md)
-- [Architecture](../01_ARCHITECTURE.md)
-- [Spec](01_SPEC.md)
-- [Implementation](02_IMPLEMENTATION.md)
+- [Goal](00_GOAL.md)
+- [Architecture](01_ARCHITECTURE.md)
+- [Spec](02_SPEC.md)
+- [Dashboard](04_DASHBOARD.md)

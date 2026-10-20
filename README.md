@@ -156,6 +156,6 @@ The test suite is fully offline: HTTP is injected, and every filesystem test use
 
 - [Goal](docs/00_GOAL.md)
 - [Architecture](docs/01_ARCHITECTURE.md)
-- [Spec](docs/plans/01_SPEC.md)
-- [Implementation](docs/plans/02_IMPLEMENTATION.md)
-- [Decisions](docs/plans/03_DECISIONS.md)
+- [Spec](docs/02_SPEC.md)
+- [Decisions](docs/03_DECISIONS.md)
+- [Dashboard](docs/04_DASHBOARD.md)

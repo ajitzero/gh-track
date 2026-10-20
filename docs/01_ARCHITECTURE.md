@@ -1,13 +1,4 @@
----
-title: "01 — Architecture"
-type: core
-status: active
-updated: 2026-10-19
----
-
-# 01 — Architecture
-
-This document describes how the pieces fit. Exact CLI syntax and JSON shapes live in [01_SPEC.md](plans/01_SPEC.md); milestones live in [02_IMPLEMENTATION.md](plans/02_IMPLEMENTATION.md).
+This document describes how the pieces fit. Exact CLI syntax and JSON shapes live in [02_SPEC.md](02_SPEC.md); decisions and their history live in [03_DECISIONS.md](03_DECISIONS.md).
 
 ## Context
 
@@ -53,7 +44,7 @@ Nothing runs in the background. Every box is reached from a single CLI invocatio
 | `user:<login>` | `followers`, `repos` | Follower churn and star/fork counts across every repository the account owns (public repos only without a token) |
 | `repo:<owner>/<name>` | `repo` | Metadata for a single repository not owned by a watched account |
 
-There is deliberately no `user.profile` resource: the follower count is the length of the stored follower list, so an extra `/users/{login}` request buys nothing. There is deliberately no starred-list subject — it was considered and rejected (see [03_DECISIONS.md](plans/03_DECISIONS.md)).
+There is deliberately no `user.profile` resource: the follower count is the length of the stored follower list, so an extra `/users/{login}` request buys nothing. There is deliberately no starred-list subject — it was considered and rejected (see [03_DECISIONS.md](03_DECISIONS.md)).
 
 ### Resource endpoints
 
@@ -223,7 +214,7 @@ Retries use bounded exponential backoff with jitter for `5xx` and network errors
 - Metrics written: `stars`, `forks` per repository, `followers` per account. This is intentionally the minimal set.
 - Raw run directories are pruned only after their day has been compacted successfully. Days with only partial runs keep their raw data indefinitely until a complete run exists or the user compacts manually.
 - Compaction and pruning are idempotent and support `--dry-run`.
-- **Irreversibility:** once a day is compacted and pruned, diffs for that day are limited to stars, forks, and followers. This is the accepted cost of a small history; see [03_DECISIONS.md](plans/03_DECISIONS.md).
+- **Irreversibility:** once a day is compacted and pruned, diffs for that day are limited to stars, forks, and followers. This is the accepted cost of a small history; see [03_DECISIONS.md](03_DECISIONS.md).
 
 ## Diff model
 
@@ -251,7 +242,7 @@ Config is TOML at `~/.config/gh-track/config.toml`. It holds defaults, the watch
 
 ## Output contract
 
-Every command supports `--format table` (human) and most support `--format json` (one document on stdout). `export` adds `jsonl` and `csv`. The rules are in [01_SPEC.md](plans/01_SPEC.md); the architectural commitment is that JSON output is never interleaved with progress, color, or prompts, and that exit codes are stable:
+Every command supports `--format table` (human) and most support `--format json` (one document on stdout). `export` adds `jsonl` and `csv`. The rules are in [02_SPEC.md](02_SPEC.md); the architectural commitment is that JSON output is never interleaved with progress, color, or prompts, and that exit codes are stable:
 
 | Code | Meaning |
 |---|---|
@@ -296,6 +287,6 @@ Every command supports `--format table` (human) and most support `--format json`
 ## Related
 
 - [Goal](00_GOAL.md)
-- [Spec](plans/01_SPEC.md)
-- [Implementation](plans/02_IMPLEMENTATION.md)
-- [Decisions](plans/03_DECISIONS.md)
+- [Spec](02_SPEC.md)
+- [Decisions](03_DECISIONS.md)
+- [Dashboard](04_DASHBOARD.md)
