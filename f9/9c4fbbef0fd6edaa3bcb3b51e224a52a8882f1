@@ -1,0 +1,26 @@
+AGENT.md
+  h_1e9f70f2591550 16-18,70-77,81-85
+README.md
+  h_1e9f70f2591550 159-161
+docs/00_GOAL.md
+  h_1e9f70f2591550 40,63-65
+docs/01_ARCHITECTURE.md
+  h_1e9f70f2591550 1,47,217,245,290-292
+docs/02_SPEC.md
+  h_1e9f70f2591550 749-750,752
+docs/03_DECISIONS.md
+  h_1e9f70f2591550 30,148-149,160,164,278-315,317,321-324
+docs/04_DASHBOARD.md
+  h_1e9f70f2591550 7,203-205
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f99c4fbbef0fd6edaa3bcb3b51e224a52a8882f1",
+  "prompts": {},
+  "humans": {
+    "h_1e9f70f2591550": {
+      "author": "Ajit Panigrahi <ajitzero@gmail.com>"
+    }
+  }
+}
