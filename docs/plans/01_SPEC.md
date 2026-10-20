@@ -7,7 +7,7 @@ updated: 2026-10-20
 
 # 01 — Spec
 
-Binding contract for v1. If implementation and this document disagree, either fix the code or amend this document and record the change in [03_DECISIONS.md](03_DECISIONS.md).
+Binding contract for the CLI. If implementation and this document disagree, either fix the code or amend this document and record the change in [03_DECISIONS.md](03_DECISIONS.md).
 
 ## 1. Invocation
 
@@ -169,6 +169,56 @@ gh-track help [command...]
 
 Equivalent to `--help` at that level. `gh-track help watch add` and `gh-track watch add --help` render the same page.
 
+### 2.8 `dashboard`
+
+Render the selected subjects and metrics as a read-only value view. Never writes, except when the setup picker runs.
+
+```
+gh-track dashboard [options]
+
+  --view <name>            Render a saved view
+  --from <ref>             Baseline bound (default: previous observation)
+  --to <ref>               Current bound (default: latest)
+  --subject <s>            Repeatable; override the item set with configured subjects
+  --layout <fmt>           compact (default) or columns
+  --setup                  Run the setup picker before rendering
+```
+
+- Metrics are fixed: `stars` and `forks` for repositories, `followers` for accounts.
+- References use the diff forms: `latest`, `previous`, a run id, or `YYYY-MM-DD`. `--to` cannot be `previous`.
+- Each subject resolves its own observations. Raw runs win over compacted history for the same day.
+- A subject with no observations is included with `—`.
+- `--from previous` selects each row's observation immediately before its `to` observation.
+- `--from latest` uses the same observation as `to`, so deltas are zero.
+- A run-id reference must name a complete run on disk, matching `diff`.
+- With no `--view`, no `--subject`, and no `[tracking]` entries, the dashboard uses every configured subject with default metrics.
+- On a TTY with the prompt gate open, that first-run case offers the setup picker and saves `[tracking]`. `--setup` forces it. With the gate closed, the defaults render without prompting.
+- `--subject` replaces the item set with the named configured subjects. Their metrics come from the active view, then `[tracking]`, then defaults. An unconfigured subject exits `2` with `unknown_subject`.
+- An empty item set exits `2` with `no_selection`. An empty watchlist exits `2` with `empty_watchlist`.
+- `--view` names a missing view exits `2` with `unknown_view`.
+- `dashboard` takes no lock.
+
+### 2.9 `track`
+
+Manage the dashboard selection.
+
+```
+gh-track track edit
+gh-track track set --item <subject>=<metrics>...
+gh-track track rm <subject>
+gh-track track ls
+gh-track track view save <name> [--item ...] [--layout compact|columns] [--from <ref>] [--to <ref>]
+gh-track track view rm <name>
+```
+
+- `track edit` prompts for subjects and per-subject metrics, then writes `[tracking]` atomically. It requires the prompt gate.
+- `track set` is the non-interactive equivalent. `--item` is repeatable; `subject=stars,forks` sets or replaces that subject's selection. Unknown or unconfigured subjects exit `2` with `unknown_subject`.
+- `track rm` removes a subject from `[tracking]`. A subject that is not tracked exits `2` with `usage`.
+- `track ls` lists the default selection and every saved view.
+- `track view save` writes a full snapshot: items, layout, and range. Without `--item` it runs the picker; supplying `--layout`, `--from`, or `--to` skips the matching prompt. It replaces an existing view of the same name.
+- `track view rm` removes a view; an unknown name exits `2` with `usage`.
+- Config writes are atomic. `watch rm` also removes the subject from `[tracking]` and view `items`; a view left with no items is removed with a warning.
+
 ## 3. Subject syntax
 
 | Canonical | Accepted in `fetch`, `diff --subject`, `watch rm` |
@@ -202,6 +252,25 @@ resources = ["followers", "repos"]
 [[subjects]]
 type = "repo"
 repo = "torvalds/linux"
+
+[tracking."repo:octocat/hello-world"]
+metrics = ["stars", "forks"]
+
+[tracking."user:octocat"]
+metrics = ["followers"]
+
+[views."my-repos"]
+layout = "columns"
+from = "2026-09-01"
+to = "latest"
+
+[[views."my-repos".items]]
+subject = "repo:octocat/hello-world"
+metrics = ["stars"]
+
+[[views."my-repos".items]]
+subject = "user:octocat"
+metrics = ["followers"]
 ```
 
 Validation:
@@ -217,6 +286,13 @@ Validation:
 | `user` requires `account`; `repo` requires `repo` with exactly one `/` | `config_invalid` |
 | `resources` non-empty subset of `followers,repos`; only for `user` | `config_invalid` |
 | Duplicate canonical subject | Deduplicate, warn on stderr, keep the union of resources |
+| `[tracking]` or `[views]` references a subject not in `[[subjects]]` | `config_invalid` |
+| Tracking metrics empty or invalid for the subject kind | `config_invalid` |
+| View name is not `[a-z0-9][a-z0-9_-]*` or has no items | `config_invalid` |
+| View `to` is `previous`, or a range value is not a valid reference | `config_invalid` |
+| Duplicate tracking/view item for one subject | Deduplicate metrics with a warning |
+
+Tracking keys are canonical subjects (`user:<login>` or `repo:<owner>/<name>`). A bare key is accepted and canonicalized. `[views.<name>]` stores a full snapshot: `items`, `layout` (`compact` or `columns`), `from`, and `to`; missing range fields default to `previous` and `latest`.
 
 A missing config file is allowed for `fetch <subject>`, `runs`, `help`, and `--version`. Commands that need the watchlist (`fetch` with no arguments, `watch ls`) exit `2` with `config_missing`.
 
@@ -484,7 +560,7 @@ With `--format json`, errors are emitted to **stderr** as one object, and stdout
 }
 ```
 
-Codes: `usage`, `config_invalid`, `config_missing`, `empty_watchlist`, `invalid_subject`, `unknown_subject`, `run_not_found`, `not_enough_runs`, `invalid_range`, `no_history`, `rate_limited`, `network`, `http_error`, `io_error`, `locked`, `interrupted`, `internal`.
+Codes: `usage`, `config_invalid`, `config_missing`, `empty_watchlist`, `invalid_subject`, `unknown_subject`, `unknown_view`, `no_selection`, `run_not_found`, `not_enough_runs`, `invalid_range`, `no_history`, `rate_limited`, `network`, `http_error`, `io_error`, `locked`, `interrupted`, `internal`.
 
 ### 5.12 Compacted-day marker — `state/compacted.json`
 
@@ -513,6 +589,58 @@ Codes: `usage`, `config_invalid`, `config_missing`, `empty_watchlist`, `invalid_
 - Repository rows carry `stars` and `forks`; account rows carry `followers`. Unused metric fields are absent, not `null`.
 - `jsonl` emits exactly one row object per line in the same order.
 
+### 5.14 `dashboard --format json`
+
+```json
+{
+  "view": "my-repos",
+  "layout": "compact",
+  "range": { "from": "2026-09-01", "to": "latest" },
+  "rows": [
+    {
+      "kind": "repo",
+      "subject": "repo:octocat/hello-world",
+      "source": "raw",
+      "from": { "id": "2026-10-18T09-00-00Z", "finishedAt": "2026-10-18T09:00:01Z" },
+      "to": { "id": "2026-10-19T09-00-00Z", "finishedAt": "2026-10-19T09:00:03Z" },
+      "metrics": {
+        "stars": { "value": 132, "from": 120, "delta": 12 },
+        "forks": { "value": 4, "from": 3, "delta": 1 }
+      }
+    }
+  ]
+}
+```
+
+- `view` is absent for the default selection.
+- `source` is per row: `raw`, `compacted`, `mixed`, or `null` when the row has no `to` observation (never fetched or outside the selected range).
+- A compacted observation uses the UTC date as `id` and `null` as `finishedAt`.
+- A never-fetched row has `source: null`, `from: null`, `to: null`, and `{value: null, from: null, delta: null}` for each selected metric.
+- Rows follow the selection order; default selections follow `[[subjects]]` order.
+- `--format json` never prompts.
+
+### 5.15 `track ls --format json`
+
+```json
+{
+  "tracking": [
+    { "subject": "repo:octocat/hello-world", "metrics": ["stars", "forks"] },
+    { "subject": "user:octocat", "metrics": ["followers"] }
+  ],
+  "views": [
+    {
+      "name": "my-repos",
+      "layout": "columns",
+      "from": "2026-09-01",
+      "to": "latest",
+      "items": [
+        { "subject": "repo:octocat/hello-world", "metrics": ["stars"] }
+      ]
+    }
+  ]
+}
+```
+
 ## 6. Streams and exit codes
 
 | Stream | Content |
@@ -535,6 +663,10 @@ Codes: `usage`, `config_invalid`, `config_missing`, `empty_watchlist`, `invalid_
 | `watch add` with no arguments | Select type (`user` / `repo`), then text input, then confirm |
 | `watch rm` with no subject | Select from configured subjects, then confirm |
 | `watch rm <subject>` | Confirm removal |
+| `dashboard` with no selection | Setup picker: subjects, then per-repository metrics; saves `[tracking]` |
+| `dashboard --setup` | The same setup picker, even when a selection exists |
+| `track edit` | The same setup picker; saves `[tracking]` |
+| `track view save <name>` without `--item` | Setup picker plus layout and compare-from; saves the view |
 | `fetch` | Progress spinner only; never a question |
 | `compact` / `fetch --no-compact` | No confirmation |
 
@@ -609,7 +741,8 @@ Examples:
 - Lock file: `locks/fetch.lock` containing `{ "pid": n, "startedAt": "..." }`.
 - If the pid is alive, exit `1` with `locked`. If the pid is dead, reclaim the lock.
 - `compact` takes the same exclusive lock because it writes history and deletes runs. `compact --dry-run` takes no lock and writes nothing.
-- `runs`, `diff`, and `export` read atomically written files without a lock.
+- `runs`, `diff`, `export`, and `dashboard` read atomically written files without a lock.
+- `track` writes the config atomically. It does not take the fetch lock because it never touches run data.
 - Writers use temp file + rename. Readers must tolerate a missing `state/*.json` and rebuild it.
 
 ## 12. Compatibility

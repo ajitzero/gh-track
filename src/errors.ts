@@ -7,6 +7,8 @@ export type ErrorCode =
   | 'empty_watchlist'
   | 'invalid_subject'
   | 'unknown_subject'
+  | 'unknown_view'
+  | 'no_selection'
   | 'run_not_found'
   | 'not_enough_runs'
   | 'invalid_range'
@@ -28,6 +30,8 @@ const EXIT_CODES: Record<ErrorCode, number> = {
   empty_watchlist: 2,
   invalid_subject: 2,
   unknown_subject: 2,
+  unknown_view: 2,
+  no_selection: 2,
   run_not_found: 1,
   not_enough_runs: 1,
   invalid_range: 2,
@@ -87,6 +91,14 @@ export function invalidSubject(input: string): CliError {
 
 export function unknownSubject(subject: string): CliError {
   return new CliError('unknown_subject', `Subject is not in the watchlist: ${subject}`, { subject });
+}
+
+export function unknownView(name: string): CliError {
+  return new CliError('unknown_view', `Dashboard view not found: ${name}`, { view: name });
+}
+
+export function noSelection(message: string, details?: ErrorDetails): CliError {
+  return new CliError('no_selection', message, details);
 }
 
 export function emptyWatchlist(): CliError {

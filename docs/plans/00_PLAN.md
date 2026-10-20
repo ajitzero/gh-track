@@ -61,4 +61,4 @@ updated: 2026-10-19
 | [01 — Spec](01_SPEC.md) | done | Exact CLI, config, and output contracts |
 | [02 — Implementation](02_IMPLEMENTATION.md) | done | Milestones, file layout, tests |
 | [03 — Decisions](03_DECISIONS.md) | done | Decision log and rejected alternatives |
-| [04 — Dashboard](04_DASHBOARD.md) | draft | Deferred interactive dashboard and metric picker |
+| [04 — Dashboard](04_DASHBOARD.md) | done | Interactive dashboard, metric picker, and named views |

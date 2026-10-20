@@ -4,21 +4,40 @@ import { readFile } from 'node:fs/promises';
 import { parse as parseToml } from 'smol-toml';
 import { configInvalid, configMissing, ioError } from './errors.js';
 import { writeFileAtomic } from './store/atomic.js';
+import { isValidRunId } from './store/paths.js';
 import {
   canonicalRepoSubject,
   canonicalUserSubject,
   isValidLogin,
   isValidRepoFullName,
+  parseSubject as parseSubjectSyntax,
   subjectKey,
 } from './subjects.js';
-import type { Config, ConfigDefaults, ConfigSubject, Resource } from './types.js';
+import type {
+  Config,
+  ConfigDefaults,
+  ConfigSubject,
+  DashboardLayout,
+  DashboardView,
+  Metric,
+  Resource,
+  SubjectType,
+  TrackingEntry,
+  ViewItem,
+} from './types.js';
 
 export const SCHEMA_VERSION = 1;
 
 const USER_RESOURCE_ORDER: readonly Resource[] = ['followers', 'repos'];
 const USER_RESOURCE_SET = new Set<string>(USER_RESOURCE_ORDER);
 
-const ROOT_KEYS = new Set(['schema_version', 'defaults', 'subjects']);
+const METRIC_ORDER: Readonly<Record<SubjectType, readonly Metric[]>> = {
+  user: ['followers'],
+  repo: ['stars', 'forks'],
+};
+const METRIC_SET = new Set<string>(['stars', 'forks', 'followers']);
+
+const ROOT_KEYS = new Set(['schema_version', 'defaults', 'subjects', 'tracking', 'views']);
 const DEFAULTS_KEYS = new Set([
   'raw_retention_days',
   'token_env',
@@ -26,6 +45,16 @@ const DEFAULTS_KEYS = new Set([
   'max_retries',
 ]);
 const SUBJECT_KEYS = new Set(['type', 'account', 'repo', 'resources']);
+const TRACKING_KEYS = new Set(['metrics']);
+const VIEW_KEYS = new Set(['items', 'layout', 'from', 'to']);
+const VIEW_ITEM_KEYS = new Set(['subject', 'metrics']);
+
+const VIEW_NAME_PATTERN = /^[a-z0-9][a-z0-9_-]{0,31}$/;
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+export function isValidViewName(name: string): boolean {
+  return VIEW_NAME_PATTERN.test(name);
+}
 
 export interface ParseConfigResult {
   config: Config;
@@ -96,6 +125,8 @@ export function defaultConfig(): Config {
     schemaVersion: SCHEMA_VERSION,
     defaults: defaultDefaults(),
     subjects: [],
+    tracking: [],
+    views: [],
   };
 }
 
@@ -256,6 +287,247 @@ function parseSubjects(raw: unknown): { subjects: ConfigSubject[]; warnings: str
   return { subjects, warnings };
 }
 
+function isCalendarDay(value: string): boolean {
+  if (!DATE_PATTERN.test(value)) {
+    return false;
+  }
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
+function parseSubjectInput(
+  input: string,
+  location: string,
+): { key: string; subject: string; type: SubjectType } {
+  let parsed: ReturnType<typeof parseSubjectSyntax>;
+  try {
+    parsed = parseSubjectSyntax(input);
+  } catch {
+    fail(`${location} is not a valid subject`);
+  }
+  return {
+    key: subjectKey(parsed),
+    subject: parsed.subject,
+    type: parsed.type,
+  };
+}
+
+function configuredSubjects(subjects: readonly ConfigSubject[]): Map<string, ConfigSubject> {
+  const map = new Map<string, ConfigSubject>();
+  for (const subject of subjects) {
+    map.set(subjectKey(subject), subject);
+  }
+  return map;
+}
+
+function parseMetrics(raw: unknown, type: SubjectType, location: string): Metric[] {
+  const allowed = METRIC_ORDER[type];
+  if (!Array.isArray(raw) || raw.length === 0) {
+    fail(`${location} must be a non-empty array of metrics`);
+  }
+
+  const selected = new Set<Metric>();
+  for (const value of raw) {
+    if (typeof value !== 'string' || !METRIC_SET.has(value)) {
+      fail(`${location} must be a subset of ${allowed.join(',')}`);
+    }
+    if (!allowed.includes(value as Metric)) {
+      fail(`${location} must be a subset of ${allowed.join(',')} for ${type} subjects`);
+    }
+    selected.add(value as Metric);
+  }
+  return allowed.filter((metric) => selected.has(metric));
+}
+
+function mergeMetrics(type: SubjectType, ...groups: readonly (readonly Metric[])[]): Metric[] {
+  const merged = new Set<Metric>();
+  for (const group of groups) {
+    for (const metric of group) {
+      merged.add(metric);
+    }
+  }
+  return METRIC_ORDER[type].filter((metric) => merged.has(metric));
+}
+
+function parseTracking(
+  raw: unknown,
+  subjects: readonly ConfigSubject[],
+): { tracking: TrackingEntry[]; warnings: string[] } {
+  if (raw === undefined) {
+    return { tracking: [], warnings: [] };
+  }
+  if (!isRecord(raw)) {
+    fail('tracking must be a table');
+  }
+
+  const configured = configuredSubjects(subjects);
+  const order = new Map<string, number>();
+  subjects.forEach((subject, index) => {
+    order.set(subjectKey(subject), index);
+  });
+  const tracking: TrackingEntry[] = [];
+  const indexes = new Map<string, number>();
+  const warnings: string[] = [];
+
+  for (const key of Object.keys(raw)) {
+    const value = raw[key];
+    if (!isRecord(value)) {
+      fail(`tracking.${key} must be a table`);
+    }
+    checkUnknownKeys(value, TRACKING_KEYS, `tracking.${key}.`);
+
+    const parsed = parseSubjectInput(key, `tracking.${key}`);
+    const subject = configured.get(parsed.key);
+    if (subject === undefined) {
+      fail(`tracking.${key} is not a configured subject`);
+    }
+    const metrics = parseMetrics(value.metrics, subject.type, `tracking.${key}.metrics`);
+
+    const existingIndex = indexes.get(parsed.key);
+    if (existingIndex !== undefined) {
+      const existing = tracking[existingIndex];
+      if (existing !== undefined) {
+        existing.metrics = mergeMetrics(subject.type, existing.metrics, metrics);
+      }
+      warnings.push(`Duplicate tracking entry ${parsed.subject}; merged metrics.`);
+      continue;
+    }
+
+    indexes.set(parsed.key, tracking.length);
+    tracking.push({ subject: subject.subject, metrics });
+  }
+
+  tracking.sort((left, right) => {
+    const leftIndex = order.get(subjectKey(parseSubjectSyntax(left.subject))) ?? Number.MAX_SAFE_INTEGER;
+    const rightIndex = order.get(subjectKey(parseSubjectSyntax(right.subject))) ?? Number.MAX_SAFE_INTEGER;
+    return leftIndex - rightIndex;
+  });
+
+  return { tracking, warnings };
+}
+
+function parseLayout(raw: unknown, location: string): DashboardLayout {
+  if (raw === undefined) {
+    return 'compact';
+  }
+  if (raw !== 'compact' && raw !== 'columns') {
+    fail(`${location} must be "compact" or "columns"`);
+  }
+  return raw;
+}
+
+function parseRangeRef(raw: unknown, location: string, allowPrevious: boolean): string {
+  if (raw === undefined) {
+    return allowPrevious ? 'previous' : 'latest';
+  }
+  if (typeof raw !== 'string') {
+    fail(`${location} must be a string`);
+  }
+  if (raw === 'latest') {
+    return raw;
+  }
+  if (raw === 'previous') {
+    if (!allowPrevious) {
+      fail(`${location} cannot be "previous"`);
+    }
+    return raw;
+  }
+  if (isCalendarDay(raw) || isValidRunId(raw)) {
+    return raw;
+  }
+  fail(`${location} must be latest, previous, a run id, or YYYY-MM-DD`);
+}
+
+function parseViewItems(
+  raw: unknown,
+  configured: ReadonlyMap<string, ConfigSubject>,
+  location: string,
+): { items: ViewItem[]; warnings: string[] } {
+  if (!Array.isArray(raw)) {
+    fail(`${location} must be an array of tables`);
+  }
+
+  const items: ViewItem[] = [];
+  const indexes = new Map<string, number>();
+  const warnings: string[] = [];
+
+  raw.forEach((entry, index) => {
+    const where = `${location}[${index}]`;
+    if (!isRecord(entry)) {
+      fail(`${where} must be a table`);
+    }
+    checkUnknownKeys(entry, VIEW_ITEM_KEYS, `${where}.`);
+    if (typeof entry.subject !== 'string') {
+      fail(`${where}.subject is required`);
+    }
+
+    const parsed = parseSubjectInput(entry.subject, `${where}.subject`);
+    const subject = configured.get(parsed.key);
+    if (subject === undefined) {
+      fail(`${where}.subject is not a configured subject`);
+    }
+    const metrics = parseMetrics(entry.metrics, subject.type, `${where}.metrics`);
+
+    const existingIndex = indexes.get(parsed.key);
+    if (existingIndex !== undefined) {
+      const existing = items[existingIndex];
+      if (existing !== undefined) {
+        existing.metrics = mergeMetrics(subject.type, existing.metrics, metrics);
+      }
+      warnings.push(`Duplicate view item ${parsed.subject}; merged metrics.`);
+      return;
+    }
+
+    indexes.set(parsed.key, items.length);
+    items.push({ subject: subject.subject, metrics });
+  });
+
+  return { items, warnings };
+}
+
+function parseViews(
+  raw: unknown,
+  subjects: readonly ConfigSubject[],
+): { views: DashboardView[]; warnings: string[] } {
+  if (raw === undefined) {
+    return { views: [], warnings: [] };
+  }
+  if (!isRecord(raw)) {
+    fail('views must be a table');
+  }
+
+  const configured = configuredSubjects(subjects);
+  const views: DashboardView[] = [];
+  const warnings: string[] = [];
+
+  for (const name of Object.keys(raw).sort()) {
+    if (!VIEW_NAME_PATTERN.test(name)) {
+      fail(`views.${name} is not a valid view name`);
+    }
+    const value = raw[name];
+    if (!isRecord(value)) {
+      fail(`views.${name} must be a table`);
+    }
+    checkUnknownKeys(value, VIEW_KEYS, `views.${name}.`);
+
+    const items = parseViewItems(value.items, configured, `views.${name}.items`);
+    if (items.items.length === 0) {
+      fail(`views.${name}.items must not be empty`);
+    }
+
+    warnings.push(...items.warnings);
+    views.push({
+      name,
+      items: items.items,
+      layout: parseLayout(value.layout, `views.${name}.layout`),
+      from: parseRangeRef(value.from, `views.${name}.from`, true),
+      to: parseRangeRef(value.to, `views.${name}.to`, false),
+    });
+  }
+
+  return { views, warnings };
+}
+
 /** Parses and validates TOML text. Throws `config_invalid` on any violation. */
 export function parseConfig(text: string): ParseConfigResult {
   let raw: unknown;
@@ -279,15 +551,19 @@ export function parseConfig(text: string): ParseConfigResult {
   }
 
   const defaults = parseDefaults(raw.defaults);
-  const { subjects, warnings } = parseSubjects(raw.subjects);
+  const subjects = parseSubjects(raw.subjects);
+  const tracking = parseTracking(raw.tracking, subjects.subjects);
+  const views = parseViews(raw.views, subjects.subjects);
 
   return {
     config: {
       schemaVersion: SCHEMA_VERSION,
       defaults,
-      subjects,
+      subjects: subjects.subjects,
+      tracking: tracking.tracking,
+      views: views.views,
     },
-    warnings,
+    warnings: [...subjects.warnings, ...tracking.warnings, ...views.warnings],
   };
 }
 
@@ -314,6 +590,32 @@ export function serializeConfig(config: Config): string {
       lines.push(`resources = [${subject.resources.map(tomlString).join(', ')}]`);
     } else {
       lines.push(`repo = ${tomlString(subject.repo)}`);
+    }
+  }
+
+  for (const entry of config.tracking) {
+    lines.push(
+      '',
+      `[tracking.${tomlString(entry.subject)}]`,
+      `metrics = [${entry.metrics.map(tomlString).join(', ')}]`,
+    );
+  }
+
+  for (const view of config.views) {
+    lines.push(
+      '',
+      `[views.${tomlString(view.name)}]`,
+      `layout = ${tomlString(view.layout)}`,
+      `from = ${tomlString(view.from)}`,
+      `to = ${tomlString(view.to)}`,
+    );
+    for (const item of view.items) {
+      lines.push(
+        '',
+        `[[views.${tomlString(view.name)}.items]]`,
+        `subject = ${tomlString(item.subject)}`,
+        `metrics = [${item.metrics.map(tomlString).join(', ')}]`,
+      );
     }
   }
 

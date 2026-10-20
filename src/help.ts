@@ -168,6 +168,96 @@ const EXPORT: HelpNode = {
   ],
 };
 
+const DASHBOARD: HelpNode = {
+  name: 'dashboard',
+  summary: 'show selected metrics and per-subject deltas',
+  usage: ['gh-track dashboard [options]'],
+  options: [
+    { flags: '--view <name>', summary: 'Render a saved view' },
+    { flags: '--from <ref>', summary: 'Baseline (default: previous observation)' },
+    { flags: '--to <ref>', summary: 'Current point (default: latest)' },
+    { flags: '--subject <s>', summary: 'Repeatable; override the selected subjects' },
+    { flags: '--layout <fmt>', summary: 'compact (default) or columns' },
+    { flags: '--setup', summary: 'Run the setup picker before rendering' },
+  ],
+  examples: [
+    'gh-track dashboard',
+    'gh-track dashboard --setup',
+    'gh-track dashboard --view my-repos',
+    'gh-track dashboard --format json',
+  ],
+};
+
+const TRACK_EDIT: HelpNode = {
+  name: 'edit',
+  summary: 'pick dashboard subjects and metrics interactively',
+  usage: ['gh-track track edit'],
+};
+
+const TRACK_SET: HelpNode = {
+  name: 'set',
+  summary: "set a subject's dashboard metrics",
+  usage: ['gh-track track set --item <subject>=<metrics>...'],
+  options: [
+    { flags: '--item <s>=<m>', summary: 'Repeatable; subject and comma-separated metrics' },
+  ],
+  examples: [
+    'gh-track track set --item repo:octocat/hello-world=stars,forks',
+    'gh-track track set --item user:octocat=followers',
+  ],
+};
+
+const TRACK_RM: HelpNode = {
+  name: 'rm',
+  summary: 'remove a subject from the dashboard selection',
+  usage: ['gh-track track rm <subject>'],
+  arguments: [{ name: 'subject', summary: 'any accepted subject form' }],
+};
+
+const TRACK_LS: HelpNode = {
+  name: 'ls',
+  summary: 'show the default selection and saved views',
+  usage: ['gh-track track ls [options]'],
+};
+
+const TRACK_VIEW_SAVE: HelpNode = {
+  name: 'save',
+  summary: 'save a named dashboard snapshot',
+  usage: ['gh-track track view save <name> [options]'],
+  arguments: [{ name: 'name', summary: 'lowercase view name' }],
+  options: [
+    { flags: '--item <s>=<m>', summary: 'Repeatable; omit to use the picker' },
+    { flags: '--layout <fmt>', summary: 'compact or columns' },
+    { flags: '--from <ref>', summary: 'Baseline reference' },
+    { flags: '--to <ref>', summary: 'Current reference' },
+  ],
+  examples: [
+    'gh-track track view save my-repos --item repo:octocat/hello-world=stars',
+    'gh-track track view save my-repos',
+  ],
+};
+
+const TRACK_VIEW_RM: HelpNode = {
+  name: 'rm',
+  summary: 'remove a saved view',
+  usage: ['gh-track track view rm <name>'],
+  arguments: [{ name: 'name', summary: 'saved view name' }],
+};
+
+const TRACK_VIEW: HelpNode = {
+  name: 'view',
+  summary: 'manage saved dashboard snapshots',
+  usage: ['gh-track track view <subcommand> [options]'],
+  children: [TRACK_VIEW_SAVE, TRACK_VIEW_RM],
+};
+
+const TRACK: HelpNode = {
+  name: 'track',
+  summary: 'manage the dashboard selection',
+  usage: ['gh-track track <subcommand> [options]'],
+  children: [TRACK_EDIT, TRACK_SET, TRACK_RM, TRACK_LS, TRACK_VIEW],
+};
+
 const HELP: HelpNode = {
   name: 'help',
   summary: 'show help for a command',
@@ -180,7 +270,7 @@ export const ROOT: HelpNode = {
   name: 'gh-track',
   summary: 'track GitHub metadata with an offline history',
   usage: ['gh-track <command> [options]'],
-  children: [FETCH, WATCH, RUNS, DIFF, COMPACT, EXPORT, HELP],
+  children: [FETCH, WATCH, RUNS, DIFF, COMPACT, EXPORT, DASHBOARD, TRACK, HELP],
 };
 
 export function findHelpNode(path: readonly string[]): HelpNode | null {

@@ -6,7 +6,7 @@ Entry point for agents and contributors. Keep this file short; the reasoning liv
 
 `gh-track` is a local-first CLI that fetches public GitHub REST payloads for watched accounts and repositories on demand, writes immutable timestamped snapshots, compacts old runs into a small history, and derives diffs between runs. It is built for one operator tracking their own account plus arbitrary public accounts.
 
-**Status:** v1 is complete (M1-M6). The CLI implements `watch`, `fetch` (conditional requests, pagination, partial runs, and `--resume`), `runs`, `diff`, `compact`, `export`, and help. The offline suite covers JSON purity on a fake TTY, rate-limit stops and resume, compaction/pruning, export formats, and raw/compacted diffs. M7 (interactive first-run setup) remains post-v1.
+**Status:** v1 is complete (M1-M6), and M8 adds the read-only `dashboard` plus the `track` selection commands (per-subject metrics, named views, clack setup picker). The CLI implements `watch`, `fetch` (conditional requests, pagination, partial runs, and `--resume`), `runs`, `diff`, `compact`, `export`, `dashboard`, `track`, and help. The offline suite covers JSON purity on a fake TTY, rate-limit stops and resume, compaction/pruning, export formats, raw/compacted diffs, and per-subject dashboard observations. M7 (interactive first-run setup) remains post-v1.
 
 ## Read first
 
@@ -46,6 +46,7 @@ src/errors.ts          typed errors and exit codes
 src/types.ts           shared types
 src/version.ts         version constant, kept in sync with package.json
 src/commands/          one file per top-level command (fetch planning + dry-run lives here)
+src/dashboard/         per-subject observations, selection, and rendering (M8)
 src/prompts/           clack wrappers (TTY-gated)
 src/github/            client, ETag cache, rate limiter, resource URL builders (no filesystem imports)
 src/store/             XDG paths, state caches, run reads, run writer, manifest, history, prune
@@ -80,4 +81,4 @@ test/                  node:test fixtures, no live network
 
 ## Out of scope for v1
 
-Interactive dashboard and per-item metric picker ([04_DASHBOARD.md](docs/plans/04_DASHBOARD.md)), scheduling, required authentication, private-repo and traffic data, tracking a user's starred list, and totals/rollups.
+Scheduling, required authentication, private-repo and traffic data, tracking a user's starred list, and totals/rollups.

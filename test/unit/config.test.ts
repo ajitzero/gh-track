@@ -181,6 +181,253 @@ test('serializeConfig emits canonical sections', () => {
   assert.doesNotMatch(text, /\[\[subjects\]\]/);
 });
 
+const DASHBOARD_CONFIG = `schema_version = 1
+
+[[subjects]]
+type = "repo"
+repo = "octocat/hello-world"
+
+[[subjects]]
+type = "user"
+account = "octocat"
+resources = ["followers"]
+
+[tracking."repo:octocat/hello-world"]
+metrics = ["forks", "stars"]
+
+[tracking."user:octocat"]
+metrics = ["followers"]
+
+[views."my-repos"]
+layout = "columns"
+from = "2026-09-01"
+to = "latest"
+
+[[views."my-repos".items]]
+subject = "repo:octocat/hello-world"
+metrics = ["stars"]
+
+[[views."my-repos".items]]
+subject = "user:octocat"
+metrics = ["followers"]
+`;
+
+test('parses tracking and full-snapshot views', () => {
+  const { config, warnings } = parseConfig(DASHBOARD_CONFIG);
+  assert.deepEqual(warnings, []);
+  assert.deepEqual(config.tracking, [
+    { subject: 'repo:octocat/hello-world', metrics: ['stars', 'forks'] },
+    { subject: 'user:octocat', metrics: ['followers'] },
+  ]);
+  assert.deepEqual(config.views, [
+    {
+      name: 'my-repos',
+      layout: 'columns',
+      from: '2026-09-01',
+      to: 'latest',
+      items: [
+        { subject: 'repo:octocat/hello-world', metrics: ['stars'] },
+        { subject: 'user:octocat', metrics: ['followers'] },
+      ],
+    },
+  ]);
+});
+
+test('tracking follows subject order, not key order', () => {
+  const { config } = parseConfig(`schema_version = 1
+
+[[subjects]]
+type = "repo"
+repo = "zzz/late"
+
+[[subjects]]
+type = "repo"
+repo = "aaa/early"
+
+[tracking."repo:aaa/early"]
+metrics = ["stars"]
+
+[tracking."repo:zzz/late"]
+metrics = ["forks"]
+`);
+  assert.deepEqual(config.tracking.map((entry) => entry.subject), [
+    'repo:zzz/late',
+    'repo:aaa/early',
+  ]);
+});
+
+test('view defaults are applied and view items keep their order', () => {
+  const { config } = parseConfig(`schema_version = 1
+
+[[subjects]]
+type = "repo"
+repo = "octocat/hello-world"
+
+[[subjects]]
+type = "repo"
+repo = "octocat/spoon-knife"
+
+[[subjects]]
+type = "user"
+account = "octocat"
+resources = ["followers"]
+
+[views."later"]
+[[views."later".items]]
+subject = "user:octocat"
+metrics = ["followers"]
+
+[[views."later".items]]
+subject = "repo:octocat/spoon-knife"
+metrics = ["forks"]
+`);
+  const view = config.views[0];
+  assert.equal(view?.layout, 'compact');
+  assert.equal(view?.from, 'previous');
+  assert.equal(view?.to, 'latest');
+  assert.deepEqual(view?.items.map((item) => item.subject), [
+    'user:octocat',
+    'repo:octocat/spoon-knife',
+  ]);
+});
+
+test('accepts bare tracking keys and canonicalizes them', () => {
+  const { config } = parseConfig(`schema_version = 1
+
+[[subjects]]
+type = "user"
+account = "octocat"
+resources = ["followers"]
+
+[tracking.octocat]
+metrics = ["followers"]
+`);
+  assert.deepEqual(config.tracking, [{ subject: 'user:octocat', metrics: ['followers'] }]);
+});
+
+test('rejects tracking and views that reference unconfigured subjects', () => {
+  assert.throws(
+    () =>
+      parseConfig(
+        'schema_version = 1\n[tracking."user:octocat"]\nmetrics = ["followers"]\n',
+      ),
+    (error: unknown) => {
+      assert.equal((error as { code?: string }).code, 'config_invalid');
+      return true;
+    },
+  );
+
+  assert.throws(() =>
+    parseConfig(`schema_version = 1
+
+[[subjects]]
+type = "repo"
+repo = "a/b"
+
+[views."v"]
+[[views."v".items]]
+subject = "user:octocat"
+metrics = ["followers"]
+`),
+  );
+});
+
+test('rejects invalid tracking metrics and unknown tracking keys', () => {
+  assert.throws(() =>
+    parseConfig(`schema_version = 1
+
+[[subjects]]
+type = "repo"
+repo = "a/b"
+
+[tracking."repo:a/b"]
+metrics = ["followers"]
+`),
+  );
+  assert.throws(() =>
+    parseConfig(`schema_version = 1
+
+[[subjects]]
+type = "repo"
+repo = "a/b"
+
+[tracking."repo:a/b"]
+metrics = []
+`),
+  );
+  assert.throws(() =>
+    parseConfig(`schema_version = 1
+
+[[subjects]]
+type = "repo"
+repo = "a/b"
+
+[tracking."repo:a/b"]
+metrics = ["stars"]
+wat = 1
+`),
+  );
+});
+
+test('rejects malformed view names, refs, and empty items', () => {
+  const base = `schema_version = 1
+
+[[subjects]]
+type = "repo"
+repo = "a/b"
+`;
+  assert.throws(() => parseConfig(`${base}\n[views."Bad Name"]\n[[views."Bad Name".items]]\nsubject = "repo:a/b"\nmetrics = ["stars"]\n`));
+  assert.throws(() => parseConfig(`${base}\n[views."v"]\nlayout = "wide"\n[[views."v".items]]\nsubject = "repo:a/b"\nmetrics = ["stars"]\n`));
+  assert.throws(() => parseConfig(`${base}\n[views."v"]\nto = "previous"\n[[views."v".items]]\nsubject = "repo:a/b"\nmetrics = ["stars"]\n`));
+  assert.throws(() => parseConfig(`${base}\n[views."v"]\nfrom = "yesterday"\n[[views."v".items]]\nsubject = "repo:a/b"\nmetrics = ["stars"]\n`));
+  assert.throws(() => parseConfig(`${base}\n[views."v"]\n`));
+});
+
+test('deduplicates tracking entries and merges metrics', () => {
+  const { config, warnings } = parseConfig(`schema_version = 1
+
+[[subjects]]
+type = "repo"
+repo = "a/b"
+
+[tracking."repo:a/b"]
+metrics = ["stars"]
+
+[tracking."repo:A/B"]
+metrics = ["forks"]
+`);
+  assert.deepEqual(config.tracking, [{ subject: 'repo:a/b', metrics: ['stars', 'forks'] }]);
+  assert.equal(warnings.length, 1);
+});
+
+test('tracking and view items use the configured subject casing', () => {
+  const { config } = parseConfig(`schema_version = 1
+
+[[subjects]]
+type = "repo"
+repo = "Octocat/Hello"
+
+[tracking."repo:octocat/hello"]
+metrics = ["stars"]
+
+[views."v"]
+[[views."v".items]]
+subject = "repo:octocat/hello"
+metrics = ["stars"]
+`);
+  assert.equal(config.tracking[0]?.subject, 'repo:Octocat/Hello');
+  assert.equal(config.views[0]?.items[0]?.subject, 'repo:Octocat/Hello');
+});
+
+test('serializeConfig round-trips dashboard sections', () => {
+  const original = parseConfig(DASHBOARD_CONFIG).config;
+  const text = serializeConfig(original);
+  assert.match(text, /\[tracking\."repo:octocat\/hello-world"\]/);
+  assert.match(text, /\[\[views\."my-repos"\.items\]\]/);
+  const reparsed = parseConfig(text).config;
+  assert.deepEqual(reparsed, original);
+});
+
 test('saveConfig writes atomically and loadConfig reads it back', async (t) => {
   const dir = await tempDir(t);
   const configPath = path.join(dir, 'nested', 'config.toml');

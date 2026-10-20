@@ -79,9 +79,10 @@ Each element of a list response is expanded into its own file so the on-disk tre
 | `github/resources/*` | Build URLs, paginate, return typed payloads | Write files |
 | `store/*` | XDG paths, temp-dir writes, manifests, history, pruning | Decide what to fetch |
 | `diff/*` | Compare two runs or history ranges | Persist results |
+| `dashboard/*` | Build per-subject observation series, resolve ranges, render compact/columns | Persist results |
 | `output/*` | Table rendering, JSON serialization, colors | Mix human and machine output |
 
-Dependency direction is one-way: `cli → commands → (github | store | diff | output)`. `github` never imports `store`; the fetcher returns payloads and `store` decides where they go. This keeps the HTTP layer testable with a fake `fetch` and makes run writing independently testable.
+Dependency direction is one-way: `cli → commands → (github | store | diff | dashboard | output)`. `github` never imports `store`; the fetcher returns payloads and `store` decides where they go. This keeps the HTTP layer testable with a fake `fetch` and makes run writing independently testable.
 
 ## Fetch data flow
 
@@ -234,9 +235,19 @@ Retries use bounded exponential backoff with jitter for `5xx` and network errors
 - **Repository presence** is itself a change: a repository absent from the newer run is `removed` (deleted, made private, or transferred); one absent from the older run is `added`.
 - Diffs are never persisted. They are cheap to recompute and would duplicate stored data.
 
+## Dashboard model
+
+`dashboard` reads the same runs and history as `diff`, but builds an independent observation series per selected subject. Every complete raw run is an observation; a compacted history day is an observation only when no raw observation exists for that day. This lets subjects fetched at different times keep their own values and baselines.
+
+- `--to` is an upper bound per subject (`latest`, a UTC date, or a complete run id). `--from` defaults to the observation immediately before that subject's `to` observation.
+- Metrics are fixed to the compacted set: stars and forks for repositories, followers for accounts. The dashboard never widens history.
+- A row reports `source: raw`, `compacted`, `mixed`, or `null` when no observation exists. Never-fetched selected subjects are shown with `—`, not hidden.
+- `compact` is a single table; `columns` groups repositories and accounts. Both carry a `SINCE` column because baselines differ per subject.
+- Selections live in `[tracking]`; named views in `[views]` are full snapshots. `track` writes them atomically. Rendering itself is read-only.
+
 ## Configuration
 
-Config is TOML at `~/.config/gh-track/config.toml`. It holds defaults and the watchlist. Validation is strict: unknown keys are errors, invalid logins or repository names are errors, and duplicate subjects are deduplicated with a warning. `watch add` and `watch rm` rewrite the file atomically and preserve comments where practical; if preserving comments becomes fragile, the writer may normalize the file, and that is an acceptable tradeoff.
+Config is TOML at `~/.config/gh-track/config.toml`. It holds defaults, the watchlist, the dashboard's default `[tracking]` selection, and named `[views]`. Validation is strict: unknown keys are errors, invalid logins or repository names are errors, and duplicate subjects are deduplicated with a warning. `watch add`, `watch rm`, and `track` rewrite the file atomically and preserve comments where practical; if preserving comments becomes fragile, the writer may normalize the file, and that is an acceptable tradeoff.
 
 ## Output contract
 

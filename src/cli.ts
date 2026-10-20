@@ -6,10 +6,12 @@ import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { renderHelpCommand } from './commands/help.js';
 import { runCompact } from './commands/compact.js';
+import { runDashboard } from './commands/dashboard.js';
 import { runDiff } from './commands/diff.js';
 import { runExport } from './commands/export.js';
 import { runFetch } from './commands/fetch.js';
 import { runRuns } from './commands/runs.js';
+import { runTrack } from './commands/track.js';
 import { runWatch } from './commands/watch.js';
 import { CliError, UsageError, toCliError } from './errors.js';
 import { renderHelp } from './help.js';
@@ -79,6 +81,10 @@ const OPTION_SPECS: readonly OptionSpec[] = [
   { name: 'to', flags: ['--to'], value: 'required' },
   { name: 'subject', flags: ['--subject'], value: 'required', repeatable: true },
   { name: 'keep-days', flags: ['--keep-days'], value: 'required' },
+  { name: 'view', flags: ['--view'], value: 'required' },
+  { name: 'layout', flags: ['--layout'], value: 'required' },
+  { name: 'setup', flags: ['--setup'], value: 'none' },
+  { name: 'item', flags: ['--item'], value: 'required', repeatable: true },
 ];
 
 const LONG_FLAGS = new Map<string, OptionSpec>();
@@ -118,6 +124,8 @@ const COMMAND_OPTIONS: Readonly<Record<string, ReadonlySet<string>>> = {
   diff: new Set(['from', 'to', 'subject']),
   compact: new Set(['dry-run', 'keep-days']),
   export: new Set(['subject', 'from', 'to']),
+  dashboard: new Set(['view', 'layout', 'setup', 'from', 'to', 'subject']),
+  track: new Set(['item', 'layout', 'from', 'to']),
   help: new Set(),
 };
 
@@ -548,6 +556,20 @@ export async function run(
     if (command === 'diff') {
       const context = buildContext(io, options, rest, format, runOptions.signal);
       const result = await runDiff(context);
+      emit(result, format, io);
+      return result.exitCode ?? 0;
+    }
+
+    if (command === 'dashboard') {
+      const context = buildContext(io, options, rest, format, runOptions.signal);
+      const result = await runDashboard(context);
+      emit(result, format, io);
+      return result.exitCode ?? 0;
+    }
+
+    if (command === 'track') {
+      const context = buildContext(io, options, rest, format, runOptions.signal);
+      const result = await runTrack(context);
       emit(result, format, io);
       return result.exitCode ?? 0;
     }

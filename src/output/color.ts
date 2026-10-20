@@ -29,5 +29,7 @@ export function createColors(enabled: boolean): Colors {
     green: wrap('32'),
     yellow: wrap('33'),
     cyan: wrap('36'),
+    blue: wrap('94'),
+    magenta: wrap('95'),
   };
 }

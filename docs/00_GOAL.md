@@ -46,7 +46,7 @@ One operator. The primary use case is watching your own account (its repositorie
 
 ## Non-goals for v1
 
-- Interactive dashboard, picker, or full-screen TUI (see [04_DASHBOARD.md](plans/04_DASHBOARD.md)).
+- Full-screen TUI or alternate-screen app. The dashboard is a rendered table (see [04_DASHBOARD.md](plans/04_DASHBOARD.md)).
 - Scheduling: no cron, daemon, or background worker. You run it.
 - Required authentication, stored credentials, or keyring integration.
 - Private repositories, organization membership, traffic/clone/view data.

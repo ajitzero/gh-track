@@ -25,6 +25,11 @@ const inertPrompts: PromptApi = {
   watchAdd: async () => null,
   selectSubject: async () => null,
   confirmRemoval: async () => null,
+  selectSubjects: async () => null,
+  selectMetrics: async () => null,
+  selectLayout: async () => null,
+  selectFrom: async () => null,
+  confirmSelection: async () => null,
 };
 
 async function invoke(argv: readonly string[], overrides: Partial<CliIO> = {}): Promise<Capture> {

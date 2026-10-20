@@ -35,6 +35,7 @@ Decisions made during the initial design interview on 2026-10-19. Each entry rec
 | D020 | Compaction marker, prune scope, and export rows |
 | D021 | Diff point resolution, source limits, and subject filtering |
 | D022 | v1 hardening: JSON purity matrix, failed-response quotas, watch table |
+| D023 | Dashboard: narrow metrics, per-subject observations, full-snapshot views |
 
 ## D001 — Local files only
 
@@ -90,7 +91,7 @@ Decisions made during the initial design interview on 2026-10-19. Each entry rec
 
 **Rejected.** Keeping everything forever (unbounded growth); gzip instead of compaction (smaller, but still unbounded and does not produce a queryable history); a wider metric set (deferred — see the consequence); compacting on a manual command only (the user chose automatic).
 
-**Consequence.** Diffs older than the raw window are limited to stars, forks, and followers, and follower identities are unavailable. This is irreversible. Widening the history schema later only affects future days; past days cannot be backfilled. Revisit this before building the dashboard, which may want more metrics.
+**Consequence.** Diffs older than the raw window are limited to stars, forks, and followers, and follower identities are unavailable. This is irreversible. Widening the history schema later only affects future days; past days cannot be backfilled. [D023](#d023--dashboard-narrow-metrics-per-subject-observations-full-snapshot-views) resolves the dashboard question by using only those three metrics, so the compacted shape stays narrow.
 
 ## D008 — Diffs on demand
 
@@ -106,7 +107,7 @@ Decisions made during the initial design interview on 2026-10-19. Each entry rec
 
 **Rejected.** A "total stars" headline (explicitly declined by the user; it obscures per-repository movement).
 
-**Consequence.** The dashboard, when it arrives, must present per-item values unless a future decision reverses this.
+**Consequence.** The dashboard presents per-item values and never adds a total, average, or leaderboard (D023).
 
 ## D010 — XDG and TOML
 
@@ -259,9 +260,30 @@ Decisions made during the initial design interview on 2026-10-19. Each entry rec
 
 **Consequence.** JSON purity and rate-limit resume are enforced by the offline suite on every change. A primary-limit stop is now self-describing in state, and the human watchlist view matches the documented summary.
 
+## D023 — Dashboard: narrow metrics, per-subject observations, full-snapshot views
+
+**Context.** [04_DASHBOARD.md](04_DASHBOARD.md) was deferred during v1 and left four open questions: whether to widen compaction, whether selections apply retroactively, what to show when no selection exists, and whether per-subject metrics or named views are the right model. The dashboard is a read-only value view over the same data as `diff`.
+
+**Decision.**
+
+1. **Narrow metrics.** The dashboard exposes only `stars`, `forks`, and `followers`. These are exactly the compacted fields, so every row is comparable across the full retained timeline. The history schema is not widened. This resolves the irreversible D007 question in favor of the existing compacted shape.
+2. **Per-subject observations.** Each row builds its own series from complete raw runs and compacted history. Raw wins for a day with both. `--to` is an upper bound per subject (`latest`, `YYYY-MM-DD`, or a complete run id); `--from` defaults to the observation immediately before that subject's `to` observation. A subject that was not fetched in the latest run therefore keeps its value and its own baseline. Row `source` is `raw`, `compacted`, `mixed`, or `null`.
+3. **Tracking plus full-snapshot views.** `[tracking."<subject>"]` holds the unnamed default selection with per-subject metrics. `[views."<name>"]` holds a complete snapshot: `items`, `layout`, and `from`/`to`. A view is authoritative and does not inherit metrics from `[tracking]`, so what was saved is what renders. CLI flags override the view. Views live at the config root so control tables do not nest inside subject-keyed tables.
+4. **Two layouts, one palette.** `compact` is the default: one row per entity with a `METRICS` column and a `SINCE` column. `columns` groups repositories and accounts into sections with one column per selected metric. Repositories are bold light blue (`94`), accounts bold purple (`95`), values bold, deltas green/red, zero deltas and provenance dim. Compacted values carry a literal dim `~`, which survives `NO_COLOR`. `SINCE` is always present because per-subject baselines differ.
+5. **Never-fetched subjects are visible.** A selected subject with no observations renders `—` and resolves to `null` fields in JSON. Silently hiding it would make a selected subject easy to forget.
+6. **Setup is interactive, rendering is not.** `dashboard` with no selection and an open prompt gate offers a clack picker, saves `[tracking]`, then renders. `--setup` forces it. `track edit` and `track view save` reuse the picker. With the gate closed, `dashboard` renders all configured subjects with defaults and never prompts. `--format json` is always deterministic.
+7. **No totals.** D009 still applies. The dashboard has no sum, average, or leaderboard footer.
+8. **`--from` / `--to` only.** `--since` from the draft is dropped; the dashboard reuses diff reference forms rather than inventing a second range syntax.
+9. **Styled table cells.** `output/table.ts` accepts a cell whose width is measured from plain text and which is painted at render time. Existing string cells are unchanged.
+10. **`watch rm` cleans references.** Removing a subject also removes its `[tracking]` entry and its items from every view; a view left empty is removed with a warning.
+
+**Rejected.** Widening history now (the user only wants the three metrics; widening would change export CSV columns and diff's compacted field limit for no benefit); global diff points (subjects are fetched independently, so a global point would blank out or distort stale rows); view overlays on `[tracking]` (ambiguous precedence and two places to look); sparse single-table metric columns (unreadable when account and repository metrics differ); cyan-only provenance (the user asked for light blue and purple; using them for kind leaves `~` as the honest provenance marker); hiding never-fetched subjects (silent gaps); prompting from `dashboard --format json` or non-TTY runs (breaks the machine contract); totals (D009); a second date syntax (`--since`).
+
+**Consequence.** The dashboard needs no new storage and no new dependencies. Every value is available for the entire timeline. Diffs remain global and unchanged; only the dashboard resolves observations per subject. A saved view is reproducible from config alone, and a first-run user reaches a rendered dashboard through the same clack-based flow as the rest of the tool.
+
 ## Open questions
 
-1. **Compaction width.** The dashboard may want metrics beyond stars, forks, and followers. Widening the history line is easy but cannot backfill past days. Decide before the dashboard consumes history.
+1. **Compaction width.** Resolved by [D023](#d023--dashboard-narrow-metrics-per-subject-observations-full-snapshot-views): the dashboard exposes only stars, forks, and followers, so the history schema is not widened.
 2. **Token features.** `--token` exists, but private-repository support, per-subject authentication, and keyring storage are deferred.
 3. **Same-second runs.** Currently an error. If it ever matters, add a short suffix to the run id.
 4. **Starred-list tracking.** Rejected for v1; revisit only if the original use case resurfaces.

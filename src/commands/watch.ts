@@ -278,6 +278,34 @@ async function removeSubject(
   }
 
   config.subjects.splice(index, 1);
+
+  const removedKey = subjectKey(existing);
+  const trackedBefore = config.tracking.length;
+  config.tracking = config.tracking.filter(
+    (entry) => subjectKey(parseSubject(entry.subject)) !== removedKey,
+  );
+  if (config.tracking.length !== trackedBefore && context.format !== 'json') {
+    warnings.push(`Removed ${existing.subject} from the dashboard selection.`);
+  }
+
+  const emptyViews: string[] = [];
+  config.views = config.views.filter((view) => {
+    const items = view.items.filter(
+      (entry) => subjectKey(parseSubject(entry.subject)) !== removedKey,
+    );
+    if (items.length === 0) {
+      emptyViews.push(view.name);
+      return false;
+    }
+    view.items = items;
+    return true;
+  });
+  if (context.format !== 'json') {
+    for (const name of emptyViews) {
+      warnings.push(`Removed empty dashboard view ${name}.`);
+    }
+  }
+
   await saveConfig(context.paths.configPath, config);
 
   return {

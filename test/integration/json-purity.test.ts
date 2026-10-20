@@ -26,6 +26,11 @@ const inertPrompts: PromptApi = {
   watchAdd: async () => null,
   selectSubject: async () => null,
   confirmRemoval: async () => null,
+  selectSubjects: async () => null,
+  selectMetrics: async () => null,
+  selectLayout: async () => null,
+  selectFrom: async () => null,
+  confirmSelection: async () => null,
 };
 
 const FOLLOWERS_1 = followersUrl(GITHUB_API_BASE, 'octocat', 1);
@@ -218,6 +223,40 @@ test('every JSON command emits one clean document on a fake TTY', async (t) => {
 
   const exported = await invoke(['export', '--data-dir', dataDir, '--format', 'json']);
   assertJsonDocument(exported, 'export');
+
+  const dashboard = await invoke([
+    'dashboard', '--config', configPath, '--data-dir', dataDir, '--format', 'json',
+  ]);
+  const dashboardDoc = assertJsonDocument(dashboard, 'dashboard') as {
+    rows: Array<{ subject: string; source: string | null }>;
+  };
+  assert.equal(dashboardDoc.rows.length, 1);
+  assert.equal(dashboardDoc.rows[0]?.subject, 'user:octocat');
+
+  const tracking = await invoke(['track', 'ls', '--config', configPath, '--format', 'json']);
+  assertJsonDocument(tracking, 'track ls');
+
+  const setTracking = await invoke([
+    'track', 'set', '--item', 'user:octocat=followers', '--config', configPath, '--format', 'json',
+  ]);
+  assertJsonDocument(setTracking, 'track set');
+
+  const savedView = await invoke([
+    'track', 'view', 'save', 'my-view', '--item', 'user:octocat=followers',
+    '--config', configPath, '--format', 'json',
+  ]);
+  assertJsonDocument(savedView, 'track view save');
+
+  const viewDashboard = await invoke([
+    'dashboard', '--view', 'my-view', '--config', configPath, '--data-dir', dataDir,
+    '--format', 'json',
+  ]);
+  assertJsonDocument(viewDashboard, 'dashboard --view');
+
+  const removedView = await invoke([
+    'track', 'view', 'rm', 'my-view', '--config', configPath, '--format', 'json',
+  ]);
+  assertJsonDocument(removedView, 'track view rm');
 
   const removed = await invoke([
     'watch', 'rm', 'user:octocat', '--yes', '--config', configPath, '--format', 'json',

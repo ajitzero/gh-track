@@ -36,6 +36,78 @@ export interface Config {
   schemaVersion: 1;
   defaults: ConfigDefaults;
   subjects: ConfigSubject[];
+  /** Default dashboard selection; empty means "all subjects with defaults". */
+  tracking: TrackingEntry[];
+  /** Named dashboard snapshots. */
+  views: DashboardView[];
+}
+
+export type Metric = 'stars' | 'forks' | 'followers';
+
+export type DashboardLayout = 'compact' | 'columns';
+
+/** One subject in the default dashboard selection. */
+export interface TrackingEntry {
+  subject: string;
+  metrics: Metric[];
+}
+
+/** One subject in a saved view. */
+export interface ViewItem {
+  subject: string;
+  metrics: Metric[];
+}
+
+/** A named, fully materialized dashboard snapshot. */
+export interface DashboardView {
+  name: string;
+  items: ViewItem[];
+  layout: DashboardLayout;
+  from: string;
+  to: string;
+}
+
+/** One point in a subject's observation series. */
+export interface DashboardObservation {
+  /** Run id for raw observations; UTC day for compacted ones. */
+  id: string;
+  /** UTC day used for ordering and date bounds. */
+  day: string;
+  /** Null for compacted observations. */
+  finishedAt: string | null;
+  kind: 'raw' | 'compacted';
+  metrics: Partial<Record<Metric, number>>;
+}
+
+/** One metric value and its delta for a dashboard row. */
+export interface DashboardMetricValue {
+  value: number | null;
+  from: number | null;
+  delta: number | null;
+}
+
+/** One rendered dashboard row. */
+export interface DashboardRow {
+  kind: SubjectType;
+  subject: string;
+  source: DiffSource | null;
+  from: DiffRefInfo | null;
+  to: DiffRefInfo | null;
+  metrics: Partial<Record<Metric, DashboardMetricValue>>;
+}
+
+/** `dashboard --format json` document (§5.14). */
+export interface DashboardResult {
+  view?: string | undefined;
+  layout: DashboardLayout;
+  range: { from: string; to: string };
+  rows: DashboardRow[];
+}
+
+/** `track ls --format json` document (§5.15). */
+export interface TrackListResult {
+  tracking: TrackingEntry[];
+  views: DashboardView[];
 }
 
 export interface LastRunSummary {
@@ -244,11 +316,36 @@ export interface WatchAddAnswer {
   value: string;
 }
 
+/** One selectable dashboard subject. */
+export interface SubjectChoice {
+  value: string;
+  label: string;
+  hint?: string | undefined;
+}
+
 /** Injectable prompt surface so commands stay testable. */
 export interface PromptApi {
   watchAdd(): Promise<WatchAddAnswer | null>;
   selectSubject(subjects: readonly string[]): Promise<string | null>;
   confirmRemoval(subject: string): Promise<boolean | null>;
+  /** Multi-select dashboard subjects, prefilled with `initial`. */
+  selectSubjects(
+    choices: readonly SubjectChoice[],
+    initial: readonly string[],
+    message?: string,
+  ): Promise<string[] | null>;
+  /** Multi-select metrics for one repository subject. */
+  selectMetrics(
+    subject: string,
+    available: readonly Metric[],
+    initial: readonly Metric[],
+  ): Promise<Metric[] | null>;
+  /** Select the render layout. */
+  selectLayout(initial: DashboardLayout): Promise<DashboardLayout | null>;
+  /** Select the baseline: `previous` or a `YYYY-MM-DD` date. */
+  selectFrom(initial: string): Promise<string | null>;
+  /** Confirm a dashboard selection before writing it. */
+  confirmSelection(message: string): Promise<boolean | null>;
 }
 
 export interface Colors {
@@ -258,6 +355,8 @@ export interface Colors {
   green(text: string): string;
   yellow(text: string): string;
   cyan(text: string): string;
+  blue(text: string): string;
+  magenta(text: string): string;
 }
 
 export interface CommandContext {
