@@ -1,0 +1,48 @@
+README.md
+  h_1e9f70f2591550 27,65
+docs/01_ARCHITECTURE.md
+  h_1e9f70f2591550 221
+docs/02_SPEC.md
+  h_1e9f70f2591550 113-114,116,152-153,191
+docs/03_DECISIONS.md
+  h_1e9f70f2591550 39,379-380,413-422
+src/cli.ts
+  h_1e9f70f2591550 85-86,259,262-266
+src/config.ts
+  h_1e9f70f2591550 413
+src/dashboard/observations.ts
+  h_1e9f70f2591550 291
+src/date.ts
+  h_1e9f70f2591550 5-6,53,59-61
+src/diff/resolve.ts
+  h_1e9f70f2591550 151
+src/help.ts
+  h_1e9f70f2591550 137,139,145,166-167,173,215-216,271-272
+src/refs.ts
+  h_1e9f70f2591550 25
+test/integration/cli.test.ts
+  h_1e9f70f2591550 198-203
+test/integration/compact-export.test.ts
+  h_1e9f70f2591550 347,353
+test/integration/dashboard.test.ts
+  h_1e9f70f2591550 504
+test/integration/diff.test.ts
+  h_1e9f70f2591550 444,448,454,462,474,478
+test/unit/config.test.ts
+  h_1e9f70f2591550 316,323,334,340
+test/unit/date.test.ts
+  h_1e9f70f2591550 12-15,19-25,30-32,34-37,39,43-45
+test/unit/diff-resolve.test.ts
+  h_1e9f70f2591550 31,33-34,38-39,195,202,216,230
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "03fd2d68b33f13ab9679347831b4f14982e07430",
+  "prompts": {},
+  "humans": {
+    "h_1e9f70f2591550": {
+      "author": "Ajit Panigrahi <ajitzero@gmail.com>"
+    }
+  }
+}
