@@ -1,0 +1,184 @@
+.oxfmtrc.json
+  h_1e9f70f2591550 1-7
+.oxlintrc.json
+  h_1e9f70f2591550 1-25
+AGENT.md
+  h_1e9f70f2591550 30-32
+README.md
+  h_1e9f70f2591550 44-47,53-68,70-75,167-168
+bun.lock
+  h_1e9f70f2591550 13-14,24-99,148-151,156-157
+docs/00_GOAL.md
+  h_1e9f70f2591550 5
+docs/01_ARCHITECTURE.md
+  h_1e9f70f2591550 33-38,42-45,51-55,63-74,100-103,148,245-251,255-267
+docs/02_SPEC.md
+  h_1e9f70f2591550 107-113,259-261,278-281,314-329,350,406,412,505,616-622,675,683-684,686,698-709
+docs/03_DECISIONS.md
+  h_1e9f70f2591550 5-8,10-40,78,424-433,438-443
+docs/04_DASHBOARD.md
+  h_1e9f70f2591550 18-30
+package.json
+  h_1e9f70f2591550 4,14,19-22,32-33,35-37
+src/cli.ts
+  h_1e9f70f2591550 7,13,17,23,126,132-142,491
+src/commands/dashboard-add.ts
+  h_1e9f70f2591550 5,13,58,291,355,377,442-446
+src/commands/dashboard.ts
+  h_1e9f70f2591550 5,13-14,23-28,37-38,61
+src/commands/diff.ts
+  h_1e9f70f2591550 3-4,20
+src/commands/export.ts
+  h_1e9f70f2591550 18,32
+src/commands/fetch.ts
+  h_1e9f70f2591550 4,29-30,33,35-36,47-52,142,382-384,539-541,884
+src/commands/track.ts
+  h_1e9f70f2591550 15-16,18,124-132,205-210,217,236-241,253,360-365
+src/commands/watch.ts
+  h_1e9f70f2591550 5,9,66-71,110,166,221,228
+src/config.ts
+  h_1e9f70f2591550 4,6,377-380,416
+src/dashboard/filter.ts
+  h_1e9f70f2591550 5,12-16,76-78
+src/dashboard/interactive.ts
+  h_1e9f70f2591550 12-13,169-175,182-189,401-402
+src/dashboard/observations.ts
+  h_1e9f70f2591550 6,24,49-53,85,105,154
+src/dashboard/picker.ts
+  h_1e9f70f2591550 4-5,28,43
+src/dashboard/render.ts
+  h_1e9f70f2591550 12,66-69,163,272-273,327-328
+src/dashboard/select.ts
+  h_1e9f70f2591550 84,99,103,129-132,227,234
+src/dashboard/terminal.ts
+  h_1e9f70f2591550 5
+src/diff/compacted.ts
+  h_1e9f70f2591550 20
+src/diff/followers.ts
+  h_1e9f70f2591550 5,82,121,163
+src/diff/repos.ts
+  h_1e9f70f2591550 87,138,173
+src/diff/resolve.ts
+  h_1e9f70f2591550 74,84,99,104
+src/errors.ts
+  h_1e9f70f2591550 95-97,133-135,139
+src/github/rateLimit.ts
+  h_1e9f70f2591550 60,68
+src/github/repos-list.ts
+  h_1e9f70f2591550 6
+src/github/runtime.ts
+  h_1e9f70f2591550 4-5
+src/help.ts
+  h_1e9f70f2591550 66-69,191-194,342-343
+src/metrics.ts
+  h_1e9f70f2591550 34
+src/output/table.ts
+  h_1e9f70f2591550 86
+src/prompts/index.ts
+  h_1e9f70f2591550 4,80,135-138
+src/refs.ts
+  h_1e9f70f2591550 31,53
+src/store/atomic.ts
+  h_1e9f70f2591550 6
+src/store/compact.ts
+  h_1e9f70f2591550 63,108,163
+src/store/history.ts
+  h_1e9f70f2591550 5
+src/store/lock.ts
+  h_1e9f70f2591550 6,65
+src/store/manifest.ts
+  h_1e9f70f2591550 5,193-195
+src/store/prune.ts
+  h_1e9f70f2591550 5,23,52,67
+src/store/runWriter.ts
+  h_1e9f70f2591550 5,30-35
+src/store/runs.ts
+  h_1e9f70f2591550 5,91-95,176
+src/store/state.ts
+  h_1e9f70f2591550 5,27
+src/subjects.ts
+  h_1e9f70f2591550 83
+src/types.ts
+  h_1e9f70f2591550 376
+test/helpers/seed.ts
+  h_1e9f70f2591550 5
+test/integration/cli.test.ts
+  h_1e9f70f2591550 6,33,102-105,116,162-171,178-187,200-207,216-221,238-243,249-254,266-271,277,293-300,342-347,425-428
+test/integration/compact-export.test.ts
+  h_1e9f70f2591550 6,198-201,251-254,318-324,328-334,337-343,351-359,367-373,383-389,400-406,468-471,479-487,492-495
+test/integration/dashboard-add.test.ts
+  h_1e9f70f2591550 6,203,207-210,222-234,236,238,409,452,484,488
+test/integration/dashboard.test.ts
+  h_1e9f70f2591550 6,174-185,253-255,315-323,356-358,404-406,428-431,444,463-465,485-488,546,604,639-641,771,844-852,908-911,916-919,921-924,938-940,986-995,1008-1015,1017-1020
+test/integration/diff.test.ts
+  h_1e9f70f2591550 6,41,178,180-184,240-250,262-265,268-276,324,352-360,365-375,409-417,421-431,475-483,485,521-523
+test/integration/fetch-dry-run.test.ts
+  h_1e9f70f2591550 6,73-77,87-94,153-160,186-195,198-201,204-213,216-219,227-234,238-241,245-252,255-258,266-272,282-291
+test/integration/fetch-run.test.ts
+  h_1e9f70f2591550 6,125-127,129,164-165,167,171-172,202-207,233-235,267-276,308-310,346-353,356-358,455-465,475-478,481-491,506-509,544-547,557-567,595-597,628-631,633-636,684-693,696-698,708,717,753-760,795-802
+test/integration/json-purity.test.ts
+  h_1e9f70f2591550 6,53-54,57-59,139-146,151-158,163-170,175,187,190,215-218,237-245,250-255,272-278,290-297,302-311,316-324,329-336,341-348,364-373,385-393
+test/unit/compact.test.ts
+  h_1e9f70f2591550 6,16-21
+test/unit/config.test.ts
+  h_1e9f70f2591550 6,120-126,166-168,259-262,294-297,352,418-437,520-526
+test/unit/dashboard-filter.test.ts
+  h_1e9f70f2591550 3,14-17,30,34,38,42,46-52
+test/unit/dashboard-group.test.ts
+  h_1e9f70f2591550 3,16,60,66
+test/unit/dashboard-interactive.test.ts
+  h_1e9f70f2591550 3-4,6,16-20,24-28,82-88,105,121,160-162,183-186,209,241,261-265,287,322
+test/unit/dashboard-render.test.ts
+  h_1e9f70f2591550 3,209
+test/unit/date.test.ts
+  h_1e9f70f2591550 3-4
+test/unit/diff-followers.test.ts
+  h_1e9f70f2591550 3,14-17,20,29,34-47,67-73,76-83,124,128-135
+test/unit/diff-repos.test.ts
+  h_1e9f70f2591550 3,13,145-152
+test/unit/diff-resolve.test.ts
+  h_1e9f70f2591550 6-7,30-34
+test/unit/etag.test.ts
+  h_1e9f70f2591550 3
+test/unit/fetch-plan.test.ts
+  h_1e9f70f2591550 3,25-30,37-40
+test/unit/github-client.test.ts
+  h_1e9f70f2591550 3-4,16-20,58-60
+test/unit/help.test.ts
+  h_1e9f70f2591550 3
+test/unit/history.test.ts
+  h_1e9f70f2591550 6,35,41-45
+test/unit/lock.test.ts
+  h_1e9f70f2591550 6
+test/unit/manifest.test.ts
+  h_1e9f70f2591550 6,66-69,79-82
+test/unit/paths.test.ts
+  h_1e9f70f2591550 4,59-62,89-92
+test/unit/prompts.test.ts
+  h_1e9f70f2591550 3
+test/unit/prune.test.ts
+  h_1e9f70f2591550 6,8
+test/unit/rate-limit.test.ts
+  h_1e9f70f2591550 3
+test/unit/repos-list.test.ts
+  h_1e9f70f2591550 3
+test/unit/run-writer.test.ts
+  h_1e9f70f2591550 6,38,63
+test/unit/store-state.test.ts
+  h_1e9f70f2591550 6-7,38-46,50-52
+test/unit/subjects.test.ts
+  h_1e9f70f2591550 3,48-70,81-89,100-108,130-137
+test/unit/version.test.ts
+  h_1e9f70f2591550 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "27398d9608ed33d9477912b99ae2c78b0f022689",
+  "prompts": {},
+  "humans": {
+    "h_1e9f70f2591550": {
+      "author": "Ajit Panigrahi <ajitzero@gmail.com>"
+    }
+  }
+}
