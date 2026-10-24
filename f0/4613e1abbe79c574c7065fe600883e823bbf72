@@ -1,0 +1,48 @@
+AGENT.md
+  h_1e9f70f2591550 9
+docs/02_SPEC.md
+  h_1e9f70f2591550 186,195-201,203,212
+docs/03_DECISIONS.md
+  h_1e9f70f2591550 37-38,388-409,419
+docs/04_DASHBOARD.md
+  h_1e9f70f2591550 1,16,30,36,47-48,57-68,154-158,175,178,219
+src/cli.ts
+  h_1e9f70f2591550 20,31,46,96,141,466,483-485,589
+src/commands/dashboard.ts
+  h_1e9f70f2591550 1,6,8,10,20,24,26,29-34,40-41,45-84,108-110,145-146,168,175-290
+src/dashboard/filter.ts
+  h_1e9f70f2591550 1-83
+src/dashboard/interactive.ts
+  h_1e9f70f2591550 1-443
+src/dashboard/render.ts
+  h_1e9f70f2591550 52-58,64,69-77,154,160,162,165,189,196-200,214,221-222,225,227-239,267-273,283,294-299,305-309,315,318,328,335,339-343
+src/dashboard/terminal.ts
+  h_1e9f70f2591550 1-131
+src/help.ts
+  h_1e9f70f2591550 218
+src/output/color.ts
+  h_1e9f70f2591550 34
+src/types.ts
+  h_1e9f70f2591550 107-123,409,423-424,445-446
+test/integration/dashboard.test.ts
+  h_1e9f70f2591550 9-15,84-91,211,236-429,436,442,448,457,468,475
+test/unit/dashboard-filter.test.ts
+  h_1e9f70f2591550 1-60
+test/unit/dashboard-interactive.test.ts
+  h_1e9f70f2591550 1-335
+test/unit/dashboard-render.test.ts
+  h_1e9f70f2591550 66,84-95
+test/unit/help.test.ts
+  h_1e9f70f2591550 38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f04613e1abbe79c574c7065fe600883e823bbf72",
+  "prompts": {},
+  "humans": {
+    "h_1e9f70f2591550": {
+      "author": "Ajit Panigrahi <ajitzero@gmail.com>"
+    }
+  }
+}
