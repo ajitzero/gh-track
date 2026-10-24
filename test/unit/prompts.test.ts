@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+
 import { canPrompt } from '../../src/prompts/gate.js';
 
 test('prompts require both TTYs, table format, and no --yes', () => {

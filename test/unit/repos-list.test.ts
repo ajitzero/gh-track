@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+
 import { parseRepoListing } from '../../src/github/repos-list.js';
 
 test('parses the fields the repository picker needs', () => {

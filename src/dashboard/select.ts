@@ -81,9 +81,7 @@ export function parseOptionalLayout(value: string | undefined): DashboardLayout 
     return undefined;
   }
   if (value !== 'compact' && value !== 'columns') {
-    throw new UsageError(
-      `Unsupported --layout value: ${value}. Expected compact or columns.`,
-    );
+    throw new UsageError(`Unsupported --layout value: ${value}. Expected compact or columns.`);
   }
   return value;
 }
@@ -98,15 +96,11 @@ function itemFor(
   tracking: readonly TrackingEntry[],
 ): SelectionItem {
   const key = subjectKey(subject);
-  const fromView = view?.items.find(
-    (item) => subjectKeyOf(item.subject) === key,
-  );
+  const fromView = view?.items.find((item) => subjectKeyOf(item.subject) === key);
   if (fromView !== undefined) {
     return { subject: fromView.subject, metrics: [...fromView.metrics] };
   }
-  const fromTracking = tracking.find(
-    (item) => subjectKeyOf(item.subject) === key,
-  );
+  const fromTracking = tracking.find((item) => subjectKeyOf(item.subject) === key);
   if (fromTracking !== undefined) {
     return { subject: fromTracking.subject, metrics: [...fromTracking.metrics] };
   }
@@ -132,9 +126,10 @@ export function resolveSelection(
   config: Config,
   overrides: SelectionOverrides,
 ): DashboardSelection {
-  const view = overrides.view === undefined
-    ? undefined
-    : config.views.find((candidate) => candidate.name === overrides.view);
+  const view =
+    overrides.view === undefined
+      ? undefined
+      : config.views.find((candidate) => candidate.name === overrides.view);
   if (overrides.view !== undefined && view === undefined) {
     throw unknownView(overrides.view);
   }
@@ -229,19 +224,14 @@ export function toTracking(config: Config, items: readonly SelectionItem[]): Tra
 }
 
 /** Sets or replaces individual tracking entries, preserving the rest. */
-export function mergeTracking(
-  config: Config,
-  items: readonly SelectionItem[],
-): TrackingEntry[] {
+export function mergeTracking(config: Config, items: readonly SelectionItem[]): TrackingEntry[] {
   const next = config.tracking.map((entry) => ({
     subject: entry.subject,
     metrics: [...entry.metrics],
   }));
   for (const item of items) {
     const key = subjectKeyOf(item.subject);
-    const index = next.findIndex(
-      (entry) => subjectKeyOf(entry.subject) === key,
-    );
+    const index = next.findIndex((entry) => subjectKeyOf(entry.subject) === key);
     const entry: TrackingEntry = { subject: item.subject, metrics: [...item.metrics] };
     if (index >= 0) {
       next[index] = entry;

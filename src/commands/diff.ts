@@ -1,5 +1,7 @@
 /** `gh-track diff`: compare two complete runs or compacted history days. */
 
+import { unexpectedArgument } from '../cli-args.js';
+import { loadHistorySnapshot } from '../diff/compacted.js';
 import {
   diffFollowerCounts,
   diffRawFollowers,
@@ -8,7 +10,6 @@ import {
   type FollowerCounts,
   type RawFollowerData,
 } from '../diff/followers.js';
-import { loadHistorySnapshot } from '../diff/compacted.js';
 import {
   COMPACTED_REPO_FIELDS,
   diffRepoSnapshots,
@@ -16,11 +17,7 @@ import {
   restrictRepoFields,
   type RepoRecord,
 } from '../diff/repos.js';
-import {
-  resolveDiffRange,
-  type DiffPoint,
-} from '../diff/resolve.js';
-import { unexpectedArgument } from '../cli-args.js';
+import { resolveDiffRange, type DiffPoint } from '../diff/resolve.js';
 import { CliError } from '../errors.js';
 import { renderTable } from '../output/table.js';
 import { parseSubject, type ParsedSubject } from '../subjects.js';

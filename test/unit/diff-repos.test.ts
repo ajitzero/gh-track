@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+
 import {
   COMPACTED_REPO_FIELDS,
   compareRepoFields,
@@ -9,11 +10,7 @@ import {
   type RepoRecord,
 } from '../../src/diff/repos.js';
 
-function record(
-  id: number | null,
-  fullName: string,
-  fields: Record<string, unknown>,
-): RepoRecord {
+function record(id: number | null, fullName: string, fields: Record<string, unknown>): RepoRecord {
   return { id, fullName, fields };
 }
 
@@ -145,12 +142,14 @@ test('payload extraction keeps scalars and drops identity and nested values', ()
 
 test('compacted field restriction keeps only stars and forks', () => {
   const restricted = restrictRepoFields(
-    [record(1, 'octocat/hello-world', {
-      archived: true,
-      forks_count: 4,
-      stargazers_count: 132,
-      description: 'x',
-    })],
+    [
+      record(1, 'octocat/hello-world', {
+        archived: true,
+        forks_count: 4,
+        stargazers_count: 132,
+        description: 'x',
+      }),
+    ],
     COMPACTED_REPO_FIELDS,
   );
   assert.deepEqual(restricted, [

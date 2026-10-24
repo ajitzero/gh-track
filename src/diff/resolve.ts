@@ -3,7 +3,6 @@
 import { utcDay } from '../date.js';
 import { invalidRange, notEnoughRuns, runNotFound, UsageError } from '../errors.js';
 import { parseRef } from '../refs.js';
-
 import { readCompactedDays } from '../store/compact.js';
 import { readAllHistory } from '../store/history.js';
 import { readManifest } from '../store/manifest.js';
@@ -72,10 +71,7 @@ export async function loadDiffPoints(dataDir: string): Promise<DiffPoint[]> {
   return points.sort(comparePoints);
 }
 
-function lastPointOnOrBefore(
-  points: readonly DiffPoint[],
-  day: string,
-): DiffPoint | null {
+function lastPointOnOrBefore(points: readonly DiffPoint[], day: string): DiffPoint | null {
   for (let index = points.length - 1; index >= 0; index -= 1) {
     const point = points[index];
     if (point !== undefined && point.day <= day) {
@@ -85,11 +81,7 @@ function lastPointOnOrBefore(
   return null;
 }
 
-function resolvePoint(
-  points: readonly DiffPoint[],
-  ref: string,
-  now: Date,
-): DiffPoint | null {
+function resolvePoint(points: readonly DiffPoint[], ref: string, now: Date): DiffPoint | null {
   const parsed = parseRef(ref, { label: 'diff', now });
   if (parsed.kind === 'latest') {
     return points[points.length - 1] ?? null;
@@ -104,18 +96,12 @@ function resolvePoint(
   return null;
 }
 
-async function resolutionFailure(
-  dataDir: string,
-  ref: string,
-  now: Date,
-): Promise<never> {
+async function resolutionFailure(dataDir: string, ref: string, now: Date): Promise<never> {
   const parsed = parseRef(ref, { label: 'diff', now });
   if (parsed.kind === 'run') {
     const manifest = await readManifest(dataDir, parsed.ref);
     if (manifest !== null) {
-      throw new UsageError(
-        `Run ${parsed.ref} is ${manifest.status}; diff requires complete runs.`,
-      );
+      throw new UsageError(`Run ${parsed.ref} is ${manifest.status}; diff requires complete runs.`);
     }
     throw runNotFound(parsed.ref);
   }

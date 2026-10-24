@@ -41,38 +41,38 @@ Everywhere a subject is accepted, a GitHub profile or repository URL works too:
 
 The first run creates the data directory. The default locations are:
 
-| Purpose | Default |
-|---|---|
-| Config | `~/.config/gh-track/config.toml` (`$XDG_CONFIG_HOME`) |
-| Data | `~/.local/share/gh-track` (`$XDG_DATA_HOME`) |
+| Purpose | Default                                               |
+| ------- | ----------------------------------------------------- |
+| Config  | `~/.config/gh-track/config.toml` (`$XDG_CONFIG_HOME`) |
+| Data    | `~/.local/share/gh-track` (`$XDG_DATA_HOME`)          |
 
 Use `--config <path>` and `--data-dir <path>` to override them.
 
 ## Commands
 
-| Command | Purpose |
-|---|---|
-| `watch add user <login> [--resources followers,repos]` | Add or update a watched account |
-| `watch add repo <owner/name>` | Add or update a watched repository |
-| `watch ls` | Show the watchlist and each subject's last run |
-| `watch rm <subject> [--yes]` | Remove a subject |
-| `fetch [subject...]` | Fetch and snapshot current data |
-| `fetch --dry-run` | Print the request plan without spending quota |
-| `fetch --resume [<run-id>]` | Continue a partial run |
-| `runs ls [--limit <n>]` | List stored runs |
-| `runs show <run-id>` | Show a run manifest |
-| `runs paths <run-id>` | Print a run directory |
-| `diff [--from <ref>] [--to <ref>]` | Compare two points in time (`1y` past offsets supported) |
-| `compact [--dry-run]` | Roll old runs into daily history |
-| `export [--format json\|jsonl\|csv]` | Export compacted history |
-| `dashboard [--view <name>]` | Show selected metrics and per-subject deltas (default command) |
+| Command                                                             | Purpose                                                            |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `watch add user <login> [--resources followers,repos]`              | Add or update a watched account                                    |
+| `watch add repo <owner/name>`                                       | Add or update a watched repository                                 |
+| `watch ls`                                                          | Show the watchlist and each subject's last run                     |
+| `watch rm <subject> [--yes]`                                        | Remove a subject                                                   |
+| `fetch [subject...]`                                                | Fetch and snapshot current data                                    |
+| `fetch --dry-run`                                                   | Print the request plan without spending quota                      |
+| `fetch --resume [<run-id>]`                                         | Continue a partial run                                             |
+| `runs ls [--limit <n>]`                                             | List stored runs                                                   |
+| `runs show <run-id>`                                                | Show a run manifest                                                |
+| `runs paths <run-id>`                                               | Print a run directory                                              |
+| `diff [--from <ref>] [--to <ref>]`                                  | Compare two points in time (`1y` past offsets supported)           |
+| `compact [--dry-run]`                                               | Roll old runs into daily history                                   |
+| `export [--format json\|jsonl\|csv]`                                | Export compacted history                                           |
+| `dashboard [--view <name>]`                                         | Show selected metrics and per-subject deltas (default command)     |
 | `dashboard add [user <login> \| repo <owner/name> \| repo <owner>]` | Add and watch subjects; an owner browses their public repositories |
-| `track edit` | Pick subjects and metrics interactively |
-| `track set --item <subject>=<metrics>` | Set a subject's dashboard metrics |
-| `track rm <subject>` | Remove a subject from the default selection |
-| `track ls` | Show the default selection and saved views |
-| `track view save <name>` | Save a named dashboard snapshot |
-| `track view rm <name>` | Remove a saved dashboard snapshot |
+| `track edit`                                                        | Pick subjects and metrics interactively                            |
+| `track set --item <subject>=<metrics>`                              | Set a subject's dashboard metrics                                  |
+| `track rm <subject>`                                                | Remove a subject from the default selection                        |
+| `track ls`                                                          | Show the default selection and saved views                         |
+| `track view save <name>`                                            | Save a named dashboard snapshot                                    |
+| `track view rm <name>`                                              | Remove a saved dashboard snapshot                                  |
 
 Run `gh-track` with no command to render the dashboard, or `gh-track help` / `gh-track <command> --help` for the full option reference.
 
@@ -164,6 +164,8 @@ Run ids are ISO-8601 UTC timestamps. Raw API payloads live under each run; see t
 ```bash
 bun run dev -- --help
 bun run typecheck
+bun run lint
+bun run format:check
 bun run build
 bun run test
 ```

@@ -2,6 +2,7 @@
 
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
+
 import { ioError } from '../errors.js';
 import { errorMessage } from '../guards.js';
 import { tolerantSubjectKey } from '../subjects.js';
@@ -87,7 +88,11 @@ function manifestSubjectKey(subject: string): string {
   return tolerantSubjectKey(subject);
 }
 
-async function payloadLength(dataDir: string, manifest: Manifest, relativePath: string): Promise<number> {
+async function payloadLength(
+  dataDir: string,
+  manifest: Manifest,
+  relativePath: string,
+): Promise<number> {
   try {
     const payload = await readRunPayload(dataDir, manifest.id, relativePath);
     return Array.isArray(payload) ? payload.length : 0;
@@ -168,11 +173,7 @@ export async function summarizeLastRuns(
     const stored = entry.manifest.subjects.find(
       (subject) => manifestSubjectKey(subject.subject) === entry.key,
     );
-    const counts = await subjectCounts(
-      dataDir,
-      entry.manifest,
-      stored?.subject ?? entry.subject,
-    );
+    const counts = await subjectCounts(dataDir, entry.manifest, stored?.subject ?? entry.subject);
     summaries.set(entry.subject, {
       id: entry.manifest.id,
       status: entry.manifest.status,

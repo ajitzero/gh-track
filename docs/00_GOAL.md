@@ -2,7 +2,7 @@
 
 ## The problem
 
-The GitHub API is point-in-time. A repository tells you how many stars it has *now*; it does not tell you how many it had yesterday, who starred it, or which followers an account lost overnight. The web UI hides most of this too. If you want a delta, you have to record the state yourself and compare later.
+The GitHub API is point-in-time. A repository tells you how many stars it has _now_; it does not tell you how many it had yesterday, who starred it, or which followers an account lost overnight. The web UI hides most of this too. If you want a delta, you have to record the state yourself and compare later.
 
 The practical questions this project answers:
 

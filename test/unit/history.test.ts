@@ -3,6 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
+
 import {
   parseRepoHistoryRow,
   parseUserHistoryRow,
@@ -31,19 +32,17 @@ async function tempDir(t: TestContext): Promise<string> {
 test('history parsers reject malformed rows', () => {
   assert.equal(parseRepoHistoryRow(null), null);
   assert.equal(parseRepoHistoryRow({ date: '2026-01-01', repository: 'a/b', stars: 1 }), null);
-  assert.equal(
-    parseRepoHistoryRow({ date: 'nope', repository: 'a/b', stars: 1, forks: 2 }),
-    null,
-  );
+  assert.equal(parseRepoHistoryRow({ date: 'nope', repository: 'a/b', stars: 1, forks: 2 }), null);
   assert.deepEqual(
     parseRepoHistoryRow({ date: '2026-01-01', repository: 'a/b', stars: 1, forks: 2 }),
     { date: '2026-01-01', repository: 'a/b', stars: 1, forks: 2 },
   );
   assert.equal(parseUserHistoryRow({ date: '2026-01-01', account: 'a', followers: '1' }), null);
-  assert.deepEqual(
-    parseUserHistoryRow({ date: '2026-01-01', account: 'a', followers: 1 }),
-    { date: '2026-01-01', account: 'a', followers: 1 },
-  );
+  assert.deepEqual(parseUserHistoryRow({ date: '2026-01-01', account: 'a', followers: 1 }), {
+    date: '2026-01-01',
+    account: 'a',
+    followers: 1,
+  });
 });
 
 test('replaceHistoryDays writes sorted rows and replaces one day in place', async (t) => {

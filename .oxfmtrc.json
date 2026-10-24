@@ -1,0 +1,7 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "singleQuote": true,
+  "sortPackageJson": true,
+  "sortImports": true,
+  "ignorePatterns": ["docs/.obsidian/", "follow-back.js"]
+}

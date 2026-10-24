@@ -1,11 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createColors } from '../../src/output/color.js';
-import {
-  githubUrlForRow,
-  runInteractiveDashboard,
-} from '../../src/dashboard/interactive.js';
+
+import { githubUrlForRow, runInteractiveDashboard } from '../../src/dashboard/interactive.js';
 import { copyToSystemClipboard } from '../../src/dashboard/terminal.js';
+import { createColors } from '../../src/output/color.js';
 import type {
   DashboardKeypress,
   DashboardResult,
@@ -15,11 +13,19 @@ import type {
 
 const rows: DashboardRow[] = [
   {
-    kind: 'user', subject: 'user:octocat', source: null, from: null, to: null,
+    kind: 'user',
+    subject: 'user:octocat',
+    source: null,
+    from: null,
+    to: null,
     metrics: { followers: { value: null, from: null, delta: null } },
   },
   {
-    kind: 'repo', subject: 'repo:other/tool', source: null, from: null, to: null,
+    kind: 'repo',
+    subject: 'repo:other/tool',
+    source: null,
+    from: null,
+    to: null,
     metrics: { stars: { value: null, from: null, delta: null } },
   },
 ];
@@ -73,7 +79,13 @@ function key(name: string, sequence = name): DashboardKeypress {
 
 test('arrows and Vim keys navigate, and c copies the selected GitHub URL', async () => {
   const terminal = new FakeTerminal([
-    key('down'), key('up'), key('j'), key('k'), key('G'), key('c'), key('q'),
+    key('down'),
+    key('up'),
+    key('j'),
+    key('k'),
+    key('G'),
+    key('c'),
+    key('q'),
   ]);
   await runInteractiveDashboard({
     result,
@@ -90,9 +102,7 @@ test('arrows and Vim keys navigate, and c copies the selected GitHub URL', async
 });
 
 test('/ filters as keys are typed and Enter keeps the visible filter', async () => {
-  const terminal = new FakeTerminal([
-    key('/', '/'), key('o'), key('c'), key('return'), key('q'),
-  ]);
+  const terminal = new FakeTerminal([key('/', '/'), key('o'), key('c'), key('return'), key('q')]);
   await runInteractiveDashboard({
     result,
     layout: 'compact',
@@ -108,9 +118,7 @@ test('/ filters as keys are typed and Enter keeps the visible filter', async () 
 });
 
 test('j and k remain ordinary searchable characters while entering a query', async () => {
-  const terminal = new FakeTerminal([
-    key('/', '/'), key('j'), key('k'), key('escape'), key('q'),
-  ]);
+  const terminal = new FakeTerminal([key('/', '/'), key('j'), key('k'), key('escape'), key('q')]);
   await runInteractiveDashboard({
     result,
     layout: 'compact',
@@ -149,7 +157,9 @@ test('Ctrl-C during refresh cancels it, restores the terminal, and returns 130',
   const terminal: DashboardTerminal = {
     rows: 10,
     enter: () => undefined,
-    leave: () => { left += 1; },
+    leave: () => {
+      left += 1;
+    },
     write: () => undefined,
     onKeypress: (callback) => {
       listener = callback;
@@ -170,9 +180,10 @@ test('Ctrl-C during refresh cancels it, restores the terminal, and returns 130',
       cancelled += 1;
       finishRefresh?.();
     },
-    refresh: () => new Promise((resolve) => {
-      finishRefresh = () => resolve({ result, text: '', warnings: [] });
-    }),
+    refresh: () =>
+      new Promise((resolve) => {
+        finishRefresh = () => resolve({ result, text: '', warnings: [] });
+      }),
   });
   const completed = await running;
 
@@ -195,9 +206,7 @@ const NEW_ROW: DashboardRow = {
 };
 
 test('a collects a subject, adds it, and highlights the new row', async () => {
-  const terminal = new FakeTerminal([
-    key('a'), ...chars('new-user'), key('return'), key('q'),
-  ]);
+  const terminal = new FakeTerminal([key('a'), ...chars('new-user'), key('return'), key('q')]);
   let asked = '';
   await runInteractiveDashboard({
     result,
@@ -229,9 +238,7 @@ test('a collects a subject, adds it, and highlights the new row', async () => {
 });
 
 test('escape cancels add input without adding a subject', async () => {
-  const terminal = new FakeTerminal([
-    key('a'), ...chars('new-user'), key('escape'), key('q'),
-  ]);
+  const terminal = new FakeTerminal([key('a'), ...chars('new-user'), key('escape'), key('q')]);
   let called = false;
   await runInteractiveDashboard({
     result,
@@ -251,7 +258,11 @@ test('escape cancels add input without adding a subject', async () => {
 
 test('an invalid subject keeps the add prompt open and shows the error', async () => {
   const terminal = new FakeTerminal([
-    key('a'), ...chars('bad'), key('return'), key('escape'), key('q'),
+    key('a'),
+    ...chars('bad'),
+    key('return'),
+    key('escape'),
+    key('q'),
   ]);
   let attempts = 0;
   await runInteractiveDashboard({
@@ -273,9 +284,7 @@ test('an invalid subject keeps the add prompt open and shows the error', async (
 });
 
 test('a is a search character while the filter box is open', async () => {
-  const terminal = new FakeTerminal([
-    key('/', '/'), key('a'), key('return'), key('q'),
-  ]);
+  const terminal = new FakeTerminal([key('/', '/'), key('a'), key('return'), key('q')]);
   let called = false;
   await runInteractiveDashboard({
     result,
@@ -310,10 +319,7 @@ test('footer renders shortcut keys white and labels dim', async () => {
   assert.match(frame, /\u001b\[97ma\u001b\[0m\u001b\[2m add\u001b\[0m/);
   assert.match(frame, /\u001b\[97mq\u001b\[0m\u001b\[2m quit\u001b\[0m/);
   const plain = frame.replace(/\u001b\[[0-9;]*m/g, '');
-  assert.match(
-    plain,
-    /r refresh · ↑↓\/j k move · \/ search · c copy · a add · q quit/,
-  );
+  assert.match(plain, /r refresh · ↑↓\/j k move · \/ search · c copy · a add · q quit/);
 });
 
 test('GitHub URLs distinguish account and repository rows', () => {

@@ -1,14 +1,8 @@
 /** Shared clack picker for dashboard subjects, metrics, layout, and range. */
 
-import { summarizeLastRuns } from '../store/runs.js';
-import type {
-  CommandContext,
-  Config,
-  DashboardLayout,
-  Metric,
-  SubjectChoice,
-} from '../types.js';
 import { defaultMetricsFor } from '../metrics.js';
+import { summarizeLastRuns } from '../store/runs.js';
+import type { CommandContext, Config, DashboardLayout, Metric, SubjectChoice } from '../types.js';
 import type { SelectionItem } from './select.js';
 
 export interface PickerInitial {
@@ -31,10 +25,7 @@ export interface PickerResult extends PickerInitial {
   items: SelectionItem[];
 }
 
-async function subjectChoices(
-  context: CommandContext,
-  config: Config,
-): Promise<SubjectChoice[]> {
+async function subjectChoices(context: CommandContext, config: Config): Promise<SubjectChoice[]> {
   const summaries = await summarizeLastRuns(
     context.paths.dataDir,
     config.subjects.map((subject) => subject.subject),
@@ -49,10 +40,7 @@ async function subjectChoices(
   });
 }
 
-function initialMetrics(
-  initial: readonly SelectionItem[],
-  subject: string,
-): Metric[] {
+function initialMetrics(initial: readonly SelectionItem[], subject: string): Metric[] {
   const found = initial.find((item) => item.subject === subject);
   if (found !== undefined) {
     return [...found.metrics];

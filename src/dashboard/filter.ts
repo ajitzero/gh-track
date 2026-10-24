@@ -1,16 +1,19 @@
 /** Live dashboard filtering while preserving compact account/repository groups. */
 
-import { groupDashboardRows } from './group.js';
 import { repoOf } from '../subjects.js';
 import type { DashboardLayout, DashboardRow } from '../types.js';
+import { groupDashboardRows } from './group.js';
 
 function matches(row: DashboardRow, label: string, query: string): boolean {
   const normalized = query.toLowerCase();
   if (label.toLowerCase().includes(normalized)) {
     return true;
   }
-  return query.includes('/') && row.kind === 'repo' &&
-    repoOf(row.subject).toLowerCase().includes(normalized);
+  return (
+    query.includes('/') &&
+    row.kind === 'repo' &&
+    repoOf(row.subject).toLowerCase().includes(normalized)
+  );
 }
 
 /**
@@ -70,9 +73,9 @@ export function filterDashboardRows(
     }
 
     const headerMatches = matches(current.row, current.label, query);
-    const matchingChildren = group.slice(1).filter((child) =>
-      matches(child.row, child.label, query),
-    );
+    const matchingChildren = group
+      .slice(1)
+      .filter((child) => matches(child.row, child.label, query));
     if (headerMatches) {
       filtered.push(...group.map((item) => item.row));
     } else if (matchingChildren.length > 0) {

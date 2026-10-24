@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+
 import { findHelpNode, renderHelp, ROOT } from '../../src/help.js';
 
 test('root help lists commands and global options', () => {

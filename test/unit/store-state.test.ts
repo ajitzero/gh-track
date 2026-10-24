@@ -3,9 +3,10 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
+
+import type { CliError } from '../../src/errors.js';
 import { readRunPayload } from '../../src/store/runs.js';
 import { readStateJson, writeStateJson } from '../../src/store/state.js';
-import type { CliError } from '../../src/errors.js';
 
 const RUN_ID = '2026-10-19T21-30-05Z';
 
@@ -34,14 +35,21 @@ test('writeStateJson round-trips atomically', async (t) => {
 
 test('readRunPayload reads a stored payload from a run directory', async (t) => {
   const dir = await tempDir(t);
-  const target = path.join(dir, 'runs', RUN_ID, 'accounts', 'octocat', 'followers', 'page-0001.json');
+  const target = path.join(
+    dir,
+    'runs',
+    RUN_ID,
+    'accounts',
+    'octocat',
+    'followers',
+    'page-0001.json',
+  );
   await mkdir(path.dirname(target), { recursive: true });
   await writeFile(target, JSON.stringify([{ login: 'a' }]), 'utf8');
 
-  assert.deepEqual(
-    await readRunPayload(dir, RUN_ID, 'accounts/octocat/followers/page-0001.json'),
-    [{ login: 'a' }],
-  );
+  assert.deepEqual(await readRunPayload(dir, RUN_ID, 'accounts/octocat/followers/page-0001.json'), [
+    { login: 'a' },
+  ]);
 });
 
 test('readRunPayload refuses to escape the run directory', async (t) => {

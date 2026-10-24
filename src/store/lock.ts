@@ -3,6 +3,7 @@
 import { readFile, unlink } from 'node:fs/promises';
 import { open } from 'node:fs/promises';
 import path from 'node:path';
+
 import { ioError, locked } from '../errors.js';
 import { errorMessage } from '../guards.js';
 import { ensureDir, locksDir } from './paths.js';
@@ -61,10 +62,7 @@ function parseLockInfo(raw: string): LockInfo | null {
  * Acquires the fetch lock. A lock held by a live pid throws `locked`; a lock
  * left by a dead pid is reclaimed.
  */
-export async function acquireLock(
-  dataDir: string,
-  options: LockOptions = {},
-): Promise<LockHandle> {
+export async function acquireLock(dataDir: string, options: LockOptions = {}): Promise<LockHandle> {
   const isAlive = options.isAlive ?? defaultIsAlive;
   const now = options.now ?? ((): Date => new Date());
   const pid = options.pid ?? process.pid;

@@ -28,10 +28,7 @@ const REF_FORMS =
  * Parses a reference once. Relative offsets are resolved to an absolute UTC day
  * against `now`, so every consumer can treat them exactly like `YYYY-MM-DD`.
  */
-export function parseRef(
-  ref: string,
-  options: ParseRefOptions = { label: 'diff' },
-): ParsedRef {
+export function parseRef(ref: string, options: ParseRefOptions = { label: 'diff' }): ParsedRef {
   if (ref === 'latest' || ref === 'previous') {
     return { kind: ref, ref };
   }
@@ -53,10 +50,7 @@ export function parseRef(
 }
 
 /** The reference form only; use `parseRef` when the resolved day is needed. */
-export function classifyRef(
-  ref: string,
-  options: ParseRefOptions = { label: 'diff' },
-): RefKind {
+export function classifyRef(ref: string, options: ParseRefOptions = { label: 'diff' }): RefKind {
   return parseRef(ref, options).kind;
 }
 

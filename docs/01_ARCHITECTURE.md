@@ -30,29 +30,29 @@ Nothing runs in the background. Every box is reached from a single CLI invocatio
 
 ## Domain model
 
-| Concept | Definition | Canonical key |
-|---|---|---|
-| **Subject** | Something watched over time | `user:<login>` or `repo:<owner>/<name>` |
-| **Resource** | A REST endpoint fetched for a subject | `followers`, `repos`, `repo` |
-| **Run** | One invocation producing one snapshot | ISO-8601 UTC timestamp |
-| **Observation** | A subject's state at a point in time | Derived from a run |
+| Concept         | Definition                            | Canonical key                           |
+| --------------- | ------------------------------------- | --------------------------------------- |
+| **Subject**     | Something watched over time           | `user:<login>` or `repo:<owner>/<name>` |
+| **Resource**    | A REST endpoint fetched for a subject | `followers`, `repos`, `repo`            |
+| **Run**         | One invocation producing one snapshot | ISO-8601 UTC timestamp                  |
+| **Observation** | A subject's state at a point in time  | Derived from a run                      |
 
 ### Subjects and resources
 
-| Subject | Resources fetched | Why |
-|---|---|---|
-| `user:<login>` | `followers`, `repos` | Follower churn and star/fork counts across every repository the account owns (public repos only without a token) |
-| `repo:<owner>/<name>` | `repo` | Metadata for a single repository not owned by a watched account |
+| Subject               | Resources fetched    | Why                                                                                                              |
+| --------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `user:<login>`        | `followers`, `repos` | Follower churn and star/fork counts across every repository the account owns (public repos only without a token) |
+| `repo:<owner>/<name>` | `repo`               | Metadata for a single repository not owned by a watched account                                                  |
 
 There is deliberately no `user.profile` resource: the follower count is the length of the stored follower list, so an extra `/users/{login}` request buys nothing. There is deliberately no starred-list subject — it was considered and rejected (see [03_DECISIONS.md](03_DECISIONS.md)).
 
 ### Resource endpoints
 
-| Resource | Request | Pagination | Raw payload |
-|---|---|---|---|
-| `followers` | `GET /users/{login}/followers?per_page=100&page=N` | `Link: rel="next"`, fallback short page | Array of user objects |
-| `repos` | `GET /users/{login}/repos?per_page=100&page=N&sort=updated` | same | Array of repo objects |
-| `repo` | `GET /repos/{owner}/{name}` | none | One repo object |
+| Resource    | Request                                                     | Pagination                              | Raw payload           |
+| ----------- | ----------------------------------------------------------- | --------------------------------------- | --------------------- |
+| `followers` | `GET /users/{login}/followers?per_page=100&page=N`          | `Link: rel="next"`, fallback short page | Array of user objects |
+| `repos`     | `GET /users/{login}/repos?per_page=100&page=N&sort=updated` | same                                    | Array of repo objects |
+| `repo`      | `GET /repos/{owner}/{name}`                                 | none                                    | One repo object       |
 
 An account with 80 repositories and 450 followers costs `1 + 5 = 6` requests. Stars for every owned repository arrive in the `repos` list, so individual `/repos/...` calls are never made for owned repositories.
 
@@ -60,18 +60,18 @@ Each element of a list response is expanded into its own file so the on-disk tre
 
 ## Components
 
-| Module | Responsibility | Must not |
-|---|---|---|
-| `cli.ts` | Parse global flags, dispatch, map errors to exit codes | Contain fetching logic |
-| `help.ts` | Command registry, per-level help rendering, examples | Hard-code command behavior |
-| `config.ts` | Load, validate, and write TOML | Touch the network |
-| `prompts/` | Clack wrappers and TTY gating | Run when `--format json` |
-| `github/client.ts` | HTTP, auth header, timeouts, retries, ETag, rate-limit accounting | Know about the filesystem layout |
-| `github/resources/*` | Build URLs, paginate, return typed payloads | Write files |
-| `store/*` | XDG paths, temp-dir writes, manifests, history, pruning | Decide what to fetch |
-| `diff/*` | Compare two runs or history ranges | Persist results |
-| `dashboard/*` | Build per-subject observation series, resolve ranges, render compact/columns | Persist results |
-| `output/*` | Table rendering, JSON serialization, colors | Mix human and machine output |
+| Module               | Responsibility                                                               | Must not                         |
+| -------------------- | ---------------------------------------------------------------------------- | -------------------------------- |
+| `cli.ts`             | Parse global flags, dispatch, map errors to exit codes                       | Contain fetching logic           |
+| `help.ts`            | Command registry, per-level help rendering, examples                         | Hard-code command behavior       |
+| `config.ts`          | Load, validate, and write TOML                                               | Touch the network                |
+| `prompts/`           | Clack wrappers and TTY gating                                                | Run when `--format json`         |
+| `github/client.ts`   | HTTP, auth header, timeouts, retries, ETag, rate-limit accounting            | Know about the filesystem layout |
+| `github/resources/*` | Build URLs, paginate, return typed payloads                                  | Write files                      |
+| `store/*`            | XDG paths, temp-dir writes, manifests, history, pruning                      | Decide what to fetch             |
+| `diff/*`             | Compare two runs or history ranges                                           | Persist results                  |
+| `dashboard/*`        | Build per-subject observation series, resolve ranges, render compact/columns | Persist results                  |
+| `output/*`           | Table rendering, JSON serialization, colors                                  | Mix human and machine output     |
 
 Dependency direction is one-way: `cli → commands → (github | store | diff | dashboard | output)`. `github` never imports `store`; the fetcher returns payloads and `store` decides where they go. This keeps the HTTP layer testable with a fake `fetch` and makes run writing independently testable.
 
@@ -97,10 +97,10 @@ Dependency direction is one-way: `cli → commands → (github | store | diff | 
 
 ### Directory resolution
 
-| Purpose | Precedence |
-|---|---|
-| Data | `--data-dir` → `$XDG_DATA_HOME/gh-track` → `~/.local/share/gh-track` |
-| Config | `--config` → `$XDG_CONFIG_HOME/gh-track/config.toml` → `~/.config/gh-track/config.toml` |
+| Purpose | Precedence                                                                              |
+| ------- | --------------------------------------------------------------------------------------- |
+| Data    | `--data-dir` → `$XDG_DATA_HOME/gh-track` → `~/.local/share/gh-track`                    |
+| Config  | `--config` → `$XDG_CONFIG_HOME/gh-track/config.toml` → `~/.config/gh-track/config.toml` |
 
 On Windows (best effort), fall back to `%LOCALAPPDATA%\gh-track` and `%APPDATA%\gh-track`. Linux and macOS are the primary targets. Directories are created with mode `0700`; a missing config is not an error for commands that do not need it.
 
@@ -145,9 +145,7 @@ $XDG_DATA_HOME/gh-track/
   "startedAt": "2026-10-19T21:30:05.123Z",
   "finishedAt": "2026-10-19T21:30:09.812Z",
   "status": "complete",
-  "subjects": [
-    { "subject": "user:octocat", "resources": ["followers", "repos"] }
-  ],
+  "subjects": [{ "subject": "user:octocat", "resources": ["followers", "repos"] }],
   "stats": { "repos": 12, "followers": 340, "requests": 7, "notModified": 2 },
   "requests": [
     {
@@ -244,29 +242,29 @@ Config is TOML at `~/.config/gh-track/config.toml`. It holds defaults, the watch
 
 Every command supports `--format table` (human) and most support `--format json` (one document on stdout). `export` adds `jsonl` and `csv`. The rules are in [02_SPEC.md](02_SPEC.md); the architectural commitment is that JSON output is never interleaved with progress, color, or prompts, and that exit codes are stable:
 
-| Code | Meaning |
-|---|---|
-| `0` | Success |
-| `1` | Runtime failure (network, IO, insufficient history) |
-| `2` | Usage or configuration error |
-| `3` | Fetch completed partially; state is resumable |
-| `130` | Interrupted |
+| Code  | Meaning                                             |
+| ----- | --------------------------------------------------- |
+| `0`   | Success                                             |
+| `1`   | Runtime failure (network, IO, insufficient history) |
+| `2`   | Usage or configuration error                        |
+| `3`   | Fetch completed partially; state is resumable       |
+| `130` | Interrupted                                         |
 
 ## Failure modes
 
-| Condition | Behavior |
-|---|---|
-| `200` | Store payload, update ETag, count quota |
-| `304` | Reuse the previous payload, record `notModified` |
-| Primary rate limit hit | Stop, mark run `partial`, set `resumeAfter`, exit `3` |
-| Secondary rate limit / `429` | Back off per `Retry-After`, retry up to `max_retries`, then partial |
-| `404` | Record subject error, continue the run |
-| `5xx` / network error | Bounded retries, then mark the request failed and the run `partial` |
-| Malformed JSON | Fail the request, mark the run `partial`; never write invalid data as complete |
-| Repository renamed | New file path, same `id`; diff reports `renamed` |
-| Repository deleted or made private | Absent from the list; diff reports `removed` |
-| Concurrent fetch | Refuse with `locked`, exit `1` |
-| Interrupt (`SIGINT`) | Promote as `partial`, exit `130` |
+| Condition                          | Behavior                                                                       |
+| ---------------------------------- | ------------------------------------------------------------------------------ |
+| `200`                              | Store payload, update ETag, count quota                                        |
+| `304`                              | Reuse the previous payload, record `notModified`                               |
+| Primary rate limit hit             | Stop, mark run `partial`, set `resumeAfter`, exit `3`                          |
+| Secondary rate limit / `429`       | Back off per `Retry-After`, retry up to `max_retries`, then partial            |
+| `404`                              | Record subject error, continue the run                                         |
+| `5xx` / network error              | Bounded retries, then mark the request failed and the run `partial`            |
+| Malformed JSON                     | Fail the request, mark the run `partial`; never write invalid data as complete |
+| Repository renamed                 | New file path, same `id`; diff reports `renamed`                               |
+| Repository deleted or made private | Absent from the list; diff reports `removed`                                   |
+| Concurrent fetch                   | Refuse with `locked`, exit `1`                                                 |
+| Interrupt (`SIGINT`)               | Promote as `partial`, exit `130`                                               |
 
 ## Stack and boundaries
 

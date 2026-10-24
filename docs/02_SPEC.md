@@ -104,13 +104,13 @@ gh-track diff [options]
 
 References:
 
-| Form | Meaning |
-|---|---|
-| `latest` | Most recent complete run |
-| `previous` | Most recent complete run before the resolved `--to` |
-| `<run-id>` | That run, which must be `complete` |
-| `YYYY-MM-DD` | Most recent complete run on or before that UTC day |
-| `<n>d`, `<n>w` | `<n>` days or weeks before the current UTC day |
+| Form           | Meaning                                                                |
+| -------------- | ---------------------------------------------------------------------- |
+| `latest`       | Most recent complete run                                               |
+| `previous`     | Most recent complete run before the resolved `--to`                    |
+| `<run-id>`     | That run, which must be `complete`                                     |
+| `YYYY-MM-DD`   | Most recent complete run on or before that UTC day                     |
+| `<n>d`, `<n>w` | `<n>` days or weeks before the current UTC day                         |
 | `<n>m`, `<n>y` | `<n>` calendar months or years before the current UTC day, day-clamped |
 
 Past offsets (`1y`, `6m`, `2w`, `30d`) are resolved once per invocation against the current UTC day, then treated exactly like `YYYY-MM-DD`. Units are `d`, `w`, `m`, and `y`; the amount must be a positive integer (`0d` is invalid), the value is always in the past (`latest` is the only open-ended point), a leading `-` or `+` is invalid, and month/year shifts clamp the day (`2026-03-31` offset by `1m` is `2026-02-28`).
@@ -256,9 +256,9 @@ gh-track track view rm <name>
 
 ## 3. Subject syntax
 
-| Canonical | Accepted in `fetch`, `diff --subject`, `dashboard add`, `watch rm` |
-|---|---|
-| `user:octocat` | `user:octocat`, `octocat`, `https://github.com/octocat` |
+| Canonical             | Accepted in `fetch`, `diff --subject`, `dashboard add`, `watch rm`           |
+| --------------------- | ---------------------------------------------------------------------------- |
+| `user:octocat`        | `user:octocat`, `octocat`, `https://github.com/octocat`                      |
 | `repo:torvalds/linux` | `repo:torvalds/linux`, `torvalds/linux`, `https://github.com/torvalds/linux` |
 
 - A GitHub URL may omit the scheme or use `http://` / `https://`, with or without `www.`. Trailing slashes, query strings, fragments, `.git` suffixes, and deeper repository paths are ignored.
@@ -275,10 +275,10 @@ Path: `$XDG_CONFIG_HOME/gh-track/config.toml`, default `~/.config/gh-track/confi
 schema_version = 1
 
 [defaults]
-raw_retention_days = 30      # integer >= 1
-token_env = "GH_TOKEN"       # env var read when --token is absent; "" disables
-request_timeout_ms = 30000   # integer >= 1000
-max_retries = 3              # integer 0..10
+raw_retention_days = 30 # integer >= 1
+token_env = "GH_TOKEN" # env var read when --token is absent; "" disables
+request_timeout_ms = 30000 # integer >= 1000
+max_retries = 3 # integer 0..10
 
 [[subjects]]
 type = "user"
@@ -311,22 +311,22 @@ metrics = ["followers"]
 
 Validation:
 
-| Rule | Failure |
-|---|---|
-| `schema_version` must be `1` | `config_invalid`, exit `2` |
-| Unknown keys anywhere | `config_invalid`, exit `2` |
-| `raw_retention_days >= 1` | `config_invalid` |
-| `request_timeout_ms >= 1000` | `config_invalid` |
-| `max_retries` in `0..10` | `config_invalid` |
-| `type` is `user` or `repo` | `config_invalid` |
-| `user` requires `account`; `repo` requires `repo` with exactly one `/` | `config_invalid` |
-| `resources` non-empty subset of `followers,repos`; only for `user` | `config_invalid` |
-| Duplicate canonical subject | Deduplicate, warn on stderr, keep the union of resources |
-| `[tracking]` or `[views]` references a subject not in `[[subjects]]` | `config_invalid` |
-| Tracking metrics empty or invalid for the subject kind | `config_invalid` |
-| View name is not `[a-z0-9][a-z0-9_-]*` (no length limit) or has no items | `config_invalid` |
-| View `to` is `previous`, or a range value is not a valid reference | `config_invalid` |
-| Duplicate tracking/view item for one subject | Deduplicate metrics with a warning |
+| Rule                                                                     | Failure                                                  |
+| ------------------------------------------------------------------------ | -------------------------------------------------------- |
+| `schema_version` must be `1`                                             | `config_invalid`, exit `2`                               |
+| Unknown keys anywhere                                                    | `config_invalid`, exit `2`                               |
+| `raw_retention_days >= 1`                                                | `config_invalid`                                         |
+| `request_timeout_ms >= 1000`                                             | `config_invalid`                                         |
+| `max_retries` in `0..10`                                                 | `config_invalid`                                         |
+| `type` is `user` or `repo`                                               | `config_invalid`                                         |
+| `user` requires `account`; `repo` requires `repo` with exactly one `/`   | `config_invalid`                                         |
+| `resources` non-empty subset of `followers,repos`; only for `user`       | `config_invalid`                                         |
+| Duplicate canonical subject                                              | Deduplicate, warn on stderr, keep the union of resources |
+| `[tracking]` or `[views]` references a subject not in `[[subjects]]`     | `config_invalid`                                         |
+| Tracking metrics empty or invalid for the subject kind                   | `config_invalid`                                         |
+| View name is not `[a-z0-9][a-z0-9_-]*` (no length limit) or has no items | `config_invalid`                                         |
+| View `to` is `previous`, or a range value is not a valid reference       | `config_invalid`                                         |
+| Duplicate tracking/view item for one subject                             | Deduplicate metrics with a warning                       |
 
 Tracking keys are canonical subjects (`user:<login>` or `repo:<owner>/<name>`). A bare key is accepted and canonicalized. `[views.<name>]` stores a full snapshot: `items`, `layout` (`compact` or `columns`), `from`, and `to`; missing range fields default to `previous` and `latest`. Range values accept the diff forms, including relative offsets; an offset is stored literally and re-resolved at render time, so that view is a rolling window.
 
@@ -347,9 +347,7 @@ All paths inside a run are relative to the run directory. All timestamps are ISO
   "startedAt": "2026-10-19T21:30:05.123Z",
   "finishedAt": "2026-10-19T21:30:09.812Z",
   "status": "complete",
-  "subjects": [
-    { "subject": "user:octocat", "resources": ["followers", "repos"] }
-  ],
+  "subjects": [{ "subject": "user:octocat", "resources": ["followers", "repos"] }],
   "stats": { "repos": 12, "followers": 340, "requests": 7, "notModified": 2 },
   "requests": [
     {
@@ -405,13 +403,13 @@ Headers from the current response always override the cache.
 ### 5.4 History — `history/repos/<owner__repo>.ndjson`
 
 ```json
-{"date":"2026-10-19","repository":"octocat/hello-world","stars":123,"forks":4}
+{ "date": "2026-10-19", "repository": "octocat/hello-world", "stars": 123, "forks": 4 }
 ```
 
 ### 5.5 History — `history/users/<login>.ndjson`
 
 ```json
-{"date":"2026-10-19","account":"octocat","followers":340}
+{ "date": "2026-10-19", "account": "octocat", "followers": 340 }
 ```
 
 ### 5.6 `watch ls --format json`
@@ -504,9 +502,7 @@ Partial:
     "stats": { "repos": 4, "followers": 100, "requests": 5, "notModified": 0 }
   },
   "compaction": null,
-  "pending": [
-    { "subject": "user:octocat", "resource": "followers", "url": "...", "page": 2 }
-  ],
+  "pending": [{ "subject": "user:octocat", "resource": "followers", "url": "...", "page": 2 }],
   "resumeAfter": "2026-10-19T22:00:00.000Z"
 }
 ```
@@ -617,7 +613,13 @@ Codes: `usage`, `config_invalid`, `config_missing`, `empty_watchlist`, `invalid_
 {
   "exportedAt": "2026-10-20T12:00:00.000Z",
   "rows": [
-    { "date": "2026-09-01", "kind": "repo", "subject": "octocat/hello-world", "stars": 123, "forks": 4 },
+    {
+      "date": "2026-09-01",
+      "kind": "repo",
+      "subject": "octocat/hello-world",
+      "stars": 123,
+      "forks": 4
+    },
     { "date": "2026-09-01", "kind": "user", "subject": "octocat", "followers": 340 }
   ]
 }
@@ -670,9 +672,7 @@ Codes: `usage`, `config_invalid`, `config_missing`, `empty_watchlist`, `invalid_
       "layout": "columns",
       "from": "2026-09-01",
       "to": "latest",
-      "items": [
-        { "subject": "repo:octocat/hello-world", "metrics": ["stars"] }
-      ]
+      "items": [{ "subject": "repo:octocat/hello-world", "metrics": ["stars"] }]
     }
   ]
 }
@@ -680,10 +680,10 @@ Codes: `usage`, `config_invalid`, `config_missing`, `empty_watchlist`, `invalid_
 
 ## 6. Streams and exit codes
 
-| Stream | Content |
-|---|---|
+| Stream | Content                                              |
+| ------ | ---------------------------------------------------- |
 | stdout | The command's result only: tables, JSON, paths, help |
-| stderr | Progress, warnings, verbose diagnostics, errors |
+| stderr | Progress, warnings, verbose diagnostics, errors      |
 
 - `--format json` output is one document plus a trailing newline on stdout. No ANSI, spinners, or prompts. Warnings, progress, and errors still go to stderr.
 - Table output may use color only under the conditions in §1.
@@ -695,18 +695,18 @@ Codes: `usage`, `config_invalid`, `config_missing`, `empty_watchlist`, `invalid_
 
 `@clack/prompts` is used for:
 
-| Command | Prompt |
-|---|---|
-| `watch add` with no arguments | Select type (`user` / `repo`), then text input, then confirm |
-| `watch rm` with no subject | Select from configured subjects, then confirm |
-| `watch rm <subject>` | Confirm removal |
-| `dashboard` with no selection | Setup picker: subjects, then per-repository metrics; saves `[tracking]` |
-| `dashboard add` with no arguments | Select type (`user` / `repo`), then login or `owner/name`/owner, repository multi-select, and per-repository metrics |
-| `dashboard add repo <owner>` | List the owner's public repositories, then multi-select and per-repository metrics |
-| `track edit` | The same setup picker; saves `[tracking]` |
-| `track view save <name>` without `--item` | Setup picker plus layout and compare-from; saves the view |
-| `fetch` | Progress spinner only; never a question |
-| `compact` / `fetch --no-compact` | No confirmation |
+| Command                                   | Prompt                                                                                                               |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `watch add` with no arguments             | Select type (`user` / `repo`), then text input, then confirm                                                         |
+| `watch rm` with no subject                | Select from configured subjects, then confirm                                                                        |
+| `watch rm <subject>`                      | Confirm removal                                                                                                      |
+| `dashboard` with no selection             | Setup picker: subjects, then per-repository metrics; saves `[tracking]`                                              |
+| `dashboard add` with no arguments         | Select type (`user` / `repo`), then login or `owner/name`/owner, repository multi-select, and per-repository metrics |
+| `dashboard add repo <owner>`              | List the owner's public repositories, then multi-select and per-repository metrics                                   |
+| `track edit`                              | The same setup picker; saves `[tracking]`                                                                            |
+| `track view save <name>` without `--item` | Setup picker plus layout and compare-from; saves the view                                                            |
+| `fetch`                                   | Progress spinner only; never a question                                                                              |
+| `compact` / `fetch --no-compact`          | No confirmation                                                                                                      |
 
 Rules:
 

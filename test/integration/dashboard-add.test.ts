@@ -3,6 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
+
 import { run, type CliIO } from '../../src/cli.js';
 import { parseConfig } from '../../src/config.js';
 import type { DashboardAddResult, PromptApi } from '../../src/types.js';
@@ -199,17 +200,14 @@ test('add accepts GitHub profile and repository URLs', async (t) => {
     args(w, 'dashboard', 'add', 'repo', 'https://github.com/torvalds/linux', '--metrics', 'stars'),
   );
   assert.equal(repo.code, 0, repo.stderr);
-  const bare = await invoke(
-    args(w, 'dashboard', 'add', 'https://github.com/octocat/hello-world'),
-  );
+  const bare = await invoke(args(w, 'dashboard', 'add', 'https://github.com/octocat/hello-world'));
   assert.equal(bare.code, 0, bare.stderr);
 
   const config = await configOf(w);
-  assert.deepEqual(config.subjects.map((subject) => subject.subject), [
-    'user:octocat',
-    'repo:torvalds/linux',
-    'repo:octocat/hello-world',
-  ]);
+  assert.deepEqual(
+    config.subjects.map((subject) => subject.subject),
+    ['user:octocat', 'repo:torvalds/linux', 'repo:octocat/hello-world'],
+  );
   assert.deepEqual(config.tracking, [
     { subject: 'user:octocat', metrics: ['followers'] },
     { subject: 'repo:torvalds/linux', metrics: ['stars'] },
@@ -221,26 +219,23 @@ test('add repo accepts a profile URL and browses its repositories', async (t) =>
   const w = await workspace(t);
   const requested: string[] = [];
 
-  const result = await invoke(
-    args(w, 'dashboard', 'add', 'repo', 'https://github.com/octocat'),
-    {
-      ...tty(),
-      fetchImpl: async (input) => {
-        requested.push(input);
-        return jsonResponse([
-          { full_name: 'octocat/hello-world', fork: false, archived: false, stargazers_count: 10 },
-        ]);
-      },
-      prompts: {
-        ...inertPrompts,
-        selectRepos: async (login) => {
-          assert.equal(login, 'octocat');
-          return ['octocat/hello-world'];
-        },
-        selectMetrics: async (_subject, _available, initial) => [...initial],
-      },
+  const result = await invoke(args(w, 'dashboard', 'add', 'repo', 'https://github.com/octocat'), {
+    ...tty(),
+    fetchImpl: async (input) => {
+      requested.push(input);
+      return jsonResponse([
+        { full_name: 'octocat/hello-world', fork: false, archived: false, stargazers_count: 10 },
+      ]);
     },
-  );
+    prompts: {
+      ...inertPrompts,
+      selectRepos: async (login) => {
+        assert.equal(login, 'octocat');
+        return ['octocat/hello-world'];
+      },
+      selectMetrics: async (_subject, _available, initial) => [...initial],
+    },
+  });
 
   assert.equal(result.code, 0, result.stderr);
   assert.match(requested[0] ?? '', /\/users\/octocat\/repos/);
@@ -411,9 +406,7 @@ test('listing failure falls back to a manual repository name', async (t) => {
   assert.equal(result.code, 0, result.stderr);
   assert.match(result.stderr, /Could not list repositories for octocat/);
   const config = await configOf(w);
-  assert.deepEqual(config.tracking, [
-    { subject: 'repo:manual/repo', metrics: ['stars', 'forks'] },
-  ]);
+  assert.deepEqual(config.tracking, [{ subject: 'repo:manual/repo', metrics: ['stars', 'forks'] }]);
 });
 
 test('interactive forms require a TTY and honor --yes', async (t) => {
@@ -456,10 +449,7 @@ test('dashboard renders the subjects added by dashboard add', async (t) => {
   const w = await workspace(t);
 
   assert.equal((await invoke(args(w, 'dashboard', 'add', 'user', 'octocat'))).code, 0);
-  assert.equal(
-    (await invoke(args(w, 'dashboard', 'add', 'repo', 'octocat/hello-world'))).code,
-    0,
-  );
+  assert.equal((await invoke(args(w, 'dashboard', 'add', 'repo', 'octocat/hello-world'))).code, 0);
 
   const result = await invoke(args(w, 'dashboard', '--format', 'json'));
   assert.equal(result.code, 0, result.stderr);
@@ -491,15 +481,11 @@ test('invalid flag combinations fail before writing', async (t) => {
   assert.equal(badMetrics.code, 2);
   assert.match(badMetrics.stderr, /Expected a comma-separated subset of stars,forks/);
 
-  const renderFlag = await invoke(
-    args(w, 'dashboard', 'add', 'user', 'octocat', '--view', 'mine'),
-  );
+  const renderFlag = await invoke(args(w, 'dashboard', 'add', 'user', 'octocat', '--view', 'mine'));
   assert.equal(renderFlag.code, 2);
   assert.match(renderFlag.stderr, /--view is only valid when rendering the dashboard/);
 
-  const renderWithAddFlag = await invoke(
-    args(w, 'dashboard', '--metrics', 'stars'),
-  );
+  const renderWithAddFlag = await invoke(args(w, 'dashboard', '--metrics', 'stars'));
   assert.equal(renderWithAddFlag.code, 2);
   assert.match(renderWithAddFlag.stderr, /--metrics is only valid with 'gh-track dashboard add'/);
 

@@ -83,9 +83,7 @@ export function renderTable(
     }
 
     const parts: string[] = [];
-    const columnAlign = header
-      ? (options.headerAlign ?? options.align)
-      : options.align;
+    const columnAlign = header ? (options.headerAlign ?? options.align) : options.align;
     for (let index = 0; index <= last; index += 1) {
       const cell = cells[index] ?? '';
       const text = cellText(cell);

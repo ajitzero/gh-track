@@ -3,6 +3,7 @@ import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
+
 import { run, type CliIO } from '../../src/cli.js';
 import { parseConfig } from '../../src/config.js';
 import type { PromptApi } from '../../src/types.js';
@@ -29,10 +30,7 @@ const inertPrompts: PromptApi = {
   confirmSelection: async () => null,
 };
 
-async function invoke(
-  argv: readonly string[],
-  overrides: Partial<CliIO> = {},
-): Promise<Capture> {
+async function invoke(argv: readonly string[], overrides: Partial<CliIO> = {}): Promise<Capture> {
   let stdout = '';
   let stderr = '';
   const io: CliIO = {
@@ -101,7 +99,10 @@ test('unknown command exits 2 with usage on stderr', async () => {
 });
 
 test('help bogus and bogus --help share one unknown-command error', async () => {
-  for (const argv of [['help', 'bogus'], ['bogus', '--help']]) {
+  for (const argv of [
+    ['help', 'bogus'],
+    ['bogus', '--help'],
+  ]) {
     const result = await invoke(argv);
     assert.equal(result.code, 2, argv.join(' '));
     assert.equal(result.stdout, '');
@@ -112,9 +113,7 @@ test('help bogus and bogus --help share one unknown-command error', async () => 
 
 test('runs show and paths reject --limit', async () => {
   for (const subcommand of ['show', 'paths']) {
-    const result = await invoke([
-      'runs', subcommand, '2026-10-19T10-00-00Z', '--limit', '1',
-    ]);
+    const result = await invoke(['runs', subcommand, '2026-10-19T10-00-00Z', '--limit', '1']);
     assert.equal(result.code, 2, subcommand);
     assert.match(result.stderr, /--limit is not valid for 'gh-track runs/);
   }
@@ -160,14 +159,32 @@ test('watch add with --resources restricts and updates', async (t) => {
   const configPath = path.join(dir, 'config.toml');
 
   const first = await invoke([
-    'watch', 'add', 'user', 'octocat', '--resources', 'followers', '--config', configPath, '--format', 'json',
+    'watch',
+    'add',
+    'user',
+    'octocat',
+    '--resources',
+    'followers',
+    '--config',
+    configPath,
+    '--format',
+    'json',
   ]);
   assert.equal(first.code, 0);
   const firstDoc = JSON.parse(first.stdout) as { updated: boolean; resources: string[] };
   assert.equal(firstDoc.updated, false);
   assert.deepEqual(firstDoc.resources, ['followers']);
 
-  const second = await invoke(['watch', 'add', 'user', 'octocat', '--config', configPath, '--format', 'json']);
+  const second = await invoke([
+    'watch',
+    'add',
+    'user',
+    'octocat',
+    '--config',
+    configPath,
+    '--format',
+    'json',
+  ]);
   assert.equal(second.code, 0);
   const secondDoc = JSON.parse(second.stdout) as { updated: boolean; resources: string[] };
   assert.equal(secondDoc.updated, true);
@@ -180,7 +197,14 @@ test('watch add with --resources restricts and updates', async (t) => {
 test('watch add repo rejects --resources', async (t) => {
   const dir = await tempDir(t);
   const result = await invoke([
-    'watch', 'add', 'repo', 'torvalds/linux', '--resources', 'followers', '--config', path.join(dir, 'config.toml'),
+    'watch',
+    'add',
+    'repo',
+    'torvalds/linux',
+    '--resources',
+    'followers',
+    '--config',
+    path.join(dir, 'config.toml'),
   ]);
   assert.equal(result.code, 2);
   assert.match(result.stderr, /--resources is only valid for user/);
@@ -189,7 +213,12 @@ test('watch add repo rejects --resources', async (t) => {
 test('watch add rejects invalid subjects', async (t) => {
   const dir = await tempDir(t);
   const result = await invoke([
-    'watch', 'add', 'user', 'not a login', '--config', path.join(dir, 'config.toml'),
+    'watch',
+    'add',
+    'user',
+    'not a login',
+    '--config',
+    path.join(dir, 'config.toml'),
   ]);
   assert.equal(result.code, 2);
   assert.match(result.stderr, /invalid_subject/);
@@ -206,13 +235,23 @@ test('watch add accepts GitHub profile and repository URLs', async (t) => {
   const configPath = path.join(dir, 'config.toml');
 
   const user = await invoke([
-    'watch', 'add', 'user', 'https://github.com/octocat', '--config', configPath,
+    'watch',
+    'add',
+    'user',
+    'https://github.com/octocat',
+    '--config',
+    configPath,
   ]);
   assert.equal(user.code, 0, user.stderr);
   assert.match(user.stdout, /Added user:octocat/);
 
   const repo = await invoke([
-    'watch', 'add', 'repo', 'https://github.com/torvalds/linux', '--config', configPath,
+    'watch',
+    'add',
+    'repo',
+    'https://github.com/torvalds/linux',
+    '--config',
+    configPath,
   ]);
   assert.equal(repo.code, 0, repo.stderr);
   assert.match(repo.stdout, /Added repo:torvalds\/linux/);
@@ -224,13 +263,18 @@ test('watch add accepts GitHub profile and repository URLs', async (t) => {
   );
 
   const mismatch = await invoke([
-    'watch', 'add', 'user', 'https://github.com/torvalds/linux', '--config', configPath,
+    'watch',
+    'add',
+    'user',
+    'https://github.com/torvalds/linux',
+    '--config',
+    configPath,
   ]);
   assert.equal(mismatch.code, 2);
   assert.match(mismatch.stderr, /invalid_subject/);
 });
 
-test('watch add without arguments exits 2 and shows the exact invocation', async (t) => {
+test('watch add without arguments exits 2 and shows the exact invocation', async () => {
   const result = await invoke(['watch', 'add']);
   assert.equal(result.code, 2);
   assert.match(result.stderr, /gh-track watch add user <login>/);
@@ -246,7 +290,14 @@ test('watch ls --format json is one clean document', async (t) => {
   await invoke(['watch', 'add', 'repo', 'torvalds/linux', '--config', configPath]);
 
   const result = await invoke([
-    'watch', 'ls', '--format', 'json', '--config', configPath, '--data-dir', dataDir,
+    'watch',
+    'ls',
+    '--format',
+    'json',
+    '--config',
+    configPath,
+    '--data-dir',
+    dataDir,
   ]);
   assert.equal(result.code, 0);
   assert.equal(result.stderr, '');
@@ -288,7 +339,12 @@ test('watch ls table shows never for last run', async (t) => {
 test('watch ls without a config exits 2 with config_missing', async (t) => {
   const dir = await tempDir(t);
   const result = await invoke([
-    'watch', 'ls', '--format', 'json', '--config', path.join(dir, 'missing.toml'),
+    'watch',
+    'ls',
+    '--format',
+    'json',
+    '--config',
+    path.join(dir, 'missing.toml'),
   ]);
   assert.equal(result.code, 2);
   assert.equal(result.stdout, '');
@@ -366,7 +422,10 @@ test('interactive watch add uses the injected prompt', async (t) => {
   });
   assert.equal(result.code, 0);
   assert.match(result.stdout, /Added user:hubot/);
-  assert.equal(parseConfig(await readFile(configPath, 'utf8')).config.subjects[0]?.subject, 'user:hubot');
+  assert.equal(
+    parseConfig(await readFile(configPath, 'utf8')).config.subjects[0]?.subject,
+    'user:hubot',
+  );
 });
 
 test('interactive watch rm can be declined without changing the config', async (t) => {

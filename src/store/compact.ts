@@ -60,9 +60,7 @@ export interface DayMetrics {
   users: Map<string, number>;
 }
 
-function repoMetrics(
-  value: unknown,
-): { repository: string; stars: number; forks: number } | null {
+function repoMetrics(value: unknown): { repository: string; stars: number; forks: number } | null {
   if (!isRecord(value)) {
     return null;
   }
@@ -107,10 +105,7 @@ async function readPayload(
  * user from the payloads referenced by a manifest. Missing payloads are
  * skipped rather than failing the whole day.
  */
-export async function extractDayMetrics(
-  dataDir: string,
-  manifest: Manifest,
-): Promise<DayMetrics> {
+export async function extractDayMetrics(dataDir: string, manifest: Manifest): Promise<DayMetrics> {
   const metrics: DayMetrics = { repos: new Map(), users: new Map() };
 
   for (const entry of manifest.requests) {
@@ -165,10 +160,7 @@ export async function readCompactedDays(dataDir: string): Promise<Set<string>> {
   return parseCompactedDays(await readStateJson(dataDir, STATE_COMPACTED_FILE));
 }
 
-async function markCompactedDays(
-  dataDir: string,
-  days: Iterable<string>,
-): Promise<Set<string>> {
+async function markCompactedDays(dataDir: string, days: Iterable<string>): Promise<Set<string>> {
   const current = await readCompactedDays(dataDir);
   let changed = false;
   for (const day of days) {

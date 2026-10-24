@@ -2,9 +2,6 @@
 
 import { missingSubcommand, unexpectedArgument, unknownSubcommand } from '../cli-args.js';
 import { loadConfig, isValidViewName, saveConfig } from '../config.js';
-import { emptyWatchlist, UsageError } from '../errors.js';
-import { classifyRangeRef, rejectPreviousTo } from '../refs.js';
-import { defaultMetricsFor } from '../metrics.js';
 import { pickSelection } from '../dashboard/picker.js';
 import {
   canonicalizeItems,
@@ -15,7 +12,10 @@ import {
   toViewItems,
   type SelectionItem,
 } from '../dashboard/select.js';
+import { emptyWatchlist, UsageError } from '../errors.js';
+import { defaultMetricsFor } from '../metrics.js';
 import { renderTable } from '../output/table.js';
+import { classifyRangeRef, rejectPreviousTo } from '../refs.js';
 import { cancelled } from '../result.js';
 import { parseSubject, subjectKey, subjectKeyOf } from '../subjects.js';
 import type {
@@ -121,8 +121,15 @@ async function runEdit(context: CommandContext): Promise<CommandResult> {
   if (context.positionals.length > 1) {
     throw unexpectedArgument(context.positionals[1], 'gh-track track edit');
   }
-  if (context.options.has('item') || context.options.has('layout') || context.options.has('from') || context.options.has('to')) {
-    throw new UsageError('track edit does not accept --item, --layout, --from, or --to. Use track set or track view save.');
+  if (
+    context.options.has('item') ||
+    context.options.has('layout') ||
+    context.options.has('from') ||
+    context.options.has('to')
+  ) {
+    throw new UsageError(
+      'track edit does not accept --item, --layout, --from, or --to. Use track set or track view save.',
+    );
   }
   if (!context.canPrompt) {
     throw new UsageError(
@@ -195,16 +202,19 @@ async function runRm(context: CommandContext, args: readonly string[]): Promise<
   if (args.length > 1) {
     throw unexpectedArgument(args[1], 'gh-track track rm <subject>');
   }
-  if (context.options.has('item') || context.options.has('layout') || context.options.has('from') || context.options.has('to')) {
+  if (
+    context.options.has('item') ||
+    context.options.has('layout') ||
+    context.options.has('from') ||
+    context.options.has('to')
+  ) {
     throw new UsageError('track rm only accepts a subject.');
   }
 
   const parsed = parseSubject(args[0] ?? '');
   const key = subjectKey(parsed);
   const { config, warnings } = await loadRequired(context);
-  const index = config.tracking.findIndex(
-    (entry) => subjectKeyOf(entry.subject) === key,
-  );
+  const index = config.tracking.findIndex((entry) => subjectKeyOf(entry.subject) === key);
   if (index < 0) {
     throw new UsageError(`${parsed.subject} is not in the dashboard selection.`);
   }
@@ -223,7 +233,12 @@ async function runLs(context: CommandContext, args: readonly string[]): Promise<
   if (args.length > 0) {
     throw unexpectedArgument(args[0], 'gh-track track ls');
   }
-  if (context.options.has('item') || context.options.has('layout') || context.options.has('from') || context.options.has('to')) {
+  if (
+    context.options.has('item') ||
+    context.options.has('layout') ||
+    context.options.has('from') ||
+    context.options.has('to')
+  ) {
     throw new UsageError('track ls does not accept selection options.');
   }
 
@@ -235,10 +250,7 @@ async function runLs(context: CommandContext, args: readonly string[]): Promise<
   };
 }
 
-async function saveView(
-  context: CommandContext,
-  args: readonly string[],
-): Promise<CommandResult> {
+async function saveView(context: CommandContext, args: readonly string[]): Promise<CommandResult> {
   const name = args[0];
   if (name === undefined) {
     throw new UsageError('Missing view name. Use: gh-track track view save <name>');
@@ -345,7 +357,12 @@ async function removeView(
   if (args.length > 1) {
     throw unexpectedArgument(args[1], 'gh-track track view rm <name>');
   }
-  if (context.options.has('item') || context.options.has('layout') || context.options.has('from') || context.options.has('to')) {
+  if (
+    context.options.has('item') ||
+    context.options.has('layout') ||
+    context.options.has('from') ||
+    context.options.has('to')
+  ) {
     throw new UsageError('track view rm only accepts a view name.');
   }
 

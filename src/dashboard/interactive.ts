@@ -1,7 +1,5 @@
 /** Interactive list controller for the dashboard TTY mode. */
 
-import { filterDashboardRows } from './filter.js';
-import { renderDashboard } from './render.js';
 import { accountOf, repoOf } from '../subjects.js';
 import type {
   Colors,
@@ -11,6 +9,8 @@ import type {
   DashboardRow,
   DashboardTerminal,
 } from '../types.js';
+import { filterDashboardRows } from './filter.js';
+import { renderDashboard } from './render.js';
 
 export interface DashboardRefreshResult {
   result: DashboardResult;
@@ -166,22 +166,27 @@ export async function runInteractiveDashboard(
     const lines = rendered.replace(/\n$/, '').split('\n');
     const cursorLine = lines.findIndex((line) => line.includes('› '));
     const contentHeight = Math.max(1, terminal.rows - 3);
-    const start = cursorLine < 0
-      ? 0
-      : Math.max(0, Math.min(cursorLine - Math.floor(contentHeight / 2), lines.length - contentHeight));
+    const start =
+      cursorLine < 0
+        ? 0
+        : Math.max(
+            0,
+            Math.min(cursorLine - Math.floor(contentHeight / 2), lines.length - contentHeight),
+          );
     const viewport = lines.slice(start, start + contentHeight);
     while (viewport.length < contentHeight) {
       viewport.push('');
     }
 
     const inlineStatus = status.length > 0 ? colors.dim(`  ${status}`) : '';
-    const statusLine = mode === 'search'
-      ? `${colors.cyan(`/ ${input}`)}${inlineStatus}`
-      : mode === 'add'
-        ? `${colors.cyan(`add: ${input}`)}${inlineStatus}`
-        : status.length > 0
-          ? colors.dim(status)
-          : '';
+    const statusLine =
+      mode === 'search'
+        ? `${colors.cyan(`/ ${input}`)}${inlineStatus}`
+        : mode === 'add'
+          ? `${colors.cyan(`add: ${input}`)}${inlineStatus}`
+          : status.length > 0
+            ? colors.dim(status)
+            : '';
     const hints = hintLine(
       colors,
       mode === 'search' ? SEARCH_HINTS : mode === 'add' ? ADD_HINTS : MAIN_HINTS,
@@ -393,7 +398,8 @@ export async function runInteractiveDashboard(
           const refreshed = await options.refresh();
           result = refreshed.result;
           warnings.push(...refreshed.warnings);
-          status = oneLine(refreshed.text) ||
+          status =
+            oneLine(refreshed.text) ||
             (refreshed.exitCode === 0 || refreshed.exitCode === undefined
               ? 'Fetch complete.'
               : `Fetch exited with status ${refreshed.exitCode}.`);

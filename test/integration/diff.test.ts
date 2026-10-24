@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readdir, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
+
 import { run, type CliIO, type RunOptions } from '../../src/cli.js';
 import { formatRunId } from '../../src/store/paths.js';
 import type { DiffResult } from '../../src/types.js';
@@ -37,10 +38,7 @@ const inertPrompts = {
   confirmSelection: async () => null,
 };
 
-async function invoke(
-  argv: readonly string[],
-  runOptions: RunOptions = {},
-): Promise<Capture> {
+async function invoke(argv: readonly string[], runOptions: RunOptions = {}): Promise<Capture> {
   let stdout = '';
   let stderr = '';
   const io: CliIO = {
@@ -177,11 +175,13 @@ test('diff compares raw runs, names follower churn, and detects renames', async 
   await seedOlder(dataDir);
   await seedNewer(dataDir);
 
-  const result = parseDiff(
-    await invoke(['diff', '--format', 'json', '--data-dir', dataDir]),
-  );
+  const result = parseDiff(await invoke(['diff', '--format', 'json', '--data-dir', dataDir]));
 
-  assert.deepEqual(result.from, { id: A, finishedAt: '2026-08-01T10:00:00.000Z', day: '2026-08-01' });
+  assert.deepEqual(result.from, {
+    id: A,
+    finishedAt: '2026-08-01T10:00:00.000Z',
+    day: '2026-08-01',
+  });
   assert.deepEqual(result.to, { id: B, finishedAt: '2026-08-02T10:00:00.000Z', day: '2026-08-02' });
   assert.equal(result.source, 'raw');
 
@@ -237,7 +237,17 @@ test('diff accepts date references and repeatable subject filters', async (t) =>
   await seedNewer(dataDir);
 
   const byDate = parseDiff(
-    await invoke(['diff', '--from', '2026-08-01', '--to', '2026-08-02', '--format', 'json', '--data-dir', dataDir]),
+    await invoke([
+      'diff',
+      '--from',
+      '2026-08-01',
+      '--to',
+      '2026-08-02',
+      '--format',
+      'json',
+      '--data-dir',
+      dataDir,
+    ]),
   );
   assert.equal(byDate.from.id, A);
   assert.equal(byDate.to.id, B);
@@ -249,10 +259,21 @@ test('diff accepts date references and repeatable subject filters', async (t) =>
     userFiltered.repos.map((entry) => entry.repository),
     ['octocat/added', 'octocat/hello-world', 'octocat/new-name', 'octocat/removed'],
   );
-  assert.deepEqual(userFiltered.users.map((entry) => entry.account), ['octocat']);
+  assert.deepEqual(
+    userFiltered.users.map((entry) => entry.account),
+    ['octocat'],
+  );
 
   const repoFiltered = parseDiff(
-    await invoke(['diff', '--subject', 'repo:octocat/new-name', '--format', 'json', '--data-dir', dataDir]),
+    await invoke([
+      'diff',
+      '--subject',
+      'repo:octocat/new-name',
+      '--format',
+      'json',
+      '--data-dir',
+      dataDir,
+    ]),
   );
   assert.deepEqual(repoFiltered.repos, [
     {
@@ -300,9 +321,7 @@ test('a diff with no changes reports empty lists', async (t) => {
   await seedRun(dataDir, A, 'complete', payloads);
   await seedRun(dataDir, B, 'complete', payloads);
 
-  const result = parseDiff(
-    await invoke(['diff', '--format', 'json', '--data-dir', dataDir]),
-  );
+  const result = parseDiff(await invoke(['diff', '--format', 'json', '--data-dir', dataDir]));
   assert.equal(result.source, 'raw');
   assert.deepEqual(result.repos, []);
   assert.deepEqual(result.users, []);
@@ -330,12 +349,30 @@ test('mixed raw/compacted diffs use counts and suppress identities', async (t) =
   const today = formatRunId(new Date());
   await seedNewer(dataDir, today);
 
-  const compacted = await invoke(['compact', '--keep-days', '30', '--format', 'json', '--data-dir', dataDir]);
+  const compacted = await invoke([
+    'compact',
+    '--keep-days',
+    '30',
+    '--format',
+    'json',
+    '--data-dir',
+    dataDir,
+  ]);
   assert.equal(compacted.code, 0, compacted.stderr);
 
   const before = await tree(dataDir);
   const result = parseDiff(
-    await invoke(['diff', '--from', '2026-08-01', '--to', 'latest', '--format', 'json', '--data-dir', dataDir]),
+    await invoke([
+      'diff',
+      '--from',
+      '2026-08-01',
+      '--to',
+      'latest',
+      '--format',
+      'json',
+      '--data-dir',
+      dataDir,
+    ]),
   );
 
   assert.equal(result.source, 'mixed');
@@ -369,11 +406,29 @@ test('fully compacted diffs report source compacted and only stars/forks', async
   await seedOlder(dataDir);
   await seedNewer(dataDir);
 
-  const compacted = await invoke(['compact', '--keep-days', '1', '--format', 'json', '--data-dir', dataDir]);
+  const compacted = await invoke([
+    'compact',
+    '--keep-days',
+    '1',
+    '--format',
+    'json',
+    '--data-dir',
+    dataDir,
+  ]);
   assert.equal(compacted.code, 0, compacted.stderr);
 
   const result = parseDiff(
-    await invoke(['diff', '--from', '2026-08-01', '--to', '2026-08-02', '--format', 'json', '--data-dir', dataDir]),
+    await invoke([
+      'diff',
+      '--from',
+      '2026-08-01',
+      '--to',
+      '2026-08-02',
+      '--format',
+      'json',
+      '--data-dir',
+      dataDir,
+    ]),
   );
   assert.equal(result.source, 'compacted');
   assert.deepEqual(result.from, { id: '2026-08-01', finishedAt: null, day: '2026-08-01' });
@@ -417,12 +472,17 @@ test('diff maps insufficient runs, invalid ranges, and bad refs to stable exits'
     'invalid_range',
   );
 
-  const badRef = await invoke(['diff', '--from', 'yesterday', '--format', 'json', '--data-dir', dataDir]);
+  const badRef = await invoke([
+    'diff',
+    '--from',
+    'yesterday',
+    '--format',
+    'json',
+    '--data-dir',
+    dataDir,
+  ]);
   assert.equal(badRef.code, 2);
-  assert.equal(
-    (JSON.parse(badRef.stderr) as { error: { code: string } }).error.code,
-    'usage',
-  );
+  assert.equal((JSON.parse(badRef.stderr) as { error: { code: string } }).error.code, 'usage');
 
   const other = await workspace(t);
   await seedRun(other.dataDir, A, 'complete', []);
@@ -458,10 +518,9 @@ test('relative refs are option values and the resolved range is always reported'
   assert.equal(json.from.day, '2026-08-01');
   assert.equal(json.to.day, '2026-08-02');
 
-  const inline = await invoke(
-    ['diff', '--from=1y', '--format', 'json', '--data-dir', dataDir],
-    { now },
-  );
+  const inline = await invoke(['diff', '--from=1y', '--format', 'json', '--data-dir', dataDir], {
+    now,
+  });
   assert.equal(parseDiff(inline).from.day, '2026-08-01');
 });
 

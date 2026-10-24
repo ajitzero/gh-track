@@ -3,6 +3,7 @@ import { mkdtemp, readdir, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
+
 import {
   defaultConfig,
   defaultDefaults,
@@ -116,10 +117,13 @@ resources = ["repos"]
 });
 
 test('rejects an unknown root key', () => {
-  assert.throws(() => parseConfig('schema_version = 1\nfoo = "bar"\n'), (error: unknown) => {
-    assert.equal((error as { code?: string }).code, 'config_invalid');
-    return true;
-  });
+  assert.throws(
+    () => parseConfig('schema_version = 1\nfoo = "bar"\n'),
+    (error: unknown) => {
+      assert.equal((error as { code?: string }).code, 'config_invalid');
+      return true;
+    },
+  );
 });
 
 test('rejects unknown nested keys', () => {
@@ -159,7 +163,9 @@ test('rejects malformed subjects', () => {
     parseConfig('schema_version = 1\n[[subjects]]\ntype = "repo"\nrepo = "a/b/c"\n'),
   );
   assert.throws(() =>
-    parseConfig('schema_version = 1\n[[subjects]]\ntype = "repo"\nrepo = "a/b"\nresources = ["repo"]\n'),
+    parseConfig(
+      'schema_version = 1\n[[subjects]]\ntype = "repo"\nrepo = "a/b"\nresources = ["repo"]\n',
+    ),
   );
   assert.throws(() =>
     parseConfig('schema_version = 1\n[[subjects]]\ntype = "repo"\nrepo = "a/b"\naccount = "a"\n'),
@@ -250,10 +256,10 @@ metrics = ["stars"]
 [tracking."repo:zzz/late"]
 metrics = ["forks"]
 `);
-  assert.deepEqual(config.tracking.map((entry) => entry.subject), [
-    'repo:zzz/late',
-    'repo:aaa/early',
-  ]);
+  assert.deepEqual(
+    config.tracking.map((entry) => entry.subject),
+    ['repo:zzz/late', 'repo:aaa/early'],
+  );
 });
 
 test('view defaults are applied and view items keep their order', () => {
@@ -285,10 +291,10 @@ metrics = ["forks"]
   assert.equal(view?.layout, 'compact');
   assert.equal(view?.from, 'previous');
   assert.equal(view?.to, 'latest');
-  assert.deepEqual(view?.items.map((item) => item.subject), [
-    'user:octocat',
-    'repo:octocat/spoon-knife',
-  ]);
+  assert.deepEqual(
+    view?.items.map((item) => item.subject),
+    ['user:octocat', 'repo:octocat/spoon-knife'],
+  );
 });
 
 test('accepts bare tracking keys and canonicalizes them', () => {
@@ -343,10 +349,7 @@ metrics = ["stars"]
 
 test('rejects tracking and views that reference unconfigured subjects', () => {
   assert.throws(
-    () =>
-      parseConfig(
-        'schema_version = 1\n[tracking."user:octocat"]\nmetrics = ["followers"]\n',
-      ),
+    () => parseConfig('schema_version = 1\n[tracking."user:octocat"]\nmetrics = ["followers"]\n'),
     (error: unknown) => {
       assert.equal((error as { code?: string }).code, 'config_invalid');
       return true;
@@ -412,10 +415,26 @@ test('rejects malformed view names, refs, and empty items', () => {
 type = "repo"
 repo = "a/b"
 `;
-  assert.throws(() => parseConfig(`${base}\n[views."Bad Name"]\n[[views."Bad Name".items]]\nsubject = "repo:a/b"\nmetrics = ["stars"]\n`));
-  assert.throws(() => parseConfig(`${base}\n[views."v"]\nlayout = "wide"\n[[views."v".items]]\nsubject = "repo:a/b"\nmetrics = ["stars"]\n`));
-  assert.throws(() => parseConfig(`${base}\n[views."v"]\nto = "previous"\n[[views."v".items]]\nsubject = "repo:a/b"\nmetrics = ["stars"]\n`));
-  assert.throws(() => parseConfig(`${base}\n[views."v"]\nfrom = "yesterday"\n[[views."v".items]]\nsubject = "repo:a/b"\nmetrics = ["stars"]\n`));
+  assert.throws(() =>
+    parseConfig(
+      `${base}\n[views."Bad Name"]\n[[views."Bad Name".items]]\nsubject = "repo:a/b"\nmetrics = ["stars"]\n`,
+    ),
+  );
+  assert.throws(() =>
+    parseConfig(
+      `${base}\n[views."v"]\nlayout = "wide"\n[[views."v".items]]\nsubject = "repo:a/b"\nmetrics = ["stars"]\n`,
+    ),
+  );
+  assert.throws(() =>
+    parseConfig(
+      `${base}\n[views."v"]\nto = "previous"\n[[views."v".items]]\nsubject = "repo:a/b"\nmetrics = ["stars"]\n`,
+    ),
+  );
+  assert.throws(() =>
+    parseConfig(
+      `${base}\n[views."v"]\nfrom = "yesterday"\n[[views."v".items]]\nsubject = "repo:a/b"\nmetrics = ["stars"]\n`,
+    ),
+  );
   assert.throws(() => parseConfig(`${base}\n[views."v"]\n`));
 });
 
@@ -498,8 +517,11 @@ test('loadConfig returns null for a missing file when optional', async (t) => {
   const missing = path.join(dir, 'config.toml');
   assert.equal(await loadConfig(missing, { required: false }), null);
 
-  await assert.rejects(() => loadConfig(missing), (error: unknown) => {
-    assert.equal((error as { code?: string }).code, 'config_missing');
-    return true;
-  });
+  await assert.rejects(
+    () => loadConfig(missing),
+    (error: unknown) => {
+      assert.equal((error as { code?: string }).code, 'config_missing');
+      return true;
+    },
+  );
 });

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import test from 'node:test';
+
 import {
   formatRunId,
   historyReposDir,
@@ -55,7 +56,10 @@ test('overrides resolve against cwd and expand home', () => {
 
 test('resolves Windows paths on win32', () => {
   const paths = resolvePaths({
-    env: { APPDATA: 'C:\\Users\\az\\AppData\\Roaming', LOCALAPPDATA: 'C:\\Users\\az\\AppData\\Local' },
+    env: {
+      APPDATA: 'C:\\Users\\az\\AppData\\Roaming',
+      LOCALAPPDATA: 'C:\\Users\\az\\AppData\\Local',
+    },
     platform: 'win32',
     home: 'C:\\Users\\az',
   });
@@ -82,7 +86,10 @@ test('derives data subpaths', () => {
   assert.equal(locksDir(dataDir), path.join(dataDir, 'locks'));
   assert.equal(historyReposDir(dataDir), path.join(dataDir, 'history', 'repos'));
   assert.equal(historyUsersDir(dataDir), path.join(dataDir, 'history', 'users'));
-  assert.equal(runDir(dataDir, '2026-10-19T21-30-05Z'), path.join(dataDir, 'runs', '2026-10-19T21-30-05Z'));
+  assert.equal(
+    runDir(dataDir, '2026-10-19T21-30-05Z'),
+    path.join(dataDir, 'runs', '2026-10-19T21-30-05Z'),
+  );
   assert.equal(
     tempRunDir(dataDir, '2026-10-19T21-30-05Z'),
     path.join(dataDir, 'runs', '.tmp-2026-10-19T21-30-05Z'),

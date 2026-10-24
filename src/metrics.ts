@@ -31,11 +31,7 @@ export function orderMetrics(kind: SubjectType, metrics: Iterable<Metric>): Metr
  * Parses a comma-separated metric list for one subject kind. The error message
  * names the flag and the allowed values.
  */
-export function parseMetricList(
-  value: string,
-  kind: SubjectType,
-  flag = '--metrics',
-): Metric[] {
+export function parseMetricList(value: string, kind: SubjectType, flag = '--metrics'): Metric[] {
   const allowed = METRIC_ORDER[kind];
   const parts = value.split(',').map((part) => part.trim());
   const expected = `Expected a comma-separated subset of ${allowed.join(',')}.`;

@@ -373,10 +373,7 @@ export interface PromptApi {
   /** Enter a full `owner/name` when repository listing is unavailable. */
   askRepoName(message?: string): Promise<string | null>;
   /** Multi-select public repositories for one login. */
-  selectRepos(
-    login: string,
-    choices: readonly SubjectChoice[],
-  ): Promise<string[] | null>;
+  selectRepos(login: string, choices: readonly SubjectChoice[]): Promise<string[] | null>;
   /** Multi-select dashboard subjects, prefilled with `initial`. */
   selectSubjects(
     choices: readonly SubjectChoice[],

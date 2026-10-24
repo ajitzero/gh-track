@@ -15,19 +15,19 @@ Because the dashboard exposes only those three metrics, every row is comparable 
 
 Recorded as [D023](03_DECISIONS.md) and [D032](03_DECISIONS.md).
 
-| Question | Decision |
-|---|---|
-| Metrics | Narrow: `stars`, `forks` for repositories; `followers` for accounts |
-| Selection | Per-subject metrics in `[tracking]`; named views are full snapshots |
-| Data points | Per-subject observations, merged from raw runs and history |
-| Layout | `compact` by default; `columns` optional |
-| Color | Blue = repositories, purple = accounts; green/red deltas; dim zero and `~` |
-| Range | `--from` / `--to` only, reusing diff reference forms |
-| Never fetched | Row is included with `—` |
-| Baseline | A `SINCE` column in both layouts |
-| Totals | Never (D009) |
-| Setup | clack picker when no selection exists; `dashboard add` for incremental setup |
-| Interaction | Alternate-screen TTY list; static table for JSON, non-TTY, `--yes`, and `--no-interactive` |
+| Question      | Decision                                                                                   |
+| ------------- | ------------------------------------------------------------------------------------------ |
+| Metrics       | Narrow: `stars`, `forks` for repositories; `followers` for accounts                        |
+| Selection     | Per-subject metrics in `[tracking]`; named views are full snapshots                        |
+| Data points   | Per-subject observations, merged from raw runs and history                                 |
+| Layout        | `compact` by default; `columns` optional                                                   |
+| Color         | Blue = repositories, purple = accounts; green/red deltas; dim zero and `~`                 |
+| Range         | `--from` / `--to` only, reusing diff reference forms                                       |
+| Never fetched | Row is included with `—`                                                                   |
+| Baseline      | A `SINCE` column in both layouts                                                           |
+| Totals        | Never (D009)                                                                               |
+| Setup         | clack picker when no selection exists; `dashboard add` for incremental setup               |
+| Interaction   | Alternate-screen TTY list; static table for JSON, non-TTY, `--yes`, and `--no-interactive` |
 
 ## Commands
 

@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/
 import os from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
+
 import { createManifest } from '../../src/store/manifest.js';
 import { runsDir } from '../../src/store/paths.js';
 import {
@@ -34,10 +35,7 @@ async function exists(target: string): Promise<boolean> {
 }
 
 test('payload path helpers use the documented layout', () => {
-  assert.equal(
-    followerPagePath('octocat', 1),
-    'accounts/octocat/followers/page-0001.json',
-  );
+  assert.equal(followerPagePath('octocat', 1), 'accounts/octocat/followers/page-0001.json');
   assert.equal(repoPagePath('octocat', 12), 'accounts/octocat/repos/page-0012.json');
   assert.equal(
     accountRepoPath('octocat', 'octocat/hello-world'),
@@ -62,10 +60,7 @@ test('a fresh writer writes into .tmp-<id> and promotes atomically', async (t) =
   const final = path.join(runsDir(dataDir), ID);
   assert.equal(await exists(final), true);
   assert.equal(await exists(writer.directory), false);
-  assert.deepEqual(
-    JSON.parse(await readFile(path.join(final, 'manifest.json'), 'utf8')),
-    manifest,
-  );
+  assert.deepEqual(JSON.parse(await readFile(path.join(final, 'manifest.json'), 'utf8')), manifest);
 });
 
 test('discard removes a fresh temp directory', async (t) => {

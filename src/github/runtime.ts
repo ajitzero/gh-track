@@ -1,8 +1,8 @@
 /** Shared GitHub auth and client construction for commands that call the API. */
 
-import { GitHubClient } from './client.js';
-import { VERSION } from '../version.js';
 import type { CommandContext, Config } from '../types.js';
+import { VERSION } from '../version.js';
+import { GitHubClient } from './client.js';
 
 /** `--token` wins, then the env var named by `defaults.token_env`. */
 export function resolveToken(context: CommandContext, tokenEnv: string): string | undefined {

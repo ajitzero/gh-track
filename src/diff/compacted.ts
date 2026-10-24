@@ -17,9 +17,6 @@ export function snapshotFromHistory(history: StoredHistory, date: string): Histo
   };
 }
 
-export async function loadHistorySnapshot(
-  dataDir: string,
-  date: string,
-): Promise<HistorySnapshot> {
+export async function loadHistorySnapshot(dataDir: string, date: string): Promise<HistorySnapshot> {
   return snapshotFromHistory(await readAllHistory(dataDir), date);
 }

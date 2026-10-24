@@ -1,23 +1,17 @@
 /** `gh-track dashboard`: per-subject value view, static or interactive. */
 
 import { unknownSubcommand } from '../cli-args.js';
-import { emptyWatchlist, UsageError } from '../errors.js';
-import { loadConfig, saveConfig } from '../config.js';
 import { toConfigSubject } from '../config-edit.js';
-import { runDashboardAdd } from './dashboard-add.js';
-import { runFetch } from './fetch.js';
-import { pickSelection } from '../dashboard/picker.js';
+import { loadConfig, saveConfig } from '../config.js';
 import { runInteractiveDashboard } from '../dashboard/interactive.js';
-import { renderDashboard } from '../dashboard/render.js';
 import {
   buildDashboardRows,
   buildObservationData,
   resolveRefs,
   type ObservationSubject,
 } from '../dashboard/observations.js';
-import { classifyRangeRef, rejectPreviousTo } from '../refs.js';
-import { defaultMetricsFor } from '../metrics.js';
-import { USER_RESOURCES } from '../resources.js';
+import { pickSelection } from '../dashboard/picker.js';
+import { renderDashboard } from '../dashboard/render.js';
 import {
   parseLayout,
   resolveSelection,
@@ -26,12 +20,12 @@ import {
   type DashboardSelection,
   type SelectionItem,
 } from '../dashboard/select.js';
-import {
-  parseSubject,
-  subjectKey,
-  subjectKeyOf,
-  type ParsedSubject,
-} from '../subjects.js';
+import { emptyWatchlist, UsageError } from '../errors.js';
+import { defaultMetricsFor } from '../metrics.js';
+import { classifyRangeRef, rejectPreviousTo } from '../refs.js';
+import { USER_RESOURCES } from '../resources.js';
+import { cancelled } from '../result.js';
+import { parseSubject, subjectKey, subjectKeyOf, type ParsedSubject } from '../subjects.js';
 import type {
   CommandContext,
   CommandResult,
@@ -40,7 +34,8 @@ import type {
   Metric,
   OptionBag,
 } from '../types.js';
-import { cancelled } from '../result.js';
+import { runDashboardAdd } from './dashboard-add.js';
+import { runFetch } from './fetch.js';
 
 /** A fetch invocation from the dashboard only forwards the token option. */
 function fetchOptions(context: CommandContext): OptionBag {
@@ -63,10 +58,7 @@ function addSubjectToConfig(config: Config, parsed: ParsedSubject): AddedSubject
   const existing = config.subjects.find((subject) => subjectKey(subject) === key);
   let subject: string;
   if (existing === undefined) {
-    const entry = toConfigSubject(
-      parsed,
-      parsed.type === 'user' ? USER_RESOURCES : ['repo'],
-    );
+    const entry = toConfigSubject(parsed, parsed.type === 'user' ? USER_RESOURCES : ['repo']);
     config.subjects.push(entry);
     subject = entry.subject;
   } else {

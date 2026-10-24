@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+
 import { renderDashboard } from '../../src/dashboard/render.js';
 import { createColors } from '../../src/output/color.js';
 import { renderTable, richCell } from '../../src/output/table.js';
@@ -205,9 +206,7 @@ test('styled cells are measured by their plain text', () => {
     ['NAME', 'VALUE'],
     [
       [
-        richCell([
-          { text: 'repo', paint: (value) => colors.bold(colors.blue(value)) },
-        ]),
+        richCell([{ text: 'repo', paint: (value) => colors.bold(colors.blue(value)) }]),
         richCell([
           { text: '12', paint: colors.bold },
           { text: ' (+1)', paint: colors.green },

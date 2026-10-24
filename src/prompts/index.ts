@@ -1,6 +1,7 @@
 /** Clack prompt wrappers. Callers must check the prompt gate first. */
 
 import { confirm, isCancel, multiselect, select, text } from '@clack/prompts';
+
 import { interrupted } from '../errors.js';
 import {
   isValidLogin,
@@ -76,9 +77,7 @@ async function askRepoInput(): Promise<string | null> {
   return value.trim();
 }
 
-async function askRepoName(
-  message = 'Repository (owner/name) or URL',
-): Promise<string | null> {
+async function askRepoName(message = 'Repository (owner/name) or URL'): Promise<string | null> {
   const value = await text({
     message,
     placeholder: 'torvalds/linux',
@@ -133,9 +132,10 @@ async function askWatchAdd(): Promise<WatchAddAnswer | null> {
 
   const value = await text({
     message: type === 'user' ? 'GitHub login or profile URL' : 'Repository (owner/name) or URL',
-    placeholder: type === 'user'
-      ? 'octocat or https://github.com/octocat'
-      : 'torvalds/linux or https://github.com/torvalds/linux',
+    placeholder:
+      type === 'user'
+        ? 'octocat or https://github.com/octocat'
+        : 'torvalds/linux or https://github.com/torvalds/linux',
     validate: (input) => validateValue(type, input ?? ''),
   });
   if (isCancel(value)) {

@@ -57,10 +57,7 @@ export function parseRateLimitHeaders(headers: HeaderReader): RateLimitHeaders {
 }
 
 /** Builds a cache entry from parsed headers, or null when a field is missing. */
-export function stateFromInfo(
-  info: RateLimitHeaders,
-  observedAt: string,
-): RateLimitState | null {
+export function stateFromInfo(info: RateLimitHeaders, observedAt: string): RateLimitState | null {
   if (info.limit === null || info.remaining === null || info.resetAt === null) {
     return null;
   }
@@ -68,10 +65,7 @@ export function stateFromInfo(
 }
 
 /** Builds a cache entry from response headers, or null when a header is missing. */
-export function stateFromHeaders(
-  headers: HeaderReader,
-  observedAt: string,
-): RateLimitState | null {
+export function stateFromHeaders(headers: HeaderReader, observedAt: string): RateLimitState | null {
   return stateFromInfo(parseRateLimitHeaders(headers), observedAt);
 }
 

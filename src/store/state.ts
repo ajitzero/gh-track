@@ -2,6 +2,7 @@
 
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+
 import { writeFileAtomic } from './atomic.js';
 import { stateDir } from './paths.js';
 
@@ -23,10 +24,6 @@ export async function readStateJson(dataDir: string, name: string): Promise<unkn
   }
 }
 
-export async function writeStateJson(
-  dataDir: string,
-  name: string,
-  value: unknown,
-): Promise<void> {
+export async function writeStateJson(dataDir: string, name: string, value: unknown): Promise<void> {
   await writeFileAtomic(path.join(stateDir(dataDir), name), `${JSON.stringify(value, null, 2)}\n`);
 }

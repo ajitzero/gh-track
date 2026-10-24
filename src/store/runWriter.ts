@@ -2,6 +2,7 @@
 
 import { readFile, readdir, rename, rm } from 'node:fs/promises';
 import path from 'node:path';
+
 import { ioError } from '../errors.js';
 import { errorMessage } from '../guards.js';
 import type { Manifest } from '../types.js';
@@ -26,7 +27,12 @@ function pageNumber(page: number): string {
 }
 
 export function followerPagePath(login: string, page: number): string {
-  return path.posix.join('accounts', safeSegment(login), 'followers', `page-${pageNumber(page)}.json`);
+  return path.posix.join(
+    'accounts',
+    safeSegment(login),
+    'followers',
+    `page-${pageNumber(page)}.json`,
+  );
 }
 
 export function repoPagePath(login: string, page: number): string {

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+
 import { buildFetchPlan, type PlanSubject } from '../../src/commands/fetch.js';
 import { parseEtagCache } from '../../src/github/etag.js';
 
@@ -21,14 +22,22 @@ test('plans one page per resource when nothing is cached', () => {
   const plan = buildFetchPlan([USER, REPO], parseEtagCache(null));
   assert.equal(plan.estimatedRequests, 3);
   assert.deepEqual(
-    plan.requests.map((request) => [request.subject, request.resource, request.page, request.conditional]),
+    plan.requests.map((request) => [
+      request.subject,
+      request.resource,
+      request.page,
+      request.conditional,
+    ]),
     [
       ['user:octocat', 'followers', 1, false],
       ['user:octocat', 'repos', 1, false],
       ['repo:torvalds/linux', 'repo', 1, false],
     ],
   );
-  assert.equal(plan.requests[0]?.url, 'https://api.github.com/users/octocat/followers?per_page=100&page=1');
+  assert.equal(
+    plan.requests[0]?.url,
+    'https://api.github.com/users/octocat/followers?per_page=100&page=1',
+  );
   assert.equal(
     plan.requests[1]?.url,
     'https://api.github.com/users/octocat/repos?per_page=100&page=1&sort=updated',

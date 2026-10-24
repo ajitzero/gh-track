@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
+
 import { run, type CliIO } from '../../src/cli.js';
 import type { PromptApi } from '../../src/types.js';
 
@@ -69,7 +70,11 @@ async function seedState(
     await writeFile(path.join(dataDir, 'state', 'etags.json'), JSON.stringify(files.etags), 'utf8');
   }
   if (files.limits !== undefined) {
-    await writeFile(path.join(dataDir, 'state', 'limits.json'), JSON.stringify(files.limits), 'utf8');
+    await writeFile(
+      path.join(dataDir, 'state', 'limits.json'),
+      JSON.stringify(files.limits),
+      'utf8',
+    );
   }
 }
 
@@ -79,7 +84,14 @@ test('fetch --dry-run emits one JSON document and writes nothing', async (t) => 
   await invoke(['watch', 'add', 'repo', 'torvalds/linux', '--config', configPath]);
 
   const result = await invoke([
-    'fetch', '--dry-run', '--format', 'json', '--config', configPath, '--data-dir', dataDir,
+    'fetch',
+    '--dry-run',
+    '--format',
+    'json',
+    '--config',
+    configPath,
+    '--data-dir',
+    dataDir,
   ]);
 
   assert.equal(result.code, 0);
@@ -138,7 +150,14 @@ test('fetch --dry-run reads cached state for conditional flags and the quota cap
   });
 
   const result = await invoke([
-    'fetch', '--dry-run', '--format', 'json', '--config', configPath, '--data-dir', dataDir,
+    'fetch',
+    '--dry-run',
+    '--format',
+    'json',
+    '--config',
+    configPath,
+    '--data-dir',
+    dataDir,
   ]);
   assert.equal(result.code, 0);
 
@@ -164,18 +183,40 @@ test('--max-requests lowers the cap and warns when it exceeds the quota cap', as
   await invoke(['watch', 'add', 'user', 'octocat', '--config', configPath]);
 
   const lowered = await invoke([
-    'fetch', '--dry-run', '--format', 'json', '--max-requests', '1',
-    '--config', configPath, '--data-dir', dataDir,
+    'fetch',
+    '--dry-run',
+    '--format',
+    'json',
+    '--max-requests',
+    '1',
+    '--config',
+    configPath,
+    '--data-dir',
+    dataDir,
   ]);
   assert.equal(lowered.code, 0);
-  assert.equal((JSON.parse(lowered.stdout) as { effectiveMaxRequests: number }).effectiveMaxRequests, 1);
+  assert.equal(
+    (JSON.parse(lowered.stdout) as { effectiveMaxRequests: number }).effectiveMaxRequests,
+    1,
+  );
 
   const clamped = await invoke([
-    'fetch', '--dry-run', '--format', 'json', '--max-requests', '100',
-    '--config', configPath, '--data-dir', dataDir,
+    'fetch',
+    '--dry-run',
+    '--format',
+    'json',
+    '--max-requests',
+    '100',
+    '--config',
+    configPath,
+    '--data-dir',
+    dataDir,
   ]);
   assert.equal(clamped.code, 0);
-  assert.equal((JSON.parse(clamped.stdout) as { effectiveMaxRequests: number }).effectiveMaxRequests, 58);
+  assert.equal(
+    (JSON.parse(clamped.stdout) as { effectiveMaxRequests: number }).effectiveMaxRequests,
+    58,
+  );
   assert.match(clamped.stderr, /exceeds the quota-derived cap 58/);
 });
 
@@ -183,18 +224,38 @@ test('fetch --dry-run requires a non-empty watchlist when no subjects are given'
   const { configPath, dataDir } = await workspace(t);
 
   const missing = await invoke([
-    'fetch', '--dry-run', '--format', 'json', '--config', configPath, '--data-dir', dataDir,
+    'fetch',
+    '--dry-run',
+    '--format',
+    'json',
+    '--config',
+    configPath,
+    '--data-dir',
+    dataDir,
   ]);
   assert.equal(missing.code, 2);
   assert.equal(missing.stdout, '');
-  assert.equal((JSON.parse(missing.stderr) as { error: { code: string } }).error.code, 'config_missing');
+  assert.equal(
+    (JSON.parse(missing.stderr) as { error: { code: string } }).error.code,
+    'config_missing',
+  );
 
   await writeFile(configPath, 'schema_version = 1\n', 'utf8');
   const empty = await invoke([
-    'fetch', '--dry-run', '--format', 'json', '--config', configPath, '--data-dir', dataDir,
+    'fetch',
+    '--dry-run',
+    '--format',
+    'json',
+    '--config',
+    configPath,
+    '--data-dir',
+    dataDir,
   ]);
   assert.equal(empty.code, 2);
-  assert.equal((JSON.parse(empty.stderr) as { error: { code: string } }).error.code, 'empty_watchlist');
+  assert.equal(
+    (JSON.parse(empty.stderr) as { error: { code: string } }).error.code,
+    'empty_watchlist',
+  );
 });
 
 test('fetch --dry-run rejects --resume', async (t) => {
@@ -202,7 +263,13 @@ test('fetch --dry-run rejects --resume', async (t) => {
   await invoke(['watch', 'add', 'user', 'octocat', '--config', configPath]);
 
   const result = await invoke([
-    'fetch', '--dry-run', '--resume', '--config', configPath, '--data-dir', dataDir,
+    'fetch',
+    '--dry-run',
+    '--resume',
+    '--config',
+    configPath,
+    '--data-dir',
+    dataDir,
   ]);
   assert.equal(result.code, 2);
   assert.match(result.stderr, /--dry-run cannot be combined with --resume/);
@@ -212,8 +279,16 @@ test('explicit subjects need no config and deduplicate with a warning', async (t
   const { configPath, dataDir } = await workspace(t);
 
   const result = await invoke([
-    'fetch', 'user:octocat', 'octocat', '--dry-run', '--format', 'json',
-    '--config', configPath, '--data-dir', dataDir,
+    'fetch',
+    'user:octocat',
+    'octocat',
+    '--dry-run',
+    '--format',
+    'json',
+    '--config',
+    configPath,
+    '--data-dir',
+    dataDir,
   ]);
 
   assert.equal(result.code, 0);

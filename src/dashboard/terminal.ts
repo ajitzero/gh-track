@@ -2,6 +2,7 @@
 
 import { spawn } from 'node:child_process';
 import { emitKeypressEvents } from 'node:readline';
+
 import type { DashboardKeypress, DashboardTerminal } from '../types.js';
 
 interface ClipboardCommand {

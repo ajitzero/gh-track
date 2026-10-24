@@ -27,6 +27,9 @@ Bun is the package manager and dev runner. The shipped CLI must run on Node >= 2
 bun install
 bun run dev -- --help          # runs src/cli.ts directly
 bun run typecheck
+bun run lint                   # oxlint
+bun run format                 # oxfmt (writes)
+bun run format:check           # oxfmt --check
 bun run build                  # tsc -> dist/
 node dist/cli.js --help
 bun run test                   # compile tests, then node --test on dist-test/

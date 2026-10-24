@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
+
 import { run, type CliIO } from '../../src/cli.js';
 import { GITHUB_API_BASE, type FetchLike } from '../../src/github/client.js';
 import { followersUrl } from '../../src/github/resources/followers.js';
@@ -194,7 +195,10 @@ test('compact --dry-run reports changes and writes nothing', async (t) => {
   };
   assert.equal(doc.dryRun, true);
   assert.deepEqual(doc.compacted, [{ date: '2026-09-01', repos: 2, users: 1 }]);
-  assert.deepEqual(doc.pruned.map((entry) => entry.id), [oldId]);
+  assert.deepEqual(
+    doc.pruned.map((entry) => entry.id),
+    [oldId],
+  );
 
   assert.equal(await exists(path.join(dataDir, 'runs', oldId)), true);
   assert.equal(await exists(path.join(dataDir, 'history', 'repos')), false);
@@ -244,7 +248,10 @@ test('compact writes history, prunes the day, and exports every format', async (
   };
   assert.equal(doc.dryRun, false);
   assert.deepEqual(doc.compacted, [{ date: '2026-09-01', repos: 2, users: 1 }]);
-  assert.deepEqual(doc.pruned.map((entry) => entry.id), [oldId]);
+  assert.deepEqual(
+    doc.pruned.map((entry) => entry.id),
+    [oldId],
+  );
   assert.equal(await exists(path.join(dataDir, 'runs', oldId)), false);
 
   const json = await invoke(['export', '--format', 'json', '--data-dir', dataDir]);
@@ -308,17 +315,32 @@ test('export filters by subject and date range', async (t) => {
   assert.equal(compact.code, 0, compact.stderr);
 
   const user = await invoke([
-    'export', '--format', 'json', '--subject', 'octocat', '--data-dir', dataDir,
+    'export',
+    '--format',
+    'json',
+    '--subject',
+    'octocat',
+    '--data-dir',
+    dataDir,
   ]);
   assert.equal(user.code, 0, user.stderr);
   const userRows = (JSON.parse(user.stdout) as { rows: Array<Record<string, unknown>> }).rows;
-  assert.deepEqual(userRows.map((row) => [row.date, row.followers]), [
-    ['2026-08-01', 1],
-    ['2026-08-03', 2],
-  ]);
+  assert.deepEqual(
+    userRows.map((row) => [row.date, row.followers]),
+    [
+      ['2026-08-01', 1],
+      ['2026-08-03', 2],
+    ],
+  );
 
   const repoOnly = await invoke([
-    'export', '--format', 'json', '--subject', 'repo:torvalds/linux', '--data-dir', dataDir,
+    'export',
+    '--format',
+    'json',
+    '--subject',
+    'repo:torvalds/linux',
+    '--data-dir',
+    dataDir,
   ]);
   assert.equal(repoOnly.code, 0, repoOnly.stderr);
   assert.deepEqual((JSON.parse(repoOnly.stdout) as { rows: unknown[] }).rows, [
@@ -326,7 +348,15 @@ test('export filters by subject and date range', async (t) => {
   ]);
 
   const range = await invoke([
-    'export', '--format', 'json', '--from', '2026-08-02', '--to', '2026-08-02', '--data-dir', dataDir,
+    'export',
+    '--format',
+    'json',
+    '--from',
+    '2026-08-02',
+    '--to',
+    '2026-08-02',
+    '--data-dir',
+    dataDir,
   ]);
   assert.equal(range.code, 0, range.stderr);
   assert.deepEqual((JSON.parse(range.stdout) as { rows: unknown[] }).rows, [
@@ -334,7 +364,13 @@ test('export filters by subject and date range', async (t) => {
   ]);
 
   const none = await invoke([
-    'export', '--format', 'json', '--from', '2027-01-01', '--data-dir', dataDir,
+    'export',
+    '--format',
+    'json',
+    '--from',
+    '2027-01-01',
+    '--data-dir',
+    dataDir,
   ]);
   assert.equal(none.code, 1);
   assert.match(none.stderr, /no_history/);
@@ -344,7 +380,13 @@ test('export filters by subject and date range', async (t) => {
   assert.match(badDate.stderr, /--from is not a valid calendar date/);
 
   const relative = await invoke([
-    'export', '--format', 'json', '--from', '100y', '--data-dir', dataDir,
+    'export',
+    '--format',
+    'json',
+    '--from',
+    '100y',
+    '--data-dir',
+    dataDir,
   ]);
   assert.equal(relative.code, 0, relative.stderr);
   const relativeRows = (JSON.parse(relative.stdout) as { rows: Array<{ date: string }> }).rows;
@@ -355,7 +397,13 @@ test('export filters by subject and date range', async (t) => {
   assert.match(badOffset.stderr, /is not a valid calendar date or relative offset/);
 
   const reversed = await invoke([
-    'export', '--from', '2026-08-03', '--to', '2026-08-01', '--data-dir', dataDir,
+    'export',
+    '--from',
+    '2026-08-03',
+    '--to',
+    '2026-08-01',
+    '--data-dir',
+    dataDir,
   ]);
   assert.equal(reversed.code, 2);
   assert.match(reversed.stderr, /--from must not be later than --to/);
@@ -417,10 +465,10 @@ test('--no-compact and --keep-raw-days skip eligible pruning', async (t) => {
     { fetchImpl: fetcher() },
   );
   assert.equal(skipped.code, 0, skipped.stderr);
-  assert.deepEqual(
-    (JSON.parse(skipped.stdout) as { compaction: unknown }).compaction,
-    { compactedDays: 0, prunedRuns: 0 },
-  );
+  assert.deepEqual((JSON.parse(skipped.stdout) as { compaction: unknown }).compaction, {
+    compactedDays: 0,
+    prunedRuns: 0,
+  });
   assert.equal(await exists(path.join(dataDir, 'runs', oldId)), true);
 
   // Run ids are second-precision (D002); avoid a same-second collision.
@@ -428,15 +476,22 @@ test('--no-compact and --keep-raw-days skip eligible pruning', async (t) => {
 
   const fetched = await invoke(
     [
-      'fetch', '--config', configPath, '--data-dir', dataDir,
-      '--keep-raw-days', '60', '--format', 'json',
+      'fetch',
+      '--config',
+      configPath,
+      '--data-dir',
+      dataDir,
+      '--keep-raw-days',
+      '60',
+      '--format',
+      'json',
     ],
     { fetchImpl: fetcher() },
   );
   assert.equal(fetched.code, 0, fetched.stderr);
-  assert.deepEqual(
-    (JSON.parse(fetched.stdout) as { compaction: unknown }).compaction,
-    { compactedDays: 0, prunedRuns: 0 },
-  );
+  assert.deepEqual((JSON.parse(fetched.stdout) as { compaction: unknown }).compaction, {
+    compactedDays: 0,
+    prunedRuns: 0,
+  });
   assert.equal(await exists(path.join(dataDir, 'runs', oldId)), true);
 });

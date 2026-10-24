@@ -7,7 +7,6 @@ import { runCompaction } from '../store/compact.js';
 import { acquireLock } from '../store/lock.js';
 import type { CommandContext, CommandResult, CompactionResult } from '../types.js';
 
-
 function renderSummary(result: CompactionResult): string {
   const verb = result.dryRun ? 'Would compact' : 'Compacted';
   const pruneVerb = result.dryRun ? 'would prune' : 'pruned';

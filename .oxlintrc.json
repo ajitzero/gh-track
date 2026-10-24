@@ -1,0 +1,25 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "oxc", "import", "node", "promise"],
+  "categories": {
+    "correctness": "error"
+  },
+  "rules": {
+    "no-control-regex": "off"
+  },
+  "env": {
+    "builtin": true,
+    "node": true
+  },
+  "ignorePatterns": ["follow-back.js"],
+  "overrides": [
+    {
+      "files": ["test/**"],
+      "rules": {}
+    },
+    {
+      "files": ["src/dashboard/interactive.ts"],
+      "rules": {}
+    }
+  ]
+}

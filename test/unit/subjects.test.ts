@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+
 import {
   canonicalRepoSubject,
   canonicalUserSubject,
@@ -44,11 +45,29 @@ test('preserves casing in canonical subjects', () => {
 });
 
 test('rejects invalid subject values', () => {
-  for (const value of ['', ' ', ' a', 'a ', 'a b', 'user:', 'repo:', 'a/b/c', 'user:a/b', 'repo:a', 'repo:/b', 'repo:a/', ':x']) {
-    assert.throws(() => parseSubject(value), (error: unknown) => {
-      assert.equal((error as { code?: string }).code, 'invalid_subject');
-      return true;
-    }, `expected ${JSON.stringify(value)} to be invalid`);
+  for (const value of [
+    '',
+    ' ',
+    ' a',
+    'a ',
+    'a b',
+    'user:',
+    'repo:',
+    'a/b/c',
+    'user:a/b',
+    'repo:a',
+    'repo:/b',
+    'repo:a/',
+    ':x',
+  ]) {
+    assert.throws(
+      () => parseSubject(value),
+      (error: unknown) => {
+        assert.equal((error as { code?: string }).code, 'invalid_subject');
+        return true;
+      },
+      `expected ${JSON.stringify(value)} to be invalid`,
+    );
   }
 });
 
@@ -59,11 +78,15 @@ test('parses GitHub profile and repository URLs', () => {
     'http://www.github.com/octocat?tab=repositories',
     'github.com/octocat',
   ]) {
-    assert.deepEqual(parseSubject(value), {
-      type: 'user',
-      account: 'octocat',
-      subject: 'user:octocat',
-    }, value);
+    assert.deepEqual(
+      parseSubject(value),
+      {
+        type: 'user',
+        account: 'octocat',
+        subject: 'user:octocat',
+      },
+      value,
+    );
   }
 
   for (const [value, repo] of [
@@ -74,11 +97,15 @@ test('parses GitHub profile and repository URLs', () => {
     ['https://github.com/torvalds/linux?tab=readme', 'torvalds/linux'],
     ['github.com/torvalds/linux', 'torvalds/linux'],
   ] as const) {
-    assert.deepEqual(parseSubject(value), {
-      type: 'repo',
-      repo,
-      subject: `repo:${repo}`,
-    }, value);
+    assert.deepEqual(
+      parseSubject(value),
+      {
+        type: 'repo',
+        repo,
+        subject: `repo:${repo}`,
+      },
+      value,
+    );
   }
 
   assert.deepEqual(parseExplicitSubject('user', 'https://github.com/OctoCat'), {
@@ -100,10 +127,14 @@ test('rejects malformed and mismatched GitHub URLs', () => {
     'https://github.com/-bad',
     'https://gitlab.com/a/b',
   ]) {
-    assert.throws(() => parseSubject(value), (error: unknown) => {
-      assert.equal((error as { code?: string }).code, 'invalid_subject');
-      return true;
-    }, `expected ${JSON.stringify(value)} to be invalid`);
+    assert.throws(
+      () => parseSubject(value),
+      (error: unknown) => {
+        assert.equal((error as { code?: string }).code, 'invalid_subject');
+        return true;
+      },
+      `expected ${JSON.stringify(value)} to be invalid`,
+    );
   }
 
   assert.throws(() => parseExplicitSubject('user', 'https://github.com/a/b'));

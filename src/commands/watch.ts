@@ -1,14 +1,14 @@
 /** `gh-track watch add|ls|rm`. */
 
 import { missingSubcommand, unexpectedArgument, unknownSubcommand } from '../cli-args.js';
-import { loadConfig, saveConfig, defaultConfig } from '../config.js';
 import { toConfigSubject, upsertSubject } from '../config-edit.js';
+import { loadConfig, saveConfig, defaultConfig } from '../config.js';
 import { UsageError, unknownSubject } from '../errors.js';
 import { renderTable } from '../output/table.js';
 import { USER_RESOURCES, parseResources } from '../resources.js';
+import { cancelled, requirePrompt } from '../result.js';
 import { summarizeLastRuns } from '../store/runs.js';
 import { parseExplicitSubject, parseSubject, subjectKey, subjectKeyOf } from '../subjects.js';
-import { cancelled, requirePrompt } from '../result.js';
 import type {
   CommandContext,
   CommandResult,
@@ -63,11 +63,12 @@ async function addSubject(context: CommandContext, args: string[]): Promise<Comm
     throw new UsageError('--resources is only valid for user subjects.');
   }
 
-  const resources: Resource[] = type === 'user'
-    ? resourcesValue === undefined
-      ? [...USER_RESOURCES]
-      : parseResources(resourcesValue)
-    : ['repo'];
+  const resources: Resource[] =
+    type === 'user'
+      ? resourcesValue === undefined
+        ? [...USER_RESOURCES]
+        : parseResources(resourcesValue)
+      : ['repo'];
 
   const parsed = parseExplicitSubject(type, value);
   const loaded = await loadConfig(context.paths.configPath, { required: false });
@@ -106,10 +107,7 @@ async function addSubject(context: CommandContext, args: string[]): Promise<Comm
   };
 }
 
-async function listSubjects(
-  context: CommandContext,
-  args: string[],
-): Promise<CommandResult> {
+async function listSubjects(context: CommandContext, args: string[]): Promise<CommandResult> {
   if (args.length > 0) {
     throw unexpectedArgument(args[0], 'gh-track watch ls');
   }
@@ -165,10 +163,7 @@ async function listSubjects(
   return { json: result, text, warnings: [...loaded.warnings] };
 }
 
-async function removeSubject(
-  context: CommandContext,
-  args: string[],
-): Promise<CommandResult> {
+async function removeSubject(context: CommandContext, args: string[]): Promise<CommandResult> {
   if (args.length > 1) {
     throw unexpectedArgument(args[1], 'gh-track watch rm <subject>');
   }
@@ -223,18 +218,14 @@ async function removeSubject(
 
   const removedKey = subjectKey(existing);
   const trackedBefore = config.tracking.length;
-  config.tracking = config.tracking.filter(
-    (entry) => subjectKeyOf(entry.subject) !== removedKey,
-  );
+  config.tracking = config.tracking.filter((entry) => subjectKeyOf(entry.subject) !== removedKey);
   if (config.tracking.length !== trackedBefore) {
     warnings.push(`Removed ${existing.subject} from the dashboard selection.`);
   }
 
   const emptyViews: string[] = [];
   config.views = config.views.filter((view) => {
-    const items = view.items.filter(
-      (entry) => subjectKeyOf(entry.subject) !== removedKey,
-    );
+    const items = view.items.filter((entry) => subjectKeyOf(entry.subject) !== removedKey);
     if (items.length === 0) {
       emptyViews.push(view.name);
       return false;

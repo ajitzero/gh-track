@@ -1,7 +1,9 @@
 /** TOML config load, validation, and atomic save. */
 
 import { readFile } from 'node:fs/promises';
+
 import { parse as parseToml } from 'smol-toml';
+
 import { isCalendarDay, isValidRelativeDay } from './date.js';
 import { configInvalid, configMissing, ioError } from './errors.js';
 import { errorMessage, hasOwn, isRecord } from './guards.js';
@@ -372,8 +374,10 @@ function parseTracking(
   }
 
   tracking.sort((left, right) => {
-    const leftIndex = order.get(subjectKey(parseSubjectSyntax(left.subject))) ?? Number.MAX_SAFE_INTEGER;
-    const rightIndex = order.get(subjectKey(parseSubjectSyntax(right.subject))) ?? Number.MAX_SAFE_INTEGER;
+    const leftIndex =
+      order.get(subjectKey(parseSubjectSyntax(left.subject))) ?? Number.MAX_SAFE_INTEGER;
+    const rightIndex =
+      order.get(subjectKey(parseSubjectSyntax(right.subject))) ?? Number.MAX_SAFE_INTEGER;
     return leftIndex - rightIndex;
   });
 
@@ -409,9 +413,7 @@ function parseRangeRef(raw: unknown, location: string, allowPrevious: boolean): 
   if (isCalendarDay(raw) || isValidRelativeDay(raw) || isValidRunId(raw)) {
     return raw;
   }
-  fail(
-    `${location} must be latest, previous, a run id, YYYY-MM-DD, or a past offset like 1y`,
-  );
+  fail(`${location} must be latest, previous, a run id, YYYY-MM-DD, or a past offset like 1y`);
 }
 
 function parseViewItems(

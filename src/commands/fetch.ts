@@ -1,13 +1,7 @@
 /** `gh-track fetch`: planning, `--dry-run`, live runs, and `--resume`. */
 
 import { defaultConfig, defaultDefaults, loadConfig } from '../config.js';
-import {
-  emptyWatchlist,
-  httpError,
-  runNotFound,
-  UsageError,
-  toCliError,
-} from '../errors.js';
+import { emptyWatchlist, httpError, runNotFound, UsageError, toCliError } from '../errors.js';
 import {
   GITHUB_API_BASE,
   hasNextPage,
@@ -15,7 +9,6 @@ import {
   MAX_PAGES,
   type GitHubResponse,
 } from '../github/client.js';
-import { createGitHubClient, resolveToken } from '../github/runtime.js';
 import {
   etagFor,
   parseEtagCache,
@@ -32,11 +25,15 @@ import {
   type RateLimitHeaders,
 } from '../github/rateLimit.js';
 import { FOLLOWERS_PER_PAGE, followersUrl } from '../github/resources/followers.js';
-import { REPOS_PER_PAGE, reposUrl } from '../github/resources/repos.js';
 import { repoUrl } from '../github/resources/repo.js';
+import { REPOS_PER_PAGE, reposUrl } from '../github/resources/repos.js';
+import { createGitHubClient, resolveToken } from '../github/runtime.js';
 import { renderTable } from '../output/table.js';
 import { runCompaction } from '../store/compact.js';
+import { acquireLock } from '../store/lock.js';
 import { createManifest, readManifest } from '../store/manifest.js';
+import { formatRunId } from '../store/paths.js';
+import { latestPartialRun, readRunPayload } from '../store/runs.js';
 import {
   accountRepoPath,
   cleanupTempRuns,
@@ -47,10 +44,12 @@ import {
   standaloneRepoPath,
   type RunWriter,
 } from '../store/runWriter.js';
-import { acquireLock } from '../store/lock.js';
-import { latestPartialRun, readRunPayload } from '../store/runs.js';
-import { readStateJson, STATE_ETAGS_FILE, STATE_LIMITS_FILE, writeStateJson } from '../store/state.js';
-import { formatRunId } from '../store/paths.js';
+import {
+  readStateJson,
+  STATE_ETAGS_FILE,
+  STATE_LIMITS_FILE,
+  writeStateJson,
+} from '../store/state.js';
 import { accountOf, parseSubject, repoOf, subjectKey } from '../subjects.js';
 import type {
   CommandContext,
@@ -140,9 +139,7 @@ function knownPages(
 
   const pageSuffix = /page-\d+\.json$/;
   const firstPath = pagePathFor(1);
-  const pagePathPrefix = pageSuffix.test(firstPath)
-    ? firstPath.replace(pageSuffix, 'page-')
-    : null;
+  const pagePathPrefix = pageSuffix.test(firstPath) ? firstPath.replace(pageSuffix, 'page-') : null;
 
   for (const [url, entry] of Object.entries(cache)) {
     let parsed: URL | null = null;
@@ -382,7 +379,9 @@ async function runDryRun(context: CommandContext): Promise<CommandResult> {
   const quota = quotaDerivedCap(limits, hasToken, nowMs);
   const cap = effectiveMaxRequests(limits, { hasToken, nowMs, override });
   if (override !== undefined && override > quota) {
-    warnings.push(`--max-requests ${override} exceeds the quota-derived cap ${quota}; using ${quota}.`);
+    warnings.push(
+      `--max-requests ${override} exceeds the quota-derived cap ${quota}; using ${quota}.`,
+    );
   }
 
   return {
@@ -537,7 +536,9 @@ async function executeRun(
   const quota = quotaDerivedCap(limits, token !== undefined, nowMs);
   const cap = effectiveMaxRequests(limits, { hasToken: token !== undefined, nowMs, override });
   if (override !== undefined && override > quota) {
-    warnings.push(`--max-requests ${override} exceeds the quota-derived cap ${quota}; using ${quota}.`);
+    warnings.push(
+      `--max-requests ${override} exceeds the quota-derived cap ${quota}; using ${quota}.`,
+    );
   }
 
   const client = createGitHubClient(context, config, token, warnings);
@@ -880,9 +881,7 @@ async function runLive(
       );
       writer = await createRunWriter(context.paths.dataDir, id);
 
-      const cache = parseEtagCache(
-        await readStateJson(context.paths.dataDir, STATE_ETAGS_FILE),
-      );
+      const cache = parseEtagCache(await readStateJson(context.paths.dataDir, STATE_ETAGS_FILE));
       const plan = buildFetchPlan(resolved.subjects, cache, GITHUB_API_BASE);
       queue = dedupePending(
         plan.requests.map((request) => ({

@@ -2,6 +2,7 @@
 
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+
 import { isRecord } from '../guards.js';
 import type {
   Manifest,
@@ -189,7 +190,9 @@ export function parseManifest(raw: unknown): Manifest | null {
     subjects: parseSubjects(raw.subjects),
     stats: parseStats(raw.stats),
     requests: Array.isArray(raw.requests)
-      ? raw.requests.map(parseRequest).filter((entry): entry is ManifestRequestEntry => entry !== null)
+      ? raw.requests
+          .map(parseRequest)
+          .filter((entry): entry is ManifestRequestEntry => entry !== null)
       : [],
     pending: Array.isArray(raw.pending)
       ? raw.pending.map(parsePending).filter((entry): entry is PendingRequest => entry !== null)

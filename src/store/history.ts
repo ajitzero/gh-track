@@ -2,6 +2,7 @@
 
 import { readFile, readdir, unlink } from 'node:fs/promises';
 import path from 'node:path';
+
 import { isCalendarDay } from '../date.js';
 import { isRecord } from '../guards.js';
 import type { RepoHistoryRow, UserHistoryRow } from '../types.js';

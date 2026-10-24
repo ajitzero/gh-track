@@ -3,12 +3,7 @@
 import { githubUserNotFound } from '../errors.js';
 import { isRecord } from '../guards.js';
 import { isValidRepoFullName } from '../subjects.js';
-import {
-  GitHubClient,
-  MAX_PAGES,
-  hasNextPage,
-  nextPageUrl,
-} from './client.js';
+import { GitHubClient, MAX_PAGES, hasNextPage, nextPageUrl } from './client.js';
 import { REPOS_PER_PAGE, reposUrl } from './resources/repos.js';
 
 export interface RepoListing {

@@ -1,7 +1,6 @@
 /** Dashboard table rendering for the compact and columns layouts. */
 
 import { renderTable, richCell, type CellSegment, type TableCell } from '../output/table.js';
-import { groupDashboardRows } from './group.js';
 import type {
   Colors,
   DashboardLayout,
@@ -10,6 +9,7 @@ import type {
   DashboardRow,
   Metric,
 } from '../types.js';
+import { groupDashboardRows } from './group.js';
 
 const METRIC_ORDER: readonly Metric[] = ['stars', 'forks', 'followers'];
 const METRIC_LABELS: Readonly<Record<Metric, string>> = {
@@ -63,9 +63,10 @@ function nameCell(
   nested = false,
   options: DashboardRenderOptions = {},
 ): TableCell {
-  const paint = row.kind === 'repo'
-    ? (text: string) => colors.bold(colors.blue(text))
-    : (text: string) => colors.bold(colors.magenta(text));
+  const paint =
+    row.kind === 'repo'
+      ? (text: string) => colors.bold(colors.blue(text))
+      : (text: string) => colors.bold(colors.magenta(text));
   const name = nested ? `  ${label}` : label;
   if (!options.interactive) {
     return richCell([{ text: name, paint }]);
@@ -159,10 +160,7 @@ function metricLineSegments(
   widths: CompactWidths,
 ): CellSegment[] {
   if (value.value === null) {
-    return [
-      { text: `${label} `, paint: colors.dim },
-      ...nullMetricSegments(colors, widths),
-    ];
+    return [{ text: `${label} `, paint: colors.dim }, ...nullMetricSegments(colors, widths)];
   }
 
   const count = formatCount(value.value);
@@ -271,9 +269,8 @@ function section(
   colors: Colors,
   options: DashboardRenderOptions,
 ): string {
-  const heading = title === 'Repositories'
-    ? colors.bold(colors.blue(title))
-    : colors.bold(colors.magenta(title));
+  const heading =
+    title === 'Repositories' ? colors.bold(colors.blue(title)) : colors.bold(colors.magenta(title));
   const headers: TableCell[] = [
     'NAME',
     ...metrics.map((metric) => METRIC_LABELS[metric].toUpperCase()),
@@ -327,7 +324,8 @@ export function renderDashboard(
   colors: Colors,
   options: DashboardRenderOptions = {},
 ): string {
-  const label = result.view === undefined ? 'gh-track dashboard' : `gh-track dashboard — ${result.view}`;
+  const label =
+    result.view === undefined ? 'gh-track dashboard' : `gh-track dashboard — ${result.view}`;
   const range = `(from ${result.range.from} to ${result.range.to})`;
   const lines = [colors.dim(`${label} ${range}`), ''];
 

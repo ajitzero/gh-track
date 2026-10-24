@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
+
 import {
   extractDayMetrics,
   isEligibleDay,
@@ -12,7 +13,12 @@ import {
 } from '../../src/store/compact.js';
 import { readAllHistory } from '../../src/store/history.js';
 import { readManifest } from '../../src/store/manifest.js';
-import { readStateJson, STATE_COMPACTED_FILE, STATE_ETAGS_FILE, writeStateJson } from '../../src/store/state.js';
+import {
+  readStateJson,
+  STATE_COMPACTED_FILE,
+  STATE_ETAGS_FILE,
+  writeStateJson,
+} from '../../src/store/state.js';
 import type { Manifest, Resource, RunStatus } from '../../src/types.js';
 
 async function tempDir(t: TestContext): Promise<string> {

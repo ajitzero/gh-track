@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+
 import { groupDashboardRows } from '../../src/dashboard/group.js';
 import type { DashboardMetricValue, DashboardRow, SubjectType } from '../../src/types.js';
 
@@ -12,10 +13,7 @@ function row(kind: SubjectType, subject: string): DashboardRow {
     source: null,
     from: null,
     to: null,
-    metrics:
-      kind === 'user'
-        ? { followers: VALUE }
-        : { stars: VALUE, forks: VALUE },
+    metrics: kind === 'user' ? { followers: VALUE } : { stars: VALUE, forks: VALUE },
   };
 }
 
@@ -59,19 +57,13 @@ test('preserves repository order inside a group', () => {
 });
 
 test('matches repository owners case-insensitively', () => {
-  const rows = [
-    row('repo', 'repo:OctoCat/Hello-World'),
-    row('user', 'user:octocat'),
-  ];
+  const rows = [row('repo', 'repo:OctoCat/Hello-World'), row('user', 'user:octocat')];
   assert.deepEqual(labels(rows), ['octocat', 'Hello-World']);
   assert.deepEqual(nested(rows), [false, true]);
 });
 
 test('leaves repositories untouched when their owner is not selected', () => {
-  const rows = [
-    row('repo', 'repo:octocat/hello-world'),
-    row('user', 'user:someone-else'),
-  ];
+  const rows = [row('repo', 'repo:octocat/hello-world'), row('user', 'user:someone-else')];
   assert.deepEqual(labels(rows), ['octocat/hello-world', 'someone-else']);
   assert.deepEqual(nested(rows), [false, false]);
 });

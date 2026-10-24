@@ -3,8 +3,9 @@ import { mkdir, mkdtemp, rm, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
-import { findPrunableRuns, pruneRuns, runDay } from '../../src/store/prune.js';
+
 import { runsDir } from '../../src/store/paths.js';
+import { findPrunableRuns, pruneRuns, runDay } from '../../src/store/prune.js';
 
 async function tempDir(t: TestContext): Promise<string> {
   const dir = await mkdtemp(path.join(os.tmpdir(), 'gh-track-prune-'));

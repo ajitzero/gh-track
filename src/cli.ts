@@ -4,22 +4,23 @@
 import { realpathSync } from 'node:fs';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { renderHelpCommand, unknownCommandError } from './commands/help.js';
+
 import { runCompact } from './commands/compact.js';
 import { runDashboard } from './commands/dashboard.js';
 import { runDiff } from './commands/diff.js';
 import { runExport } from './commands/export.js';
 import { runFetch } from './commands/fetch.js';
+import { renderHelpCommand, unknownCommandError } from './commands/help.js';
 import { runRuns } from './commands/runs.js';
 import { runTrack } from './commands/track.js';
 import { runWatch } from './commands/watch.js';
+import { createProcessDashboardTerminal } from './dashboard/terminal.js';
 import { CliError, UsageError, toCliError } from './errors.js';
 import { renderHelp } from './help.js';
 import { createColors, shouldUseColor } from './output/color.js';
-import { createProcessDashboardTerminal } from './dashboard/terminal.js';
 import { renderJson } from './output/json.js';
-import { createPrompts } from './prompts/index.js';
 import { canPrompt } from './prompts/gate.js';
+import { createPrompts } from './prompts/index.js';
 import { resolvePaths, type PathOverrides } from './store/paths.js';
 import type {
   CommandContext,
@@ -122,20 +123,23 @@ const GLOBAL_OPTIONS = new Set([
 ]);
 
 const COMMAND_OPTIONS: Readonly<Record<string, ReadonlySet<string>>> = {
-  fetch: new Set([
-    'dry-run',
-    'max-requests',
-    'resume',
-    'no-compact',
-    'keep-raw-days',
-    'token',
-  ]),
+  fetch: new Set(['dry-run', 'max-requests', 'resume', 'no-compact', 'keep-raw-days', 'token']),
   watch: new Set(['resources']),
   runs: new Set(['limit']),
   diff: new Set(['from', 'to', 'subject']),
   compact: new Set(['dry-run', 'keep-days']),
   export: new Set(['subject', 'from', 'to']),
-  dashboard: new Set(['view', 'layout', 'from', 'to', 'subject', 'metrics', 'resources', 'token', 'no-interactive']),
+  dashboard: new Set([
+    'view',
+    'layout',
+    'from',
+    'to',
+    'subject',
+    'metrics',
+    'resources',
+    'token',
+    'no-interactive',
+  ]),
   track: new Set(['item', 'layout', 'from', 'to']),
   help: new Set(),
 };
@@ -484,12 +488,7 @@ function emit(result: CommandResult, format: OutputFormat, io: CliIO): void {
   io.stdout(result.text.endsWith('\n') ? result.text : `${result.text}\n`);
 }
 
-function renderError(
-  error: CliError,
-  format: OutputFormat,
-  verbose: boolean,
-  io: CliIO,
-): void {
+function renderError(error: CliError, format: OutputFormat, verbose: boolean, io: CliIO): void {
   if (format === 'json') {
     const body: Record<string, unknown> = {
       code: error.code,

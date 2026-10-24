@@ -2,6 +2,7 @@
 
 import { rm } from 'node:fs/promises';
 import path from 'node:path';
+
 import { utcDay } from '../date.js';
 import { ioError } from '../errors.js';
 import { errorMessage, isRecord } from '../guards.js';
@@ -19,9 +20,7 @@ export async function findPrunableRuns(
   days: ReadonlySet<string>,
 ): Promise<PrunedRun[]> {
   const ids = await listRunIds(dataDir);
-  return ids
-    .filter((id) => days.has(runDay(id)))
-    .map((id) => ({ id, path: runDir(dataDir, id) }));
+  return ids.filter((id) => days.has(runDay(id))).map((id) => ({ id, path: runDir(dataDir, id) }));
 }
 
 /** Refuses any path that is not exactly `runs/<valid-run-id>`. */
@@ -50,11 +49,7 @@ async function forgetEtagSources(dataDir: string, prunedIds: ReadonlySet<string>
 
   let changed = false;
   for (const [url, entry] of Object.entries(raw)) {
-    if (
-      isRecord(entry) &&
-      typeof entry.sourceRun === 'string' &&
-      prunedIds.has(entry.sourceRun)
-    ) {
+    if (isRecord(entry) && typeof entry.sourceRun === 'string' && prunedIds.has(entry.sourceRun)) {
       delete raw[url];
       changed = true;
     }
@@ -69,10 +64,7 @@ async function forgetEtagSources(dataDir: string, prunedIds: ReadonlySet<string>
  * match the run-id pattern are considered, and each path is re-checked before
  * a recursive delete.
  */
-export async function pruneRuns(
-  dataDir: string,
-  days: ReadonlySet<string>,
-): Promise<PrunedRun[]> {
+export async function pruneRuns(dataDir: string, days: ReadonlySet<string>): Promise<PrunedRun[]> {
   const candidates = await findPrunableRuns(dataDir, days);
   const pruned: PrunedRun[] = [];
 

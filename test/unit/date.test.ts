@@ -1,10 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {
-  isRelativeDay,
-  isValidRelativeDay,
-  relativeDay,
-} from '../../src/date.js';
+
+import { isRelativeDay, isValidRelativeDay, relativeDay } from '../../src/date.js';
 
 const NOW = new Date('2026-10-24T10:30:00.000Z');
 

@@ -1,8 +1,8 @@
 /** `gh-track dashboard add`: add subjects to the dashboard and watchlist. */
 
 import { unexpectedArgument } from '../cli-args.js';
-import { defaultConfig, loadConfig, saveConfig } from '../config.js';
 import { toConfigSubject } from '../config-edit.js';
+import { defaultConfig, loadConfig, saveConfig } from '../config.js';
 import { sortTracking } from '../dashboard/select.js';
 import { CliError, UsageError } from '../errors.js';
 import { listUserRepos, type RepoListing } from '../github/repos-list.js';
@@ -10,6 +10,7 @@ import { createGitHubClient, resolveToken } from '../github/runtime.js';
 import { errorMessage } from '../guards.js';
 import { defaultMetricsFor, parseMetricList } from '../metrics.js';
 import { USER_RESOURCES, parseResources } from '../resources.js';
+import { cancelled, requirePrompt } from '../result.js';
 import {
   parseExplicitSubject,
   parseGitHubUrl,
@@ -18,7 +19,6 @@ import {
   subjectKeyOf,
   type ParsedSubject,
 } from '../subjects.js';
-import { cancelled, requirePrompt } from '../result.js';
 import type {
   CommandContext,
   CommandResult,
@@ -55,9 +55,7 @@ function rejectRenderFlags(context: CommandContext): void {
 
 function trackedMetrics(config: Config, subject: string): Metric[] | null {
   const key = subjectKeyOf(subject);
-  const entry = config.tracking.find(
-    (candidate) => subjectKeyOf(candidate.subject) === key,
-  );
+  const entry = config.tracking.find((candidate) => subjectKeyOf(candidate.subject) === key);
   return entry === undefined ? null : [...entry.metrics];
 }
 
@@ -290,11 +288,7 @@ async function collect(
     if (second !== undefined) {
       return promptUser(context, second);
     }
-    requirePrompt(
-      context,
-      'gh-track dashboard add user',
-      'gh-track dashboard add user <login>',
-    );
+    requirePrompt(context, 'gh-track dashboard add user', 'gh-track dashboard add user <login>');
     return promptUser(context, null);
   }
 
@@ -358,9 +352,7 @@ function applyAdds(
     }
     seen.add(key);
 
-    const subjectIndex = config.subjects.findIndex(
-      (subject) => subjectKey(subject) === key,
-    );
+    const subjectIndex = config.subjects.findIndex((subject) => subjectKey(subject) === key);
     let watched = false;
     let storedSubject = item.parsed.subject;
 
@@ -382,9 +374,7 @@ function applyAdds(
       }
     }
 
-    const trackingIndex = config.tracking.findIndex(
-      (entry) => subjectKeyOf(entry.subject) === key,
-    );
+    const trackingIndex = config.tracking.findIndex((entry) => subjectKeyOf(entry.subject) === key);
     const metrics = [...item.metrics];
     const previous = trackingIndex < 0 ? null : config.tracking[trackingIndex]?.metrics;
     const changed =
@@ -449,7 +439,11 @@ export async function runDashboardAdd(context: CommandContext): Promise<CommandR
   const result: DashboardAddResult = {
     configPath: context.paths.configPath,
     added: applied.added.map(({ subject, metrics, watched }) => ({ subject, metrics, watched })),
-    updated: applied.updated.map(({ subject, metrics, watched }) => ({ subject, metrics, watched })),
+    updated: applied.updated.map(({ subject, metrics, watched }) => ({
+      subject,
+      metrics,
+      watched,
+    })),
   };
 
   return {

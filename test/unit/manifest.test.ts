@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
+
 import {
   createManifest,
   parseManifest,
@@ -62,7 +63,10 @@ test('serialize and parse round-trip a manifest', () => {
 test('parseManifest rejects anything without the required shape', () => {
   assert.equal(parseManifest(null), null);
   assert.equal(parseManifest({}), null);
-  assert.equal(parseManifest({ schemaVersion: 2, id: ID, startedAt: 'x', status: 'complete' }), null);
+  assert.equal(
+    parseManifest({ schemaVersion: 2, id: ID, startedAt: 'x', status: 'complete' }),
+    null,
+  );
   assert.equal(parseManifest({ schemaVersion: 1, id: ID, startedAt: 'x', status: 'nope' }), null);
 });
 
@@ -72,7 +76,10 @@ test('parseManifest tolerates missing arrays and drops bad entries', () => {
     id: ID,
     startedAt: '2026-10-19T21:30:05.123Z',
     status: 'partial',
-    requests: [{ subject: 'x' }, { subject: 'user:a', resource: 'repo', url: 'u', page: 1, status: 200 }],
+    requests: [
+      { subject: 'x' },
+      { subject: 'user:a', resource: 'repo', url: 'u', page: 1, status: 200 },
+    ],
   });
   assert.ok(parsed !== null);
   assert.deepEqual(parsed.subjects, []);

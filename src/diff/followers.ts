@@ -1,13 +1,8 @@
 /** Follower set extraction and the named/count follower diffs. */
 
 import { isRecord } from '../guards.js';
-import type {
-  FollowerIdentity,
-  Manifest,
-  UserDiffEntry,
-  UserHistoryRow,
-} from '../types.js';
 import { readRunPayload } from '../store/runs.js';
+import type { FollowerIdentity, Manifest, UserDiffEntry, UserHistoryRow } from '../types.js';
 
 export interface FollowerRecord {
   login: string;
@@ -84,8 +79,7 @@ export async function readRawFollowers(
       if (bucket.followers.has(loginKey)) {
         continue;
       }
-      const id =
-        typeof value.id === 'number' && Number.isInteger(value.id) ? value.id : null;
+      const id = typeof value.id === 'number' && Number.isInteger(value.id) ? value.id : null;
       bucket.followers.set(loginKey, { login: value.login, id });
     }
   }
@@ -124,10 +118,7 @@ function compareUserEntries(left: UserDiffEntry, right: UserDiffEntry): number {
 }
 
 /** Diffs named follower sets, case-insensitively, preserving display casing. */
-export function diffRawFollowers(
-  from: RawFollowerData,
-  to: RawFollowerData,
-): UserDiffEntry[] {
+export function diffRawFollowers(from: RawFollowerData, to: RawFollowerData): UserDiffEntry[] {
   const keys = new Set([...from.keys(), ...to.keys()]);
   const entries: UserDiffEntry[] = [];
 
@@ -169,10 +160,7 @@ export function diffRawFollowers(
  * Diffs aggregate follower counts. Used whenever a side comes from compacted
  * history: additions/removals cannot be named, so both lists are null.
  */
-export function diffFollowerCounts(
-  from: FollowerCounts,
-  to: FollowerCounts,
-): UserDiffEntry[] {
+export function diffFollowerCounts(from: FollowerCounts, to: FollowerCounts): UserDiffEntry[] {
   const keys = new Set([...from.keys(), ...to.keys()]);
   const entries: UserDiffEntry[] = [];
 

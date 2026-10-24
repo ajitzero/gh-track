@@ -3,6 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
+
 import { run, type CliIO } from '../../src/cli.js';
 import { GITHUB_API_BASE, type FetchLike } from '../../src/github/client.js';
 import { followersUrl } from '../../src/github/resources/followers.js';
@@ -48,12 +49,13 @@ function jsonResponse(body: unknown, headers: Record<string, string> = {}): Resp
 function fakeGitHub(): FetchLike {
   return async (url) => {
     if (url === FOLLOWERS_1) {
-      return jsonResponse([{ login: 'a', id: 1 }, { login: 'b', id: 2 }]);
+      return jsonResponse([
+        { login: 'a', id: 1 },
+        { login: 'b', id: 2 },
+      ]);
     }
     if (url === REPOS_1) {
-      return jsonResponse([
-        repoPayload(10, 'octocat/hello-world', 120, 3, { archived: false }),
-      ]);
+      return jsonResponse([repoPayload(10, 'octocat/hello-world', 120, 3, { archived: false })]);
     }
     throw new Error(`unexpected request: ${url}`);
   };
@@ -134,24 +136,43 @@ test('every JSON command emits one clean document on a fake TTY', async (t) => {
   const { configPath, dataDir } = await workspace(t);
 
   const added = await invoke([
-    'watch', 'add', 'user', 'octocat', '--config', configPath, '--format', 'json',
+    'watch',
+    'add',
+    'user',
+    'octocat',
+    '--config',
+    configPath,
+    '--format',
+    'json',
   ]);
   assertJsonDocument(added, 'watch add');
 
   const listed = await invoke([
-    'watch', 'ls', '--config', configPath, '--data-dir', dataDir, '--format', 'json',
+    'watch',
+    'ls',
+    '--config',
+    configPath,
+    '--data-dir',
+    dataDir,
+    '--format',
+    'json',
   ]);
   assertJsonDocument(listed, 'watch ls');
 
   const dry = await invoke([
-    'fetch', '--dry-run', '--config', configPath, '--data-dir', dataDir, '--format', 'json',
+    'fetch',
+    '--dry-run',
+    '--config',
+    configPath,
+    '--data-dir',
+    dataDir,
+    '--format',
+    'json',
   ]);
   assertJsonDocument(dry, 'fetch --dry-run');
 
   const fetched = await invoke(
-    [
-      'fetch', '--no-compact', '--config', configPath, '--data-dir', dataDir, '--format', 'json',
-    ],
+    ['fetch', '--no-compact', '--config', configPath, '--data-dir', dataDir, '--format', 'json'],
     { fetchImpl: fakeGitHub() },
   );
   const fetchedDoc = assertJsonDocument(fetched, 'fetch') as {
@@ -163,14 +184,10 @@ test('every JSON command emits one clean document on a fake TTY', async (t) => {
   const runs = await invoke(['runs', 'ls', '--data-dir', dataDir, '--format', 'json']);
   assertJsonDocument(runs, 'runs ls');
 
-  const shown = await invoke([
-    'runs', 'show', runId, '--data-dir', dataDir, '--format', 'json',
-  ]);
+  const shown = await invoke(['runs', 'show', runId, '--data-dir', dataDir, '--format', 'json']);
   assertJsonDocument(shown, 'runs show');
 
-  const paths = await invoke([
-    'runs', 'paths', runId, '--data-dir', dataDir, '--format', 'json',
-  ]);
+  const paths = await invoke(['runs', 'paths', runId, '--data-dir', dataDir, '--format', 'json']);
   assertJsonDocument(paths, 'runs paths');
 
   const older = daysAgo(2);
@@ -195,7 +212,10 @@ test('every JSON command emits one clean document on a fake TTY', async (t) => {
       subject: 'user:octocat',
       resource: 'followers',
       path: 'accounts/octocat/followers/page-0001.json',
-      payload: [{ login: 'a', id: 1 }, { login: 'c', id: 3 }],
+      payload: [
+        { login: 'a', id: 1 },
+        { login: 'c', id: 3 },
+      ],
     },
     {
       subject: 'user:octocat',
@@ -214,12 +234,25 @@ test('every JSON command emits one clean document on a fake TTY', async (t) => {
   ]);
 
   const diff = await invoke([
-    'diff', '--from', older, '--to', newer, '--data-dir', dataDir, '--format', 'json',
+    'diff',
+    '--from',
+    older,
+    '--to',
+    newer,
+    '--data-dir',
+    dataDir,
+    '--format',
+    'json',
   ]);
   assertJsonDocument(diff, 'diff');
 
   const compactDry = await invoke([
-    'compact', '--dry-run', '--data-dir', dataDir, '--format', 'json',
+    'compact',
+    '--dry-run',
+    '--data-dir',
+    dataDir,
+    '--format',
+    'json',
   ]);
   assertJsonDocument(compactDry, 'compact --dry-run');
 
@@ -236,7 +269,13 @@ test('every JSON command emits one clean document on a fake TTY', async (t) => {
   assertJsonDocument(exported, 'export');
 
   const dashboard = await invoke([
-    'dashboard', '--config', configPath, '--data-dir', dataDir, '--format', 'json',
+    'dashboard',
+    '--config',
+    configPath,
+    '--data-dir',
+    dataDir,
+    '--format',
+    'json',
   ]);
   const dashboardDoc = assertJsonDocument(dashboard, 'dashboard') as {
     rows: Array<{ subject: string; source: string | null }>;
@@ -248,29 +287,65 @@ test('every JSON command emits one clean document on a fake TTY', async (t) => {
   assertJsonDocument(tracking, 'track ls');
 
   const setTracking = await invoke([
-    'track', 'set', '--item', 'user:octocat=followers', '--config', configPath, '--format', 'json',
+    'track',
+    'set',
+    '--item',
+    'user:octocat=followers',
+    '--config',
+    configPath,
+    '--format',
+    'json',
   ]);
   assertJsonDocument(setTracking, 'track set');
 
   const savedView = await invoke([
-    'track', 'view', 'save', 'my-view', '--item', 'user:octocat=followers',
-    '--config', configPath, '--format', 'json',
+    'track',
+    'view',
+    'save',
+    'my-view',
+    '--item',
+    'user:octocat=followers',
+    '--config',
+    configPath,
+    '--format',
+    'json',
   ]);
   assertJsonDocument(savedView, 'track view save');
 
   const viewDashboard = await invoke([
-    'dashboard', '--view', 'my-view', '--config', configPath, '--data-dir', dataDir,
-    '--format', 'json',
+    'dashboard',
+    '--view',
+    'my-view',
+    '--config',
+    configPath,
+    '--data-dir',
+    dataDir,
+    '--format',
+    'json',
   ]);
   assertJsonDocument(viewDashboard, 'dashboard --view');
 
   const removedView = await invoke([
-    'track', 'view', 'rm', 'my-view', '--config', configPath, '--format', 'json',
+    'track',
+    'view',
+    'rm',
+    'my-view',
+    '--config',
+    configPath,
+    '--format',
+    'json',
   ]);
   assertJsonDocument(removedView, 'track view rm');
 
   const removed = await invoke([
-    'watch', 'rm', 'user:octocat', '--yes', '--config', configPath, '--format', 'json',
+    'watch',
+    'rm',
+    'user:octocat',
+    '--yes',
+    '--config',
+    configPath,
+    '--format',
+    'json',
   ]);
   assertJsonDocument(removed, 'watch rm', { allowWarnings: true });
   assert.match(removed.stderr, /Removed user:octocat/);
@@ -286,7 +361,16 @@ test('JSON errors are one clean document on stderr with empty stdout', async (t)
   );
 
   assertJsonError(
-    await invoke(['fetch', '--dry-run', '--config', configPath, '--data-dir', dataDir, '--format', 'json']),
+    await invoke([
+      'fetch',
+      '--dry-run',
+      '--config',
+      configPath,
+      '--data-dir',
+      dataDir,
+      '--format',
+      'json',
+    ]),
     'empty watchlist',
     'config_missing',
   );
@@ -298,7 +382,15 @@ test('JSON errors are one clean document on stderr with empty stdout', async (t)
   );
 
   assertJsonError(
-    await invoke(['runs', 'show', '2020-01-01T00-00-00Z', '--data-dir', dataDir, '--format', 'json']),
+    await invoke([
+      'runs',
+      'show',
+      '2020-01-01T00-00-00Z',
+      '--data-dir',
+      dataDir,
+      '--format',
+      'json',
+    ]),
     'missing run',
     'run_not_found',
   );

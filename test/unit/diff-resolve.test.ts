@@ -3,10 +3,8 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
-import {
-  loadDiffPoints,
-  resolveDiffRange,
-} from '../../src/diff/resolve.js';
+
+import { loadDiffPoints, resolveDiffRange } from '../../src/diff/resolve.js';
 import { classifyRef, parseRef } from '../../src/refs.js';
 import { runCompaction } from '../../src/store/compact.js';
 import { seedRun } from '../helpers/seed.js';
@@ -29,10 +27,11 @@ test('refs classify into the documented forms', () => {
   assert.equal(classifyRef('2026-08-01'), 'date');
   assert.equal(classifyRef('2026-08-01T10-00-00Z'), 'run');
   assert.equal(classifyRef('1y'), 'relative');
-  assert.deepEqual(
-    parseRef('6m', { label: 'diff', now: new Date('2026-10-24T00:00:00Z') }),
-    { kind: 'relative', ref: '6m', day: '2026-04-24' },
-  );
+  assert.deepEqual(parseRef('6m', { label: 'diff', now: new Date('2026-10-24T00:00:00Z') }), {
+    kind: 'relative',
+    ref: '6m',
+    day: '2026-04-24',
+  });
   assert.throws(() => classifyRef('2026-02-30'), /Invalid diff reference/);
   assert.throws(() => classifyRef('yesterday'), /Invalid diff reference/);
   assert.throws(() => classifyRef('0d'), /Invalid diff reference/);

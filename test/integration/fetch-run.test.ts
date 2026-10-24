@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/
 import os from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
+
 import { run, type CliIO, type RunOptions } from '../../src/cli.js';
 import { GITHUB_API_BASE, type FetchLike } from '../../src/github/client.js';
 import { followersUrl } from '../../src/github/resources/followers.js';
@@ -121,10 +122,11 @@ async function exists(target: string): Promise<boolean> {
 const FOLLOWERS_1 = followersUrl(GITHUB_API_BASE, 'octocat', 1);
 const REPOS_1 = reposUrl(GITHUB_API_BASE, 'octocat', 1);
 
-function happyRoutes(overrides: Record<string, () => Response> = {}): Record<string, () => Response> {
+function happyRoutes(
+  overrides: Record<string, () => Response> = {},
+): Record<string, () => Response> {
   return {
-    [FOLLOWERS_1]: () =>
-      jsonResponse([{ login: 'a' }, { login: 'b' }], { etag: 'W/"f1"' }),
+    [FOLLOWERS_1]: () => jsonResponse([{ login: 'a' }, { login: 'b' }], { etag: 'W/"f1"' }),
     [REPOS_1]: () =>
       jsonResponse([{ id: 1, full_name: 'octocat/hello-world' }], { etag: 'W/"r1"' }),
     ...overrides,
@@ -159,19 +161,16 @@ test('a fresh fetch writes a complete run atomically', async (t) => {
   assert.equal((manifest.subjects as unknown[]).length, 1);
 
   const runPath = path.join(runsDir(dataDir), doc.run.id);
-  assert.equal(
-    await exists(path.join(runPath, 'accounts/octocat/followers/page-0001.json')),
-    true,
-  );
-  assert.equal(
-    await exists(path.join(runPath, 'accounts/octocat/repos/page-0001.json')),
-    true,
-  );
+  assert.equal(await exists(path.join(runPath, 'accounts/octocat/followers/page-0001.json')), true);
+  assert.equal(await exists(path.join(runPath, 'accounts/octocat/repos/page-0001.json')), true);
   assert.equal(
     await exists(path.join(runPath, 'accounts/octocat/repos/octocat__hello-world.json')),
     true,
   );
-  assert.equal((await listRunsDir(dataDir)).some((entry) => entry.startsWith('.tmp-')), false);
+  assert.equal(
+    (await listRunsDir(dataDir)).some((entry) => entry.startsWith('.tmp-')),
+    false,
+  );
 });
 
 test('pagination follows Link and extends the plan dynamically', async (t) => {
@@ -200,7 +199,12 @@ test('pagination follows Link and extends the plan dynamically', async (t) => {
   const doc = JSON.parse(result.stdout) as { run: { id: string; stats: Record<string, number> } };
   assert.equal(doc.run.stats.requests, 3);
   assert.equal(doc.run.stats.followers, 105);
-  assert.equal(await exists(path.join(runsDir(dataDir), doc.run.id, 'accounts/octocat/followers/page-0002.json')), true);
+  assert.equal(
+    await exists(
+      path.join(runsDir(dataDir), doc.run.id, 'accounts/octocat/followers/page-0002.json'),
+    ),
+    true,
+  );
 });
 
 test('pagination without Link follows a full page', async (t) => {
@@ -226,7 +230,9 @@ test('pagination without Link follows a full page', async (t) => {
   assert.equal(doc.run.stats.requests, 3);
   assert.equal(doc.run.stats.followers, 126);
   assert.equal(
-    await exists(path.join(runsDir(dataDir), doc.run.id, 'accounts/octocat/followers/page-0002.json')),
+    await exists(
+      path.join(runsDir(dataDir), doc.run.id, 'accounts/octocat/followers/page-0002.json'),
+    ),
     true,
   );
 });
@@ -258,9 +264,16 @@ test('a 304 on a full page still follows Link to the next page', async (t) => {
 
   // The plan must find page 2 in the cache even though GitHub keyed it under a
   // canonical path, so a dry run and the live request queue agree.
-  const dry = await invoke(
-    ['fetch', '--dry-run', '--config', configPath, '--data-dir', dataDir, '--format', 'json'],
-  );
+  const dry = await invoke([
+    'fetch',
+    '--dry-run',
+    '--config',
+    configPath,
+    '--data-dir',
+    dataDir,
+    '--format',
+    'json',
+  ]);
   assert.equal(dry.code, 0, dry.stderr);
   const plan = JSON.parse(dry.stdout) as {
     plan: Array<{ url: string; page: number; conditional: boolean }>;
@@ -292,7 +305,9 @@ test('a 304 on a full page still follows Link to the next page', async (t) => {
   assert.equal(doc.run.stats.requests, 3);
   assert.equal(doc.run.stats.notModified, 3);
   assert.equal(
-    await exists(path.join(runsDir(dataDir), doc.run.id, 'accounts/octocat/followers/page-0002.json')),
+    await exists(
+      path.join(runsDir(dataDir), doc.run.id, 'accounts/octocat/followers/page-0002.json'),
+    ),
     true,
   );
 });
@@ -328,11 +343,19 @@ test('a 304 resolves to the previous run payload and copies it forward', async (
 
   const manifest = await readManifestFile(dataDir, doc.run.id);
   const requests = manifest.requests as Array<{ status: number; sourceRun: string }>;
-  assert.deepEqual(requests.map((entry) => entry.status), [304, 304]);
-  assert.deepEqual(requests.map((entry) => entry.sourceRun), [firstId, firstId]);
+  assert.deepEqual(
+    requests.map((entry) => entry.status),
+    [304, 304],
+  );
+  assert.deepEqual(
+    requests.map((entry) => entry.sourceRun),
+    [firstId, firstId],
+  );
 
   assert.equal(
-    await exists(path.join(runsDir(dataDir), doc.run.id, 'accounts/octocat/followers/page-0001.json')),
+    await exists(
+      path.join(runsDir(dataDir), doc.run.id, 'accounts/octocat/followers/page-0001.json'),
+    ),
     true,
   );
 });
@@ -429,7 +452,17 @@ test('the request cap promotes a partial run and --resume completes it', async (
   await addUser(configPath);
 
   const capped = await invoke(
-    ['fetch', '--config', configPath, '--data-dir', dataDir, '--max-requests', '1', '--format', 'json'],
+    [
+      'fetch',
+      '--config',
+      configPath,
+      '--data-dir',
+      dataDir,
+      '--max-requests',
+      '1',
+      '--format',
+      'json',
+    ],
     { fetchImpl: router(happyRoutes()) },
   );
 
@@ -439,10 +472,23 @@ test('the request cap promotes a partial run and --resume completes it', async (
     pending: Array<{ resource: string; subject: string }>;
   };
   assert.equal(partial.run.status, 'partial');
-  assert.deepEqual(partial.pending.map((request) => request.resource), ['repos']);
+  assert.deepEqual(
+    partial.pending.map((request) => request.resource),
+    ['repos'],
+  );
 
   const resumed = await invoke(
-    ['fetch', '--resume', partial.run.id, '--config', configPath, '--data-dir', dataDir, '--format', 'json'],
+    [
+      'fetch',
+      '--resume',
+      partial.run.id,
+      '--config',
+      configPath,
+      '--data-dir',
+      dataDir,
+      '--format',
+      'json',
+    ],
     { fetchImpl: router(happyRoutes()) },
   );
 
@@ -457,7 +503,10 @@ test('the request cap promotes a partial run and --resume completes it', async (
   assert.equal(complete.run.stats.repos, 1);
   assert.equal(complete.run.stats.followers, 2);
   assert.deepEqual(complete.pending, []);
-  assert.equal((await listRunsDir(dataDir)).some((entry) => entry.startsWith('.tmp-')), false);
+  assert.equal(
+    (await listRunsDir(dataDir)).some((entry) => entry.startsWith('.tmp-')),
+    false,
+  );
 });
 
 test('primary rate-limit exhaustion promotes a partial run and resume completes it', async (t) => {
@@ -492,7 +541,10 @@ test('primary rate-limit exhaustion promotes a partial run and resume completes 
     resumeAfter: string;
   };
   assert.equal(partial.run.status, 'partial');
-  assert.deepEqual(partial.pending.map((request) => request.resource), ['followers', 'repos']);
+  assert.deepEqual(
+    partial.pending.map((request) => request.resource),
+    ['followers', 'repos'],
+  );
   assert.equal(partial.resumeAfter, resetAt);
 
   // Simulate waiting past the reset window without spending a real hour.
@@ -502,7 +554,17 @@ test('primary rate-limit exhaustion promotes a partial run and resume completes 
   await writeFile(limitsPath, `${JSON.stringify(limits, null, 2)}\n`, 'utf8');
 
   const resumed = await invoke(
-    ['fetch', '--resume', partial.run.id, '--config', configPath, '--data-dir', dataDir, '--format', 'json'],
+    [
+      'fetch',
+      '--resume',
+      partial.run.id,
+      '--config',
+      configPath,
+      '--data-dir',
+      dataDir,
+      '--format',
+      'json',
+    ],
     { fetchImpl: router(happyRoutes()) },
   );
 
@@ -530,10 +592,9 @@ test('a live lock refuses a second fetch', async (t) => {
     'utf8',
   );
 
-  const result = await invoke(
-    ['fetch', '--config', configPath, '--data-dir', dataDir],
-    { fetchImpl: router(happyRoutes()) },
-  );
+  const result = await invoke(['fetch', '--config', configPath, '--data-dir', dataDir], {
+    fetchImpl: router(happyRoutes()),
+  });
   assert.equal(result.code, 1);
   assert.match(result.stderr, /locked/);
   assert.deepEqual(await listRunsDir(dataDir), []);
@@ -564,9 +625,15 @@ test('an interrupt promotes a partial run and exits 130', async (t) => {
     pending: Array<{ resource: string }>;
   };
   assert.equal(doc.run.status, 'partial');
-  assert.deepEqual(doc.pending.map((request) => request.resource), ['repos']);
+  assert.deepEqual(
+    doc.pending.map((request) => request.resource),
+    ['repos'],
+  );
   assert.equal(await exists(path.join(runsDir(dataDir), doc.run.id, 'manifest.json')), true);
-  assert.equal((await listRunsDir(dataDir)).some((entry) => entry.startsWith('.tmp-')), false);
+  assert.equal(
+    (await listRunsDir(dataDir)).some((entry) => entry.startsWith('.tmp-')),
+    false,
+  );
 });
 
 test('runs ls|show|paths read stored manifests', async (t) => {
@@ -614,10 +681,21 @@ test('watch ls reports the last run for each subject', async (t) => {
   );
   const id = (JSON.parse(fetched.stdout) as { run: { id: string } }).run.id;
 
-  const listed = await invoke(['watch', 'ls', '--format', 'json', '--config', configPath, '--data-dir', dataDir]);
+  const listed = await invoke([
+    'watch',
+    'ls',
+    '--format',
+    'json',
+    '--config',
+    configPath,
+    '--data-dir',
+    dataDir,
+  ]);
   assert.equal(listed.code, 0);
   const doc = JSON.parse(listed.stdout) as {
-    subjects: Array<{ lastRun: { id: string; status: string; repos: number; followers: number } | null }>;
+    subjects: Array<{
+      lastRun: { id: string; status: string; repos: number; followers: number } | null;
+    }>;
   };
   assert.deepEqual(doc.subjects[0]?.lastRun, {
     id,
@@ -627,9 +705,7 @@ test('watch ls reports the last run for each subject', async (t) => {
     followers: 2,
   });
 
-  const table = await invoke([
-    'watch', 'ls', '--config', configPath, '--data-dir', dataDir,
-  ]);
+  const table = await invoke(['watch', 'ls', '--config', configPath, '--data-dir', dataDir]);
   assert.equal(table.code, 0, table.stderr);
   assert.match(table.stdout, /STATUS/);
   assert.match(table.stdout, /complete/);
@@ -638,9 +714,7 @@ test('watch ls reports the last run for each subject', async (t) => {
 
 test('a 404 is recorded while the run stays complete', async (t) => {
   const { configPath, dataDir } = await workspace(t);
-  const added = await invoke([
-    'watch', 'add', 'repo', 'torvalds/linux', '--config', configPath,
-  ]);
+  const added = await invoke(['watch', 'add', 'repo', 'torvalds/linux', '--config', configPath]);
   assert.equal(added.code, 0);
 
   const result = await invoke(
@@ -676,7 +750,14 @@ test('watch ls matches a manifest subject case-insensitively', async (t) => {
   assert.equal(added.code, 0);
 
   const listed = await invoke([
-    'watch', 'ls', '--config', configPath, '--data-dir', dataDir, '--format', 'json',
+    'watch',
+    'ls',
+    '--config',
+    configPath,
+    '--data-dir',
+    dataDir,
+    '--format',
+    'json',
   ]);
   const doc = JSON.parse(listed.stdout) as {
     subjects: Array<{ lastRun: { id: string; repos: number; followers: number } | null }>;
@@ -711,7 +792,14 @@ test('watch ls ignores failed runs when reporting lastRun', async (t) => {
   );
 
   const listed = await invoke([
-    'watch', 'ls', '--config', configPath, '--data-dir', dataDir, '--format', 'json',
+    'watch',
+    'ls',
+    '--config',
+    configPath,
+    '--data-dir',
+    dataDir,
+    '--format',
+    'json',
   ]);
   assert.equal(listed.code, 0);
   const doc = JSON.parse(listed.stdout) as { subjects: Array<{ lastRun: unknown }> };

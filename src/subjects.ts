@@ -80,11 +80,7 @@ export function parseGitHubUrl(input: string): ParsedSubject | null {
  * A bare value containing a slash is a repository; otherwise it is a user.
  */
 export function parseSubject(input: string): ParsedSubject {
-  if (
-    input.length === 0 ||
-    input.trim() !== input ||
-    WHITESPACE_PATTERN.test(input)
-  ) {
+  if (input.length === 0 || input.trim() !== input || WHITESPACE_PATTERN.test(input)) {
     throw invalidSubject(input);
   }
 

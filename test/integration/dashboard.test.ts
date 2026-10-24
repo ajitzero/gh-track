@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
+
 import { run, type CliIO } from '../../src/cli.js';
 import { parseConfig } from '../../src/config.js';
 import { interrupted } from '../../src/errors.js';
@@ -170,8 +171,18 @@ async function seedWorkspace(dataDir: string): Promise<void> {
   await writeFile(
     path.join(dataDir, 'history/repos/octocat__hello-world.ndjson'),
     [
-      JSON.stringify({ date: '2026-09-01', repository: 'octocat/hello-world', stars: 80, forks: 2 }),
-      JSON.stringify({ date: '2026-10-05', repository: 'octocat/hello-world', stars: 999, forks: 999 }),
+      JSON.stringify({
+        date: '2026-09-01',
+        repository: 'octocat/hello-world',
+        stars: 80,
+        forks: 2,
+      }),
+      JSON.stringify({
+        date: '2026-10-05',
+        repository: 'octocat/hello-world',
+        stars: 999,
+        forks: 999,
+      }),
     ].join('\n') + '\n',
   );
   await writeFile(
@@ -239,7 +250,9 @@ test('--no-interactive keeps the static table on a TTY', async (t) => {
   let entered = false;
   const terminal: DashboardTerminal = {
     rows: 24,
-    enter: () => { entered = true; },
+    enter: () => {
+      entered = true;
+    },
     leave: () => undefined,
     write: () => undefined,
     onKeypress: () => () => undefined,
@@ -299,9 +312,15 @@ test('interactive dashboard restores the terminal and emits no table after quit'
   let output = '';
   const terminal: DashboardTerminal = {
     rows: 24,
-    enter: () => { entered += 1; },
-    leave: () => { left += 1; },
-    write: (text) => { output += text; },
+    enter: () => {
+      entered += 1;
+    },
+    leave: () => {
+      left += 1;
+    },
+    write: (text) => {
+      output += text;
+    },
     onKeypress: (listener: (key: DashboardKeypress) => void) => {
       listener({ name: 'q', sequence: 'q', ctrl: false });
       return () => undefined;
@@ -334,7 +353,9 @@ test('r runs a full fetch from the interactive dashboard', async (t) => {
   const terminal: DashboardTerminal = {
     rows: 24,
     enter: () => undefined,
-    leave: () => { left += 1; },
+    leave: () => {
+      left += 1;
+    },
     write: () => undefined,
     onKeypress: (listener) => {
       listener({ name: 'r', sequence: 'r', ctrl: false });
@@ -380,7 +401,9 @@ test('a adds a subject, fetches only it, and refreshes the dashboard', async (t)
     rows: 24,
     enter: () => undefined,
     leave: () => undefined,
-    write: (text) => { output += text; },
+    write: (text) => {
+      output += text;
+    },
     onKeypress: (listener) => {
       listener({ name: 'a', sequence: 'a', ctrl: false });
       for (const character of 'testing-user') {
@@ -402,7 +425,10 @@ test('a adds a subject, fetches only it, and refreshes the dashboard', async (t)
       requested.push(input);
       const url = new URL(input);
       const payload = url.pathname.endsWith('/followers')
-        ? [{ login: 'one', id: 1 }, { login: 'two', id: 2 }]
+        ? [
+            { login: 'one', id: 1 },
+            { login: 'two', id: 2 },
+          ]
         : [repoPayload(9, 'testing-user/demo', 5, 1)];
       return new Response(JSON.stringify(payload), {
         status: 200,
@@ -415,9 +441,7 @@ test('a adds a subject, fetches only it, and refreshes the dashboard', async (t)
   assert.equal(result.code, 0, result.stderr);
   assert.equal(result.stdout, '');
   assert.ok(requested.length > 0);
-  assert.ok(
-    requested.every((url) => new URL(url).pathname.startsWith('/users/testing-user/')),
-  );
+  assert.ok(requested.every((url) => new URL(url).pathname.startsWith('/users/testing-user/')));
   assert.ok(plain.includes('add: testing-user'));
   assert.ok(plain.includes('Added user:testing-user'));
   assert.ok(plain.includes('testing-user'));
@@ -436,7 +460,9 @@ test('a accepts a repository URL in the interactive add prompt', async (t) => {
     rows: 24,
     enter: () => undefined,
     leave: () => undefined,
-    write: (text) => { output += text; },
+    write: (text) => {
+      output += text;
+    },
     onKeypress: (listener) => {
       listener({ name: 'a', sequence: 'a', ctrl: false });
       for (const character of 'https://github.com/testing-user/demo') {
@@ -456,10 +482,10 @@ test('a accepts a repository URL in the interactive add prompt', async (t) => {
     dashboardTerminal: terminal,
     fetchImpl: async (input) => {
       requested.push(input);
-      return new Response(
-        JSON.stringify(repoPayload(9, 'testing-user/demo', 7, 2)),
-        { status: 200, headers: { 'content-type': 'application/json' } },
-      );
+      return new Response(JSON.stringify(repoPayload(9, 'testing-user/demo', 7, 2)), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
     },
   });
 
@@ -517,9 +543,7 @@ test('--from latest produces zero deltas', async (t) => {
   assert.match(result.stdout, /stars\s+120\s+\(0\)\s+forks\s+4\s+\(0\)/);
   assert.match(result.stdout, /\noctocat\s+followers\s+3\s+\(0\)/);
 
-  const bounded = await invoke(
-    args(w, 'dashboard', '--from', 'latest', '--to', '2026-09-15'),
-  );
+  const bounded = await invoke(args(w, 'dashboard', '--from', 'latest', '--to', '2026-09-15'));
   assert.equal(bounded.code, 0, bounded.stderr);
   assert.match(bounded.stdout, /stars\s+80~\s+\(0\)\s+forks\s+2~\s+\(0\)/);
   assert.match(bounded.stdout, /\noctocat\s+followers\s+1~\s+\(0\)/);
@@ -577,12 +601,7 @@ test('dashboard JSON is one document with per-row sources', async (t) => {
   assert.equal(result.rows.length, 4);
   assert.deepEqual(
     result.rows.map((row) => row.subject),
-    [
-      'repo:octocat/hello-world',
-      'repo:history/only',
-      'repo:never/fetched',
-      'user:octocat',
-    ],
+    ['repo:octocat/hello-world', 'repo:history/only', 'repo:never/fetched', 'user:octocat'],
   );
 
   const bySubject = new Map(result.rows.map((row) => [row.subject, row]));
@@ -617,7 +636,9 @@ test('dashboard rejects invalid references and incomplete runs', async (t) => {
   assert.equal(previousTo.code, 2);
   assert.match(previousTo.stderr, /--to cannot be "previous"/);
 
-  const backwards = await invoke(args(w, 'dashboard', '--from', '2026-10-06', '--to', '2026-10-05'));
+  const backwards = await invoke(
+    args(w, 'dashboard', '--from', '2026-10-06', '--to', '2026-10-05'),
+  );
   assert.equal(backwards.code, 2);
   assert.match(backwards.stderr, /invalid_range/);
 
@@ -747,9 +768,7 @@ test('track edit picker reuses existing metrics', async (t) => {
   assert.equal(result.code, 0, result.stderr);
   assert.deepEqual(initialSeen, ['stars', 'forks']);
   const config = await configOf(w);
-  assert.deepEqual(config.tracking, [
-    { subject: 'repo:octocat/hello-world', metrics: ['stars'] },
-  ]);
+  assert.deepEqual(config.tracking, [{ subject: 'repo:octocat/hello-world', metrics: ['stars'] }]);
 });
 
 test('declining or cancelling the picker writes nothing', async (t) => {
@@ -822,7 +841,15 @@ test('track set, ls, rm, and view commands round-trip through config', async (t)
   await seedWorkspace(w.dataDir);
 
   const set = await invoke(
-    args(w, 'track', 'set', '--item', 'repo:octocat/hello-world=forks', '--item', 'user:octocat=followers'),
+    args(
+      w,
+      'track',
+      'set',
+      '--item',
+      'repo:octocat/hello-world=forks',
+      '--item',
+      'user:octocat=followers',
+    ),
   );
   assert.equal(set.code, 0, set.stderr);
   assert.match(set.stdout, /repo:octocat\/hello-world\s+forks/);
@@ -878,17 +905,23 @@ test('track set, ls, rm, and view commands round-trip through config', async (t)
   const removedView = await invoke(args(w, 'track', 'view', 'rm', 'compact-repo'));
   assert.equal(removedView.code, 0, removedView.stderr);
   config = await configOf(w);
-  assert.equal(config.views.some((candidate) => candidate.name === 'compact-repo'), false);
+  assert.equal(
+    config.views.some((candidate) => candidate.name === 'compact-repo'),
+    false,
+  );
 
   const removed = await invoke(args(w, 'track', 'rm', 'user:octocat'));
   assert.equal(removed.code, 0, removed.stderr);
   config = await configOf(w);
-  assert.equal(config.tracking.some((entry) => entry.subject === 'user:octocat'), false);
+  assert.equal(
+    config.tracking.some((entry) => entry.subject === 'user:octocat'),
+    false,
+  );
   const stillSaved = config.views.find((view) => view.name === 'my-repos');
-  assert.deepEqual(stillSaved?.items.map((item) => item.subject), [
-    'repo:octocat/hello-world',
-    'user:octocat',
-  ]);
+  assert.deepEqual(
+    stillSaved?.items.map((item) => item.subject),
+    ['repo:octocat/hello-world', 'user:octocat'],
+  );
 
   const missing = await invoke(args(w, 'track', 'rm', 'user:octocat'));
   assert.equal(missing.code, 2);
@@ -902,7 +935,9 @@ test('track rejects invalid items and non-interactive edit', async (t) => {
   assert.equal(unknown.code, 2);
   assert.match(unknown.stderr, /unknown_subject/);
 
-  const metric = await invoke(args(w, 'track', 'set', '--item', 'repo:octocat/hello-world=followers'));
+  const metric = await invoke(
+    args(w, 'track', 'set', '--item', 'repo:octocat/hello-world=followers'),
+  );
   assert.equal(metric.code, 2);
   assert.match(metric.stderr, /Invalid metric/);
 
@@ -948,13 +983,16 @@ test('track view save picker asks for layout and range', async (t) => {
   });
   assert.equal(result.code, 0, result.stderr);
   const config = await configOf(w);
-  assert.deepEqual(config.views.find((view) => view.name === 'picked'), {
-    name: 'picked',
-    items: [{ subject: 'repo:octocat/hello-world', metrics: ['stars'] }],
-    layout: 'columns',
-    from: '2026-09-01',
-    to: 'latest',
-  });
+  assert.deepEqual(
+    config.views.find((view) => view.name === 'picked'),
+    {
+      name: 'picked',
+      items: [{ subject: 'repo:octocat/hello-world', metrics: ['stars'] }],
+      layout: 'columns',
+      from: '2026-09-01',
+      to: 'latest',
+    },
+  );
 });
 
 test('watch rm cleans tracking and view references', async (t) => {
@@ -967,10 +1005,19 @@ test('watch rm cleans tracking and view references', async (t) => {
   assert.match(removed.stderr, /empty dashboard view users-only/);
 
   const config = await configOf(w);
-  assert.equal(config.tracking.some((entry) => entry.subject === 'user:octocat'), false);
-  assert.equal(config.views.some((view) => view.name === 'users-only'), false);
+  assert.equal(
+    config.tracking.some((entry) => entry.subject === 'user:octocat'),
+    false,
+  );
+  assert.equal(
+    config.views.some((view) => view.name === 'users-only'),
+    false,
+  );
   const myRepos = config.views.find((view) => view.name === 'my-repos');
-  assert.deepEqual(myRepos?.items.map((item) => item.subject), ['repo:octocat/hello-world']);
+  assert.deepEqual(
+    myRepos?.items.map((item) => item.subject),
+    ['repo:octocat/hello-world'],
+  );
 });
 
 test('dashboard requires a selection and a non-empty watchlist', async (t) => {

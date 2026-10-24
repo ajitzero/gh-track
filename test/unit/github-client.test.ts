@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+
+import type { CliError } from '../../src/errors.js';
 import {
   GitHubClient,
   hasNextPage,
@@ -7,12 +9,15 @@ import {
   parseLinkHeader,
   type FetchLike,
 } from '../../src/github/client.js';
-import type { CliError } from '../../src/errors.js';
 
 const URL = 'https://api.github.com/users/octocat/followers?per_page=100&page=1';
 const RESET_SECONDS = 1_790_000_000;
 
-function response(status: number, body: string | null = null, headers: Record<string, string> = {}): Response {
+function response(
+  status: number,
+  body: string | null = null,
+  headers: Record<string, string> = {},
+): Response {
   return new Response(body, { status, headers });
 }
 
@@ -50,7 +55,9 @@ test('a 304 reports not modified with no payload', async () => {
 });
 
 test('a 404 is returned so the caller can record a subject error', async () => {
-  const client = new GitHubClient({ fetchImpl: async () => response(404, '{"message":"Not Found"}') });
+  const client = new GitHubClient({
+    fetchImpl: async () => response(404, '{"message":"Not Found"}'),
+  });
   const result = await client.get(URL);
   assert.equal(result.status, 404);
   assert.equal(result.notModified, false);

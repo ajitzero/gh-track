@@ -92,7 +92,9 @@ export function invalidSubject(input: string): CliError {
 }
 
 export function unknownSubject(subject: string): CliError {
-  return new CliError('unknown_subject', `Subject is not in the watchlist: ${subject}`, { subject });
+  return new CliError('unknown_subject', `Subject is not in the watchlist: ${subject}`, {
+    subject,
+  });
 }
 
 export function unknownView(name: string): CliError {
@@ -128,15 +130,13 @@ export function networkError(message: string, details?: ErrorDetails): CliError 
 
 /** A URL outside the configured API origin. Permanent: never worth a retry. */
 export function refusedUrl(url: string, apiBase: string): CliError {
-  return new CliError(
-    'refused_url',
-    `Refusing to request a URL outside ${apiBase}: ${url}`,
-    { url },
-  );
+  return new CliError('refused_url', `Refusing to request a URL outside ${apiBase}: ${url}`, {
+    url,
+  });
 }
 
 export function httpError(status: number, message: string, details?: ErrorDetails): CliError {
-  return new CliError('http_error', message, { status, ...(details ?? {}) });
+  return new CliError('http_error', message, { status, ...details });
 }
 
 export function githubUserNotFound(login: string): CliError {

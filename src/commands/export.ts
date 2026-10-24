@@ -15,11 +15,7 @@ import type {
 
 const CSV_HEADER = 'date,kind,subject,stars,forks,followers';
 
-function parseDateOption(
-  raw: string | undefined,
-  flag: string,
-  now?: Date,
-): string | undefined {
+function parseDateOption(raw: string | undefined, flag: string, now?: Date): string | undefined {
   if (raw === undefined) {
     return undefined;
   }
@@ -33,10 +29,7 @@ function parseDateOption(
   throw new UsageError(`${flag} is not a valid calendar date or relative offset: ${raw}`);
 }
 
-function toRows(
-  repos: readonly RepoHistoryRow[],
-  users: readonly UserHistoryRow[],
-): ExportRow[] {
+function toRows(repos: readonly RepoHistoryRow[], users: readonly UserHistoryRow[]): ExportRow[] {
   const rows: ExportRow[] = [];
   for (const row of repos) {
     rows.push({

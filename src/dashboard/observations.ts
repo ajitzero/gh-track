@@ -1,9 +1,9 @@
 /** Per-subject observation series built from complete runs and compacted history. */
 
 import { endOfDay } from '../date.js';
-import { UsageError, invalidRange, runNotFound } from '../errors.js';
 import { rawFollowerCounts, readRawFollowers } from '../diff/followers.js';
 import { readRawRepos, type RepoRecord } from '../diff/repos.js';
+import { UsageError, invalidRange, runNotFound } from '../errors.js';
 import { parseRef, type ParsedRef, type RefKind } from '../refs.js';
 import { readAllHistory } from '../store/history.js';
 import { listManifests } from '../store/runs.js';
@@ -21,10 +21,7 @@ function observationTime(observation: DashboardObservation): string {
   return observation.finishedAt ?? endOfDay(observation.day);
 }
 
-function compareObservations(
-  left: DashboardObservation,
-  right: DashboardObservation,
-): number {
+function compareObservations(left: DashboardObservation, right: DashboardObservation): number {
   const byTime = observationTime(left).localeCompare(observationTime(right));
   if (byTime !== 0) {
     return byTime;
@@ -49,7 +46,11 @@ interface RawCaches {
   followers: Map<string, Map<string, { account: string; count: number }>>;
 }
 
-async function rawRepos(dataDir: string, manifest: Manifest, cache: RawCaches): Promise<RepoRecord[]> {
+async function rawRepos(
+  dataDir: string,
+  manifest: Manifest,
+  cache: RawCaches,
+): Promise<RepoRecord[]> {
   const cached = cache.repos.get(manifest.id);
   if (cached !== undefined) {
     return cached;
@@ -81,10 +82,7 @@ function accountName(subject: string): string {
   return accountOf(subject).toLowerCase();
 }
 
-function repoObservation(
-  manifest: Manifest,
-  record: RepoRecord,
-): DashboardObservation | null {
+function repoObservation(manifest: Manifest, record: RepoRecord): DashboardObservation | null {
   const stars = record.fields.stargazers_count;
   const forks = record.fields.forks_count;
   if (
@@ -104,10 +102,7 @@ function repoObservation(
   };
 }
 
-function userObservation(
-  manifest: Manifest,
-  count: number,
-): DashboardObservation {
+function userObservation(manifest: Manifest, count: number): DashboardObservation {
   return {
     id: manifest.id,
     day: manifest.id.slice(0, 10),
@@ -156,9 +151,7 @@ export async function buildObservationData(
   for (const manifest of [...complete].reverse()) {
     if (repoSpecs.length > 0) {
       const records = await rawRepos(dataDir, manifest, cache);
-      const byName = new Map(
-        records.map((record) => [record.fullName.toLowerCase(), record]),
-      );
+      const byName = new Map(records.map((record) => [record.fullName.toLowerCase(), record]));
       for (const spec of repoSpecs) {
         const record = byName.get(spec.name);
         if (record === undefined) {

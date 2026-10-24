@@ -2,41 +2,42 @@ Decisions made during the initial design interview on 2026-10-19. Each entry rec
 
 ## Summary
 
-| ID | Decision |
-|---|---|
-| D001 | Local files only, no database |
-| D002 | One directory per run, ISO-8601 UTC run IDs |
+| ID   | Decision                                                                                |
+| ---- | --------------------------------------------------------------------------------------- |
+| D001 | Local files only, no database                                                           |
+| D002 | One directory per run, ISO-8601 UTC run IDs                                             |
 | D003 | Bun as package manager; TypeScript compiled to `dist/`; Node >= 20 runtime; no Bun APIs |
-| D004 | Unauthenticated by default; `--token` accepted but optional |
-| D005 | Subjects: user followers + owned repositories, and single repositories |
-| D006 | Store full raw payloads for every run inside the retention window |
-| D007 | Rolling compaction, 30 days raw, minimal metric set, automatic after fetch |
-| D008 | Diffs derived on demand and never persisted |
-| D009 | No aggregates or rollups |
-| D010 | TOML config in XDG; data in XDG |
-| D011 | `@clack/prompts` for interaction, gated on TTY and format |
-| D012 | `--format json` is a strict machine contract with stable exit codes |
-| D013 | Hand-rolled command registry for help |
-| D014 | No gzip in v1 |
-| D015 | Docs are an Obsidian vault with relative links and a `type` field |
-| D016 | Test runner uses quoted globs, not a directory argument |
-| D017 | Interactive first-run setup for a missing watchlist |
-| D018 | Dry-run baseline, explicit-subject resources, and cache persistence |
-| D019 | Run writer, partial promotion, and resume semantics |
-| D020 | Compaction marker, prune scope, and export rows |
-| D021 | Diff point resolution, source limits, and subject filtering |
-| D022 | v1 hardening: JSON purity matrix, failed-response quotas, watch table |
-| D023 | Dashboard: narrow metrics, per-subject observations, full-snapshot views |
-| D024 | Flat docs and harness-owned plans |
-| D025 | `dashboard add`: composite setup and repository browsing |
-| D026 | Review hardening: shared helpers, origin checks, JSON warnings |
-| D027 | Compact dashboard hierarchy for tracked owners |
-| D028 | Compact metric widths track actual values |
-| D029 | Relative date refs for `--from` / `--to` |
-| D030 | Dashboard is the default command |
-| D031 | Compact dashboard puts all metrics of a subject on one line |
-| D032 | Dashboard supports an interactive TTY list |
-| D033 | Past offsets drop the minus prefix |
+| D004 | Unauthenticated by default; `--token` accepted but optional                             |
+| D005 | Subjects: user followers + owned repositories, and single repositories                  |
+| D006 | Store full raw payloads for every run inside the retention window                       |
+| D007 | Rolling compaction, 30 days raw, minimal metric set, automatic after fetch              |
+| D008 | Diffs derived on demand and never persisted                                             |
+| D009 | No aggregates or rollups                                                                |
+| D010 | TOML config in XDG; data in XDG                                                         |
+| D011 | `@clack/prompts` for interaction, gated on TTY and format                               |
+| D012 | `--format json` is a strict machine contract with stable exit codes                     |
+| D013 | Hand-rolled command registry for help                                                   |
+| D014 | No gzip in v1                                                                           |
+| D015 | Docs are an Obsidian vault with relative links and a `type` field                       |
+| D016 | Test runner uses quoted globs, not a directory argument                                 |
+| D017 | Interactive first-run setup for a missing watchlist                                     |
+| D018 | Dry-run baseline, explicit-subject resources, and cache persistence                     |
+| D019 | Run writer, partial promotion, and resume semantics                                     |
+| D020 | Compaction marker, prune scope, and export rows                                         |
+| D021 | Diff point resolution, source limits, and subject filtering                             |
+| D022 | v1 hardening: JSON purity matrix, failed-response quotas, watch table                   |
+| D023 | Dashboard: narrow metrics, per-subject observations, full-snapshot views                |
+| D024 | Flat docs and harness-owned plans                                                       |
+| D025 | `dashboard add`: composite setup and repository browsing                                |
+| D026 | Review hardening: shared helpers, origin checks, JSON warnings                          |
+| D027 | Compact dashboard hierarchy for tracked owners                                          |
+| D028 | Compact metric widths track actual values                                               |
+| D029 | Relative date refs for `--from` / `--to`                                                |
+| D030 | Dashboard is the default command                                                        |
+| D031 | Compact dashboard puts all metrics of a subject on one line                             |
+| D032 | Dashboard supports an interactive TTY list                                              |
+| D033 | Past offsets drop the minus prefix                                                      |
+| D034 | oxlint and oxfmt for linting and formatting                                             |
 
 ## D001 — Local files only
 
@@ -74,7 +75,7 @@ Decisions made during the initial design interview on 2026-10-19. Each entry rec
 
 **Decision.** Watch `user:<login>` (fetch `followers` and `repos`) and `repo:<owner>/<name>` (fetch `repo`). A user's repositories supply star and fork counts for every owned repository in one paginated list. There is no `user.profile` request.
 
-**Rejected.** Tracking a user's starred list (the original framing, but the user clarified the goal is stars *on* owned repositories); tracking a profile endpoint (redundant — follower count is the length of the list); organization membership and everything-associated ingestion (rate-limit heavy and not requested); URL-driven subject parsing (more surface for little gain).
+**Rejected.** Tracking a user's starred list (the original framing, but the user clarified the goal is stars _on_ owned repositories); tracking a profile endpoint (redundant — follower count is the length of the list); organization membership and everything-associated ingestion (rate-limit heavy and not requested); URL-driven subject parsing (more surface for little gain).
 
 **Consequence.** Public accounts only without a token. Follower identity history exists only for accounts whose full follower list is fetched; large accounts cost one request per 100 followers.
 
@@ -420,16 +421,26 @@ Static output remains the default for JSON, non-TTY invocations, `--yes`, and `-
 
 **Consequence.** Offsets read as durations and are ordinary option values. This supersedes D029 §1's `-<n><unit>` spelling and §4's leading-dash parser seam; the arithmetic, snapping, view storage, and range behavior are unchanged.
 
+## D034 — oxlint and oxfmt for linting and formatting
+
+**Context.** The codebase had no automated formatting or static checks. Style was maintained by hand, and `tsc` only catches type errors.
+
+**Decision.** Use `oxlint` for linting and `oxfmt` for formatting, both as dev dependencies. `oxlint` enforces the `correctness` category as errors with the TypeScript, unicorn, oxc, import, node, and promise plugins, a Node environment, and `follow-back.js` ignored. `no-control-regex` is off for `test/**` and `src/dashboard/interactive.ts`, which intentionally match ANSI control sequences. `oxfmt` uses 100 columns and single quotes, leaves `package.json` key order alone, formats TypeScript, JSON, and Markdown, and ignores `docs/.obsidian/` and the legacy `follow-back.js`. Scripts are `lint`, `lint:fix`, `format`, and `format:check`. The tree was formatted once so `format:check` passes.
+
+**Rejected.** ESLint plus Prettier (two toolchains and plugin configuration for a small TypeScript CLI); Biome (also a single binary, but the project gains nothing over the oxc tools); leaving formatting unenforced (the existing style already matched the chosen options, so the one-time diff is mechanical).
+
+**Consequence.** `bun run lint` and `bun run format:check` are the static gates alongside `typecheck` and `test`. `oxfmt` owns layout, so reviewers see semantic diffs. Widening to the `suspicious` or `pedantic` categories later is a config change, not a new tool.
+
 ## Plan history
 
 Active plans are owned by the coding harness and are never committed to this repository. This section is the durable record of what was planned, what shipped, and what remains. Statuses: `done`, `partial`, `not started`, `superseded`, `abandoned`.
 
-| Plan | Dates | Status | Delivered | Not done / carried forward |
-|---|---|---|---|---|
-| v1 — core CLI (M1–M6) | 2026-10-19 → 2026-10-20 | done | `watch`, `fetch` with resume, `runs`, `diff`, `compact`, `export`; atomic immutable runs; JSON purity; offline test suite | M7 interactive first-run setup |
-| Dashboard (M8) | 2026-10-20 | done | `dashboard` and `track`; per-subject observations; `[tracking]` and `[views]`; compact/columns layouts; clack picker | None |
-| Dashboard add (M8.1) | 2026-10-20 | done | `dashboard add`; composite watch+track; public-repository browsing and multi-select; removed `--setup` | None |
-| Interactive dashboard (M8.2) | 2026-10-24 | done | TTY navigation, live search, clipboard copy, in-process fetch refresh; static/JSON output preserved | None |
+| Plan                         | Dates                   | Status | Delivered                                                                                                                 | Not done / carried forward     |
+| ---------------------------- | ----------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| v1 — core CLI (M1–M6)        | 2026-10-19 → 2026-10-20 | done   | `watch`, `fetch` with resume, `runs`, `diff`, `compact`, `export`; atomic immutable runs; JSON purity; offline test suite | M7 interactive first-run setup |
+| Dashboard (M8)               | 2026-10-20              | done   | `dashboard` and `track`; per-subject observations; `[tracking]` and `[views]`; compact/columns layouts; clack picker      | None                           |
+| Dashboard add (M8.1)         | 2026-10-20              | done   | `dashboard add`; composite watch+track; public-repository browsing and multi-select; removed `--setup`                    | None                           |
+| Interactive dashboard (M8.2) | 2026-10-24              | done   | TTY navigation, live search, clipboard copy, in-process fetch refresh; static/JSON output preserved                       | None                           |
 
 The retired `docs/plans/` files remain in git history at commit `3deedbb` (`feat: implement M8 dashboard and tracking`). This section replaces the folder as the place to answer "what has been done, and what is left?"
 

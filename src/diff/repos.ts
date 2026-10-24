@@ -84,10 +84,7 @@ async function readPayload(
 }
 
 /** Reads every repository a run stored, from user repo pages and standalone repos. */
-export async function readRawRepos(
-  dataDir: string,
-  manifest: Manifest,
-): Promise<RepoRecord[]> {
+export async function readRawRepos(dataDir: string, manifest: Manifest): Promise<RepoRecord[]> {
   const records = new Map<string, RepoRecord>();
 
   for (const entry of manifest.requests) {
@@ -138,9 +135,7 @@ export function restrictRepoFields(
   return records.map((record) => ({
     id: record.id,
     fullName: record.fullName,
-    fields: Object.fromEntries(
-      Object.entries(record.fields).filter(([key]) => allowed.has(key)),
-    ),
+    fields: Object.fromEntries(Object.entries(record.fields).filter(([key]) => allowed.has(key))),
   }));
 }
 
@@ -175,9 +170,7 @@ function nameKey(name: string): string {
 }
 
 function compareEntries(left: RepoDiffEntry, right: RepoDiffEntry): number {
-  const byName = left.repository
-    .toLowerCase()
-    .localeCompare(right.repository.toLowerCase());
+  const byName = left.repository.toLowerCase().localeCompare(right.repository.toLowerCase());
   if (byName !== 0) {
     return byName;
   }

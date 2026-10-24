@@ -63,7 +63,10 @@ const WATCH_ADD: HelpNode = {
   ],
   arguments: [
     { name: 'type', summary: 'user or repo' },
-    { name: 'value', summary: 'login or profile URL for user; owner/name or repository URL for repo' },
+    {
+      name: 'value',
+      summary: 'login or profile URL for user; owner/name or repository URL for repo',
+    },
   ],
   options: [
     {
@@ -185,7 +188,10 @@ const DASHBOARD_ADD: HelpNode = {
     'gh-track dashboard add <subject> [--metrics <list>]',
   ],
   arguments: [
-    { name: 'subject', summary: 'any accepted subject form (bare login, owner/name, or GitHub URL)' },
+    {
+      name: 'subject',
+      summary: 'any accepted subject form (bare login, owner/name, or GitHub URL)',
+    },
   ],
   options: [
     {
@@ -333,8 +339,8 @@ function renderColumns(
     return '';
   }
   const width = entries.reduce((max, entry) => Math.max(max, entry.label.length), 0);
-  const lines = entries.map(
-    (entry) => `  ${entry.label.padEnd(width)}  ${entry.summary}`.replace(/\s+$/, ''),
+  const lines = entries.map((entry) =>
+    `  ${entry.label.padEnd(width)}  ${entry.summary}`.replace(/\s+$/, ''),
   );
   return `${title}:\n${lines.join('\n')}`;
 }
