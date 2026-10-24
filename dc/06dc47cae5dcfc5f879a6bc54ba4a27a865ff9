@@ -1,0 +1,18 @@
+docs/02_SPEC.md
+  h_1e9f70f2591550 111-112,114-118,148-151,155,186-187,190-191,318,518-519,556
+docs/03_DECISIONS.md
+  h_1e9f70f2591550 33-34,232,332-373
+docs/04_DASHBOARD.md
+  h_1e9f70f2591550 124-125,139-145,163-166
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dc06dc47cae5dcfc5f879a6bc54ba4a27a865ff9",
+  "prompts": {},
+  "humans": {
+    "h_1e9f70f2591550": {
+      "author": "Ajit Panigrahi <ajitzero@gmail.com>"
+    }
+  }
+}
