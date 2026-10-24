@@ -1,0 +1,110 @@
+AGENT.md
+  h_1e9f70f2591550 41,44-48
+docs/02_SPEC.md
+  h_1e9f70f2591550 86,152,161,303,575,663,731,733-734
+docs/03_DECISIONS.md
+  h_1e9f70f2591550 31-32,312-329
+src/cli-args.ts
+  h_1e9f70f2591550 1-39
+src/cli.ts
+  h_1e9f70f2591550 7,139-152,511,528,544-546,549-552
+src/commands/compact.ts
+  h_1e9f70f2591550 3,30,33
+src/commands/dashboard-add.ts
+  h_1e9f70f2591550 3,6,10-11,17,20,56,58,112,115,153,205-233,245,276,300,304,318,320,364,409-410
+src/commands/dashboard.ts
+  h_1e9f70f2591550 3-4,15-16,30,58,84
+src/commands/diff.ts
+  h_1e9f70f2591550 23-24,190
+src/commands/export.ts
+  h_1e9f70f2591550 3-4,7,22,97,102-105
+src/commands/fetch.ts
+  h_1e9f70f2591550 16,19-26,54,195,406,409,411,429,472-476,492-498,500-505,518-522,548,550,572-584,608-609,612,616-619,626-645,647-648,650,674,678-679,681,743-747,753-755,758
+src/commands/help.ts
+  h_1e9f70f2591550 6-11,15
+src/commands/runs.ts
+  h_1e9f70f2591550 3-10,17,21,23-24,57-61,63,66,69,71,99,104,119-123,126,128
+src/commands/track.ts
+  h_1e9f70f2591550 3,5-7,13,19-20,34,122,167,196,206,224,247,261,346,391,393,396,398
+src/commands/watch.ts
+  h_1e9f70f2591550 3,9-11,30,55,114,118-120,122-140,173,227,229,236,245-246,279,281
+src/config.ts
+  h_1e9f70f2591550 5,7-8,49,311,314,317,319,323,511,612-623,638
+src/dashboard/observations.ts
+  h_1e9f70f2591550 3,7,10,76,80,119-123,132-139,143-144,156,158-162,170-171,175,177-178,183-184,205-207,209-210,223,238,389
+src/dashboard/picker.ts
+  h_1e9f70f2591550 3,11-12,38-44,48-49
+src/dashboard/select.ts
+  h_1e9f70f2591550 4-5,72-73,79,81,91-94,102,108,120,204,213,241,243
+src/date.ts
+  h_1e9f70f2591550 1-22
+src/diff/followers.ts
+  h_1e9f70f2591550 3
+src/diff/repos.ts
+  h_1e9f70f2591550 3,5
+src/diff/resolve.ts
+  h_1e9f70f2591550 3,5-6,44,61,76,97,130,134
+src/errors.ts
+  h_1e9f70f2591550 18,42,129-137
+src/github/client.ts
+  h_1e9f70f2591550 3-4,95-107,113-115,144-147,175,194,199-209,211-216,218-219,221-231,234-240,243-249,252-254,256-258,260,262-281,283-294
+src/github/etag.ts
+  h_1e9f70f2591550 4
+src/github/rateLimit.ts
+  h_1e9f70f2591550 3-4
+src/github/repos-list.ts
+  h_1e9f70f2591550 4
+src/guards.ts
+  h_1e9f70f2591550 1-14
+src/metrics.ts
+  h_1e9f70f2591550 1-54
+src/refs.ts
+  h_1e9f70f2591550 1-40
+src/result.ts
+  h_1e9f70f2591550 1-22
+src/store/atomic.ts
+  h_1e9f70f2591550 7
+src/store/compact.ts
+  h_1e9f70f2591550 3,5,7,22,158-160,168-171,185,212,215,223,225,229-234
+src/store/history.ts
+  h_1e9f70f2591550 5-6,13,164-167,169,171,181-182,184-188,199,202-206,210-215,217-218,220,222,224-246,248,256,258
+src/store/lock.ts
+  h_1e9f70f2591550 7,91
+src/store/manifest.ts
+  h_1e9f70f2591550 5
+src/store/prune.ts
+  h_1e9f70f2591550 5,7,14,84
+src/store/runWriter.ts
+  h_1e9f70f2591550 6,98
+src/store/runs.ts
+  h_1e9f70f2591550 6-7,39,58-59,63-65,87,122-186,192-193
+src/subjects.ts
+  h_1e9f70f2591550 107-130
+test/integration/cli.test.ts
+  h_1e9f70f2591550 103-122
+test/integration/compact-export.test.ts
+  h_1e9f70f2591550 345-350
+test/integration/fetch-run.test.ts
+  h_1e9f70f2591550 340-426
+test/integration/json-purity.test.ts
+  h_1e9f70f2591550 102-106,109-111,275-276
+test/unit/config.test.ts
+  h_1e9f70f2591550 386-401
+test/unit/diff-resolve.test.ts
+  h_1e9f70f2591550 10
+test/unit/github-client.test.ts
+  h_1e9f70f2591550 180-229
+test/unit/history.test.ts
+  h_1e9f70f2591550 10,14-22,49,52,58,87,108,117-145,148
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a92beef3e43562f7d02a7a00dd72bef7530c5cf5",
+  "prompts": {},
+  "humans": {
+    "h_1e9f70f2591550": {
+      "author": "Ajit Panigrahi <ajitzero@gmail.com>"
+    }
+  }
+}
