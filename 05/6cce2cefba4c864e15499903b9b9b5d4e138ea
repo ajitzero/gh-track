@@ -1,0 +1,67 @@
+src/dashboard/interactive.ts
+  h_1e9f70f2591550 1-443
+src/dashboard/filter.ts
+  h_1e9f70f2591550 1-83
+test/unit/help.test.ts
+  h_1e9f70f2591550 38
+docs/02_SPEC.md
+  h_1e9f70f2591550 186,195-201,203,212
+  h_1e9f70f2591550 49,261-262,264-265
+src/commands/dashboard.ts
+  h_1e9f70f2591550 1,6,8,10,20,24,26,29-34,40-41,45-84,108-110,145-146,168,175-290
+src/help.ts
+  h_1e9f70f2591550 188,219
+  h_1e9f70f2591550 39,53,66,91,140,165,217,254
+src/dashboard/terminal.ts
+  h_1e9f70f2591550 1-131
+src/commands/dashboard-add.ts
+  h_1e9f70f2591550 323-324
+  h_1e9f70f2591550 15,221-228,312-322
+test/unit/dashboard-interactive.test.ts
+  h_1e9f70f2591550 1-335
+src/cli.ts
+  h_1e9f70f2591550 20,31,46,96,141,466,483-485,589
+AGENT.md
+  h_1e9f70f2591550 9
+test/integration/dashboard.test.ts
+  h_1e9f70f2591550 9-15,84-91,211,236-429,485,491,497,506,517,524
+  h_1e9f70f2591550 430-478
+docs/04_DASHBOARD.md
+  h_1e9f70f2591550 1,16,30,36,47-48,57-68,154-158,175,178,219
+test/unit/dashboard-render.test.ts
+  h_1e9f70f2591550 66,84-95
+docs/03_DECISIONS.md
+  h_1e9f70f2591550 37-38,388-409,419
+test/unit/dashboard-filter.test.ts
+  h_1e9f70f2591550 1-60
+src/types.ts
+  h_1e9f70f2591550 107-123,409,423-424,445-446
+src/output/color.ts
+  h_1e9f70f2591550 34
+src/dashboard/render.ts
+  h_1e9f70f2591550 52-58,64,69-77,154,160,162,165,189,196-200,214,221-222,225,227-239,267-273,283,294-299,305-309,315,318,328,335,339-343
+src/prompts/index.ts
+  h_1e9f70f2591550 5-8,10,45,47,57,80,93
+  h_1e9f70f2591550 9,64-66,90-92,135-138
+README.md
+  h_1e9f70f2591550 35,38-41
+src/subjects.ts
+  h_1e9f70f2591550 39-77,79,91-95,127-134
+test/integration/cli.test.ts
+  h_1e9f70f2591550 198-227
+test/integration/dashboard-add.test.ts
+  h_1e9f70f2591550 193-252
+test/unit/subjects.test.ts
+  h_1e9f70f2591550 55-112
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "056cce2cefba4c864e15499903b9b9b5d4e138ea",
+  "prompts": {},
+  "humans": {
+    "h_1e9f70f2591550": {
+      "author": "Ajit Panigrahi <ajitzero@gmail.com>"
+    }
+  }
+}
