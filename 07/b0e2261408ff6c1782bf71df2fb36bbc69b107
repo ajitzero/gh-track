@@ -1,0 +1,16 @@
+src/dashboard/render.ts
+  h_1e9f70f2591550 146-149,154
+test/unit/dashboard-render.test.ts
+  h_1e9f70f2591550 59-61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "07b0e2261408ff6c1782bf71df2fb36bbc69b107",
+  "prompts": {},
+  "humans": {
+    "h_1e9f70f2591550": {
+      "author": "Ajit Panigrahi <ajitzero@gmail.com>"
+    }
+  }
+}
