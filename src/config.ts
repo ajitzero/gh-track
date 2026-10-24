@@ -2,7 +2,7 @@
 
 import { readFile } from 'node:fs/promises';
 import { parse as parseToml } from 'smol-toml';
-import { isCalendarDay } from './date.js';
+import { isCalendarDay, isValidRelativeDay } from './date.js';
 import { configInvalid, configMissing, ioError } from './errors.js';
 import { errorMessage, hasOwn, isRecord } from './guards.js';
 import { isMetric, METRIC_ORDER, orderMetrics } from './metrics.js';
@@ -406,10 +406,12 @@ function parseRangeRef(raw: unknown, location: string, allowPrevious: boolean): 
     }
     return raw;
   }
-  if (isCalendarDay(raw) || isValidRunId(raw)) {
+  if (isCalendarDay(raw) || isValidRelativeDay(raw) || isValidRunId(raw)) {
     return raw;
   }
-  fail(`${location} must be latest, previous, a run id, or YYYY-MM-DD`);
+  fail(
+    `${location} must be latest, previous, a run id, YYYY-MM-DD, or a relative offset like -1y`,
+  );
 }
 
 function parseViewItems(

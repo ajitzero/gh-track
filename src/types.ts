@@ -244,6 +244,8 @@ export type RepoChange = 'changed' | 'added' | 'removed' | 'renamed';
 export interface DiffRefInfo {
   id: string;
   finishedAt: string | null;
+  /** UTC day the endpoint landed on; present on diff endpoints, absent on dashboard rows. */
+  day?: string | undefined;
 }
 
 /** One scalar field comparison. Numeric pairs also carry a delta. */
@@ -283,8 +285,8 @@ export interface UserDiffEntry {
 
 /** `diff --format json` document (§5.9). */
 export interface DiffResult {
-  from: DiffRefInfo;
-  to: DiffRefInfo;
+  from: DiffRefInfo & { day: string };
+  to: DiffRefInfo & { day: string };
   source: DiffSource;
   repos: RepoDiffEntry[];
   users: UserDiffEntry[];
@@ -404,6 +406,8 @@ export interface CommandContext {
   env: NodeJS.ProcessEnv;
   /** Aborted by SIGINT so long-running commands can stop gracefully. */
   signal?: AbortSignal | undefined;
+  /** Fixed instant for relative references; defaults to the current time when absent. */
+  now?: Date | undefined;
   /** Injectable HTTP implementation; tests pass a fake, production uses global fetch. */
   fetchImpl?: ((input: string, init?: RequestInit) => Promise<Response>) | undefined;
   /** Injectable delay used by retry backoff. */

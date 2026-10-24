@@ -137,7 +137,10 @@ function formatIdentities(
 }
 
 function renderDiff(result: DiffResult): string {
-  const lines = [`From ${result.from.id} to ${result.to.id} (source: ${result.source})`];
+  const lines = [
+    `From ${result.from.id} to ${result.to.id} (source: ${result.source})`,
+    `Range: ${result.from.day} to ${result.to.day} (UTC days)`,
+  ];
   if (result.source !== 'raw') {
     lines.push(
       'Compacted history has no repository ids or follower identities; fields are limited to stars, forks, and follower counts.',
@@ -194,6 +197,7 @@ export async function runDiff(context: CommandContext): Promise<CommandResult> {
   const range = await resolveDiffRange(context.paths.dataDir, {
     from: context.options.get('from'),
     to: context.options.get('to'),
+    now: context.now,
   });
   const source = diffSource(range.from, range.to);
 
@@ -222,8 +226,8 @@ export async function runDiff(context: CommandContext): Promise<CommandResult> {
   }
 
   const result: DiffResult = {
-    from: { id: range.from.id, finishedAt: range.from.finishedAt },
-    to: { id: range.to.id, finishedAt: range.to.finishedAt },
+    from: { id: range.from.id, finishedAt: range.from.finishedAt, day: range.from.day },
+    to: { id: range.to.id, finishedAt: range.to.finishedAt, day: range.to.day },
     source,
     repos: repos.filter((entry) => repoMatches(entry, filters)),
     users: users.filter((entry) => userMatches(entry, filters)),

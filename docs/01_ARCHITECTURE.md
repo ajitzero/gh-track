@@ -218,7 +218,7 @@ Retries use bounded exponential backoff with jitter for `5xx` and network errors
 
 ## Diff model
 
-`diff` compares two points in time, resolved from run IDs, UTC dates, or the keywords `latest` / `previous`. It reads raw runs when both sides are raw, and falls back to compacted history when either side is older than the retention window. The output declares which source was used.
+`diff` compares two points in time, resolved from run IDs, UTC dates, relative offsets (`-1w`, `-6m`, `-1y`), or the keywords `latest` / `previous`. It reads raw runs when both sides are raw, and falls back to compacted history when either side is older than the retention window. The output declares which source was used.
 
 - **Repositories** are matched by numeric `id`, falling back to `full_name` when an id is unavailable. A rename therefore produces one `renamed` entry, not an add plus a remove.
 - **Fields** are compared across all scalar values present in either payload. Numeric fields get a `delta`; booleans and strings get before/after values. Nulls are treated as values, not as missing.
@@ -230,7 +230,7 @@ Retries use bounded exponential backoff with jitter for `5xx` and network errors
 
 `dashboard` reads the same runs and history as `diff`, but builds an independent observation series per selected subject. Every complete raw run is an observation; a compacted history day is an observation only when no raw observation exists for that day. This lets subjects fetched at different times keep their own values and baselines.
 
-- `--to` is an upper bound per subject (`latest`, a UTC date, or a complete run id). `--from` defaults to the observation immediately before that subject's `to` observation.
+- `--to` is an upper bound per subject (`latest`, a UTC date, a relative offset, or a complete run id). `--from` defaults to the observation immediately before that subject's `to` observation; a day or offset older than the subject's data snaps to its oldest observation.
 - Metrics are fixed to the compacted set: stars and forks for repositories, followers for accounts. The dashboard never widens history.
 - A row reports `source: raw`, `compacted`, `mixed`, or `null` when no observation exists. Never-fetched selected subjects are shown with `—`, not hidden.
 - `compact` is a single table; `columns` groups repositories and accounts. Both carry a `SINCE` column because baselines differ per subject.

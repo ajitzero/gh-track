@@ -4,13 +4,14 @@ import { endOfDay } from '../date.js';
 import { UsageError, invalidRange, runNotFound } from '../errors.js';
 import { rawFollowerCounts, readRawFollowers } from '../diff/followers.js';
 import { readRawRepos, type RepoRecord } from '../diff/repos.js';
-import { classifyRangeRef, type RefKind } from '../refs.js';
+import { parseRef, type ParsedRef, type RefKind } from '../refs.js';
 import { readAllHistory } from '../store/history.js';
 import { listManifests } from '../store/runs.js';
 import { accountOf, parseSubject, repoOf, subjectKeyOf } from '../subjects.js';
 import type {
   DashboardObservation,
   DashboardRow,
+  DiffRefInfo,
   Manifest,
   Metric,
   SubjectType,
@@ -248,6 +249,7 @@ export interface ResolvedRefs {
   fromTime: string | null;
   toTime: string | null;
   fromPrevious: boolean;
+  fromKind: RefKind;
 }
 
 function runBound(id: string, manifests: ReadonlyMap<string, Manifest>): string {
@@ -261,19 +263,15 @@ function runBound(id: string, manifests: ReadonlyMap<string, Manifest>): string 
   return manifest.finishedAt ?? manifest.startedAt;
 }
 
-function refTime(
-  ref: string,
-  kind: RefKind,
-  manifests: ReadonlyMap<string, Manifest>,
-): string | null {
-  if (kind === 'latest') {
+function refTime(parsed: ParsedRef, manifests: ReadonlyMap<string, Manifest>): string | null {
+  if (parsed.kind === 'latest') {
     return null;
   }
-  if (kind === 'date') {
-    return endOfDay(ref);
+  if (parsed.kind === 'date' || parsed.kind === 'relative') {
+    return endOfDay(parsed.day ?? parsed.ref);
   }
-  if (kind === 'run') {
-    return runBound(ref, manifests);
+  if (parsed.kind === 'run') {
+    return runBound(parsed.ref, manifests);
   }
   throw new UsageError('A range reference cannot be "previous" here.');
 }
@@ -283,21 +281,25 @@ export function resolveRefs(
   manifests: ReadonlyMap<string, Manifest>,
   fromRef: string,
   toRef: string,
+  now?: Date,
 ): ResolvedRefs {
-  const fromKind = classifyRangeRef(fromRef, '--from');
-  const toKind = classifyRangeRef(toRef, '--to');
-  if (toKind === 'previous') {
-    throw new UsageError('--to cannot be "previous"; use latest, a run id, or YYYY-MM-DD.');
+  const instant = now ?? new Date();
+  const fromParsed = parseRef(fromRef, { label: '--from', now: instant });
+  const toParsed = parseRef(toRef, { label: '--to', now: instant });
+  if (toParsed.kind === 'previous') {
+    throw new UsageError(
+      '--to cannot be "previous"; use latest, a run id, YYYY-MM-DD, or a relative offset like -1y.',
+    );
   }
 
-  const toTime = refTime(toRef, toKind, manifests);
+  const toTime = refTime(toParsed, manifests);
   // `latest` as a baseline means "the same observation as `to`": values with no delta.
   const fromTime =
-    fromKind === 'previous'
+    fromParsed.kind === 'previous'
       ? null
-      : fromKind === 'latest'
+      : fromParsed.kind === 'latest'
         ? toTime
-        : refTime(fromRef, fromKind, manifests);
+        : refTime(fromParsed, manifests);
 
   if (fromTime !== null && toTime !== null && fromTime > toTime) {
     throw invalidRange({ from: fromRef, to: toRef });
@@ -308,7 +310,8 @@ export function resolveRefs(
     to: toRef,
     fromTime,
     toTime,
-    fromPrevious: fromKind === 'previous',
+    fromPrevious: fromParsed.kind === 'previous',
+    fromKind: fromParsed.kind,
   };
 }
 
@@ -350,10 +353,16 @@ export function resolveObservations(
     const index = observations.indexOf(to);
     return { from: index > 0 ? (observations[index - 1] ?? null) : null, to };
   }
-  return { from: lastAtOrBefore(observations, refs.fromTime), to };
+  let from = lastAtOrBefore(observations, refs.fromTime);
+  // A day/offset baseline older than the subject's data snaps forward to its
+  // oldest observation, matching `diff`. Run ids stay exact.
+  if (from === null && (refs.fromKind === 'date' || refs.fromKind === 'relative')) {
+    from = observations[0] ?? null;
+  }
+  return { from, to };
 }
 
-function refInfo(observation: DashboardObservation): { id: string; finishedAt: string | null } {
+function refInfo(observation: DashboardObservation): DiffRefInfo {
   return { id: observation.id, finishedAt: observation.finishedAt };
 }
 

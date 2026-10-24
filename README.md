@@ -22,6 +22,9 @@ gh-track fetch
 
 # See what changed since the previous complete run
 gh-track diff
+
+# Compare against a rolling window (offsets: d, w, m, y)
+gh-track diff --from -1y --to latest
 ```
 
 `fetch` also accepts explicit subjects without touching the config:
@@ -54,7 +57,7 @@ Use `--config <path>` and `--data-dir <path>` to override them.
 | `runs ls [--limit <n>]` | List stored runs |
 | `runs show <run-id>` | Show a run manifest |
 | `runs paths <run-id>` | Print a run directory |
-| `diff [--from <ref>] [--to <ref>]` | Compare two points in time |
+| `diff [--from <ref>] [--to <ref>]` | Compare two points in time (`-1y` offsets supported) |
 | `compact [--dry-run]` | Roll old runs into daily history |
 | `export [--format json\|jsonl\|csv]` | Export compacted history |
 | `dashboard [--view <name>]` | Show selected metrics and per-subject deltas |

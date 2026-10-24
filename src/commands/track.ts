@@ -27,11 +27,11 @@ import type {
   TrackListResult,
 } from '../types.js';
 
-function validateRefs(from: string | undefined, to: string | undefined): void {
+function validateRefs(from: string | undefined, to: string | undefined, now?: Date): void {
   if (from !== undefined) {
-    classifyRangeRef(from, '--from');
+    classifyRangeRef(from, '--from', now);
   }
-  rejectPreviousTo(to);
+  rejectPreviousTo(to, now);
 }
 
 function itemCell(item: SelectionItem): string {
@@ -261,7 +261,7 @@ async function saveView(
   const layoutFlag = parseOptionalLayout(context.options.get('layout'));
   const fromFlag = context.options.get('from');
   const toFlag = context.options.get('to');
-  validateRefs(fromFlag, toFlag);
+  validateRefs(fromFlag, toFlag, context.now);
 
   const itemValues = context.options.getAll('item');
   let items: SelectionItem[];

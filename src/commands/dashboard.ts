@@ -79,9 +79,9 @@ export async function runDashboard(context: CommandContext): Promise<CommandResu
   }
   const fromFlag = context.options.get('from');
   if (fromFlag !== undefined) {
-    classifyRangeRef(fromFlag, '--from');
+    classifyRangeRef(fromFlag, '--from', context.now);
   }
-  rejectPreviousTo(context.options.get('to'));
+  rejectPreviousTo(context.options.get('to'), context.now);
 
   const firstRun =
     view === undefined &&
@@ -120,7 +120,7 @@ export async function runDashboard(context: CommandContext): Promise<CommandResu
     context.paths.dataDir,
     observationSubjects(selection.items),
   );
-  const refs = resolveRefs(data.manifests, selection.from, selection.to);
+  const refs = resolveRefs(data.manifests, selection.from, selection.to, context.now);
   const rows = buildDashboardRows(data, selection.items, refs);
 
   const result: DashboardResult = {

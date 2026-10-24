@@ -305,6 +305,42 @@ metrics = ["followers"]
   assert.deepEqual(config.tracking, [{ subject: 'user:octocat', metrics: ['followers'] }]);
 });
 
+test('views accept relative range refs', () => {
+  const { config } = parseConfig(`schema_version = 1
+
+[[subjects]]
+type = "repo"
+repo = "a/b"
+
+[views."rolling"]
+from = "-6m"
+to = "latest"
+
+[[views."rolling".items]]
+subject = "repo:a/b"
+metrics = ["stars"]
+`);
+  assert.equal(config.views[0]?.from, '-6m');
+
+  assert.throws(
+    () =>
+      parseConfig(`schema_version = 1
+
+[[subjects]]
+type = "repo"
+repo = "a/b"
+
+[views."bad"]
+from = "-0d"
+
+[[views."bad".items]]
+subject = "repo:a/b"
+metrics = ["stars"]
+`),
+    /must be latest, previous, a run id, YYYY-MM-DD, or a relative offset/,
+  );
+});
+
 test('rejects tracking and views that reference unconfigured subjects', () => {
   assert.throws(
     () =>

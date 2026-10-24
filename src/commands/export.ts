@@ -1,7 +1,7 @@
 /** `gh-track export`: compacted history as JSON, JSONL, or CSV. */
 
 import { unexpectedArgument } from '../cli-args.js';
-import { isCalendarDay } from '../date.js';
+import { isCalendarDay, relativeDay } from '../date.js';
 import { noHistory, UsageError } from '../errors.js';
 import { readAllHistory } from '../store/history.js';
 import { subjectKey, subjectKeyOf } from '../subjects.js';
@@ -15,14 +15,22 @@ import type {
 
 const CSV_HEADER = 'date,kind,subject,stars,forks,followers';
 
-function parseDateOption(raw: string | undefined, flag: string): string | undefined {
+function parseDateOption(
+  raw: string | undefined,
+  flag: string,
+  now?: Date,
+): string | undefined {
   if (raw === undefined) {
     return undefined;
   }
-  if (!isCalendarDay(raw)) {
-    throw new UsageError(`${flag} is not a valid calendar date: ${raw}`);
+  if (isCalendarDay(raw)) {
+    return raw;
   }
-  return raw;
+  const day = relativeDay(raw, now);
+  if (day !== null) {
+    return day;
+  }
+  throw new UsageError(`${flag} is not a valid calendar date or relative offset: ${raw}`);
 }
 
 function toRows(
@@ -97,8 +105,9 @@ export async function runExport(context: CommandContext): Promise<CommandResult>
     throw unexpectedArgument(context.positionals[0], 'gh-track export');
   }
 
-  const from = parseDateOption(context.options.get('from'), '--from');
-  const to = parseDateOption(context.options.get('to'), '--to');
+  const now = context.now ?? new Date();
+  const from = parseDateOption(context.options.get('from'), '--from', now);
+  const to = parseDateOption(context.options.get('to'), '--to', now);
   if (from !== undefined && to !== undefined && from > to) {
     throw new UsageError('--from must not be later than --to.');
   }

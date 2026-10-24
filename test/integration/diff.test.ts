@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readdir, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
-import { run, type CliIO } from '../../src/cli.js';
+import { run, type CliIO, type RunOptions } from '../../src/cli.js';
 import { formatRunId } from '../../src/store/paths.js';
 import type { DiffResult } from '../../src/types.js';
 import { repoPayload, seedRun, type SeedRequest } from '../helpers/seed.js';
@@ -37,7 +37,10 @@ const inertPrompts = {
   confirmSelection: async () => null,
 };
 
-async function invoke(argv: readonly string[]): Promise<Capture> {
+async function invoke(
+  argv: readonly string[],
+  runOptions: RunOptions = {},
+): Promise<Capture> {
   let stdout = '';
   let stderr = '';
   const io: CliIO = {
@@ -56,7 +59,7 @@ async function invoke(argv: readonly string[]): Promise<Capture> {
     home: '/home/tester',
     prompts: inertPrompts,
   };
-  const code = await run(argv, io);
+  const code = await run(argv, io, runOptions);
   return { code, stdout, stderr };
 }
 
@@ -178,8 +181,8 @@ test('diff compares raw runs, names follower churn, and detects renames', async 
     await invoke(['diff', '--format', 'json', '--data-dir', dataDir]),
   );
 
-  assert.deepEqual(result.from, { id: A, finishedAt: '2026-08-01T10:00:00.000Z' });
-  assert.deepEqual(result.to, { id: B, finishedAt: '2026-08-02T10:00:00.000Z' });
+  assert.deepEqual(result.from, { id: A, finishedAt: '2026-08-01T10:00:00.000Z', day: '2026-08-01' });
+  assert.deepEqual(result.to, { id: B, finishedAt: '2026-08-02T10:00:00.000Z', day: '2026-08-02' });
   assert.equal(result.source, 'raw');
 
   assert.deepEqual(result.repos, [
@@ -336,8 +339,9 @@ test('mixed raw/compacted diffs use counts and suppress identities', async (t) =
   );
 
   assert.equal(result.source, 'mixed');
-  assert.deepEqual(result.from, { id: '2026-08-01', finishedAt: null });
+  assert.deepEqual(result.from, { id: '2026-08-01', finishedAt: null, day: '2026-08-01' });
   assert.equal(result.to.id, today);
+  assert.equal(result.to.day, today.slice(0, 10));
   assert.deepEqual(await tree(dataDir), before);
 
   const hello = result.repos.find((entry) => entry.repository === 'octocat/hello-world');
@@ -372,7 +376,7 @@ test('fully compacted diffs report source compacted and only stars/forks', async
     await invoke(['diff', '--from', '2026-08-01', '--to', '2026-08-02', '--format', 'json', '--data-dir', dataDir]),
   );
   assert.equal(result.source, 'compacted');
-  assert.deepEqual(result.from, { id: '2026-08-01', finishedAt: null });
+  assert.deepEqual(result.from, { id: '2026-08-01', finishedAt: null, day: '2026-08-01' });
 
   const hello = result.repos.find((entry) => entry.repository === 'octocat/hello-world');
   assert.deepEqual(hello?.fields, {
@@ -429,4 +433,49 @@ test('diff maps insufficient runs, invalid ranges, and bad refs to stable exits'
     (JSON.parse(sparse.stderr) as { error: { code: string } }).error.code,
     'not_enough_runs',
   );
+});
+
+test('relative refs are option values and the resolved range is always reported', async (t) => {
+  const { dataDir } = await workspace(t);
+  await seedOlder(dataDir);
+  await seedNewer(dataDir);
+  const now = new Date('2026-08-15T00:00:00.000Z');
+
+  const text = await invoke(['diff', '--from', '-1y', '--to', 'latest', '--data-dir', dataDir], {
+    now,
+  });
+  assert.equal(text.code, 0, text.stderr);
+  // -1y is before the data, so the start clamps to the oldest run.
+  assert.match(text.stdout, /From 2026-08-01T10-00-00Z to 2026-08-02T10-00-00Z/);
+  assert.match(text.stdout, /Range: 2026-08-01 to 2026-08-02 \(UTC days\)/);
+
+  const json = parseDiff(
+    await invoke(
+      ['diff', '--from', '-1y', '--to', 'latest', '--format', 'json', '--data-dir', dataDir],
+      { now },
+    ),
+  );
+  assert.equal(json.from.day, '2026-08-01');
+  assert.equal(json.to.day, '2026-08-02');
+
+  const inline = await invoke(
+    ['diff', '--from=-1y', '--format', 'json', '--data-dir', dataDir],
+    { now },
+  );
+  assert.equal(parseDiff(inline).from.day, '2026-08-01');
+});
+
+test('relative refs reject bad offsets and a --to older than the data', async (t) => {
+  const { dataDir } = await workspace(t);
+  await seedOlder(dataDir);
+  await seedNewer(dataDir);
+  const now = new Date('2026-08-15T00:00:00.000Z');
+
+  const badOffset = await invoke(['diff', '--from', '-1x', '--data-dir', dataDir], { now });
+  assert.equal(badOffset.code, 2);
+  assert.match(badOffset.stderr, /Invalid diff reference/);
+
+  const beforeData = await invoke(['diff', '--to', '-20y', '--data-dir', dataDir], { now });
+  assert.equal(beforeData.code, 2);
+  assert.match(beforeData.stderr, /before the oldest stored point \(2026-08-01\)/);
 });

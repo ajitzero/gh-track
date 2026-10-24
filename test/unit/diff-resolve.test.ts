@@ -7,7 +7,7 @@ import {
   loadDiffPoints,
   resolveDiffRange,
 } from '../../src/diff/resolve.js';
-import { classifyRef } from '../../src/refs.js';
+import { classifyRef, parseRef } from '../../src/refs.js';
 import { runCompaction } from '../../src/store/compact.js';
 import { seedRun } from '../helpers/seed.js';
 
@@ -23,13 +23,20 @@ async function seedComplete(dataDir: string, id: string): Promise<void> {
   await seedRun(dataDir, id, 'complete', []);
 }
 
-test('refs classify into the four documented forms', () => {
+test('refs classify into the documented forms', () => {
   assert.equal(classifyRef('latest'), 'latest');
   assert.equal(classifyRef('previous'), 'previous');
   assert.equal(classifyRef('2026-08-01'), 'date');
   assert.equal(classifyRef('2026-08-01T10-00-00Z'), 'run');
+  assert.equal(classifyRef('-1y'), 'relative');
+  assert.deepEqual(
+    parseRef('-6m', { label: 'diff', now: new Date('2026-10-24T00:00:00Z') }),
+    { kind: 'relative', ref: '-6m', day: '2026-04-24' },
+  );
   assert.throws(() => classifyRef('2026-02-30'), /Invalid diff reference/);
   assert.throws(() => classifyRef('yesterday'), /Invalid diff reference/);
+  assert.throws(() => classifyRef('-0d'), /Invalid diff reference/);
+  assert.throws(() => classifyRef('-1x'), /Invalid diff reference/);
 });
 
 test('points combine raw runs with compacted days and prefer surviving raw runs', async (t) => {
@@ -171,5 +178,55 @@ test('partial runs are rejected and missing runs are run_not_found', async (t) =
       assert.equal((error as { code?: string }).code, 'run_not_found');
       return true;
     },
+  );
+});
+
+test('relative refs resolve against the injected instant and snap to stored points', async (t) => {
+  const dataDir = await tempDir(t);
+  const oldest = '2025-01-10T10-00-00Z';
+  const middle = '2025-06-15T10-00-00Z';
+  const newest = '2026-09-01T10-00-00Z';
+  await seedComplete(dataDir, oldest);
+  await seedComplete(dataDir, middle);
+  await seedComplete(dataDir, newest);
+  const now = new Date('2026-10-24T10:00:00.000Z');
+
+  const yearAgo = await resolveDiffRange(dataDir, { from: '-1y', to: 'latest', now });
+  assert.equal(yearAgo.from.id, middle);
+  assert.equal(yearAgo.from.day, '2025-06-15');
+  assert.equal(yearAgo.to.id, newest);
+
+  const relativeTo = await resolveDiffRange(dataDir, {
+    from: '2025-02-01',
+    to: '-6m',
+    now,
+  });
+  assert.equal(relativeTo.from.id, oldest);
+  assert.equal(relativeTo.to.id, middle);
+});
+
+test('a start point older than the data clamps to the oldest point', async (t) => {
+  const dataDir = await tempDir(t);
+  const oldest = '2025-01-10T10-00-00Z';
+  await seedComplete(dataDir, oldest);
+  await seedComplete(dataDir, '2025-06-15T10-00-00Z');
+  const now = new Date('2026-10-24T10:00:00.000Z');
+
+  const viaOffset = await resolveDiffRange(dataDir, { from: '-20y', to: 'latest', now });
+  assert.equal(viaOffset.from.id, oldest);
+
+  const viaDate = await resolveDiffRange(dataDir, { from: '1990-01-01', to: 'latest' });
+  assert.equal(viaDate.from.id, oldest);
+});
+
+test('a --to bound older than the data is a usage error naming the oldest day', async (t) => {
+  const dataDir = await tempDir(t);
+  await seedComplete(dataDir, '2025-01-10T10-00-00Z');
+  await seedComplete(dataDir, '2025-06-15T10-00-00Z');
+  const now = new Date('2026-10-24T10:00:00.000Z');
+
+  await assert.rejects(
+    resolveDiffRange(dataDir, { to: '-20y', now }),
+    /before the oldest stored point \(2025-01-10\)/,
   );
 });

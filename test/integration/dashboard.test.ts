@@ -228,6 +228,18 @@ test('--from and --to bound each subject and mark compacted baselines', async (t
   assert.match(runBound.stdout, /\n\s+forks\s+3\s+\(\+1\)/);
 });
 
+test('a relative --from clamps to each subject’s oldest observation', async (t) => {
+  const w = await workspace(t);
+  await seedWorkspace(w.dataDir);
+
+  const result = await invoke(args(w, 'dashboard', '--from', '-100y'));
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /stars\s+120\s+\(\+40\)\s+2026-09-01~/);
+  assert.match(result.stdout, /\n\s+forks\s+4\s+\(\+2\)/);
+  assert.match(result.stdout, /\noctocat\s+followers\s+3\s+\(\+2\)\s+2026-09-01~/);
+  assert.match(result.stdout, /history\/only\s+stars\s+50~/);
+});
+
 test('--from latest produces zero deltas', async (t) => {
   const w = await workspace(t);
   await seedWorkspace(w.dataDir);
