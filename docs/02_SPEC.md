@@ -108,7 +108,14 @@ References:
 | `previous` | Most recent complete run before the resolved `--to` |
 | `<run-id>` | That run, which must be `complete` |
 | `YYYY-MM-DD` | Most recent complete run on or before that UTC day |
+| `-<n>d`, `-<n>w` | `<n>` days or weeks before the current UTC day |
+| `-<n>m`, `-<n>y` | `<n>` calendar months or years before the current UTC day, day-clamped |
 
+Relative offsets (`-1y`, `-6m`, `-2w`, `-30d`) are resolved once per invocation against the current UTC day, then treated exactly like `YYYY-MM-DD`. Units are `d`, `w`, `m`, and `y`; the amount must be a positive integer (`-0d` is invalid), only past offsets are accepted (`+1d` is invalid), and month/year shifts clamp the day (`2026-03-31 -1m` is `2026-02-28`).
+
+- A date or offset `--from` older than every stored point snaps forward to the oldest point.
+- A date or offset `--to` older than every stored point exits `2` with `usage`, naming the bound and the oldest stored day.
+- The text report always prints `Range: <from-day> to <to-day> (UTC days)`, and JSON endpoints carry `day`, so snapped or clamped references stay visible.
 - At least two complete runs are required; otherwise exit `1` with `not_enough_runs`.
 - `--from` must resolve to a time before `--to`; otherwise exit `2` with `invalid_range`.
 - Raw data is used when both sides are within retention. If either side must come from compacted history, the output reports `"source": "compacted"` (or `"mixed"`) and limits fields to `stars`, `forks`, and `followers`, with no follower identities.
@@ -138,13 +145,14 @@ gh-track compact [--keep-days <n>] [--dry-run]
 ```
 gh-track export [options]
 
-  --format <fmt>    json | jsonl | csv   (default: jsonl)
-  --subject <s>     Repeatable filter
-  --from <date>     Inclusive UTC start date (YYYY-MM-DD)
-  --to <date>       Inclusive UTC end date (YYYY-MM-DD)
+  --format <fmt>         json | jsonl | csv   (default: jsonl)
+  --subject <s>          Repeatable filter
+  --from <date|offset>   Inclusive UTC start day (YYYY-MM-DD or -1y)
+  --to <date|offset>     Inclusive UTC end day (YYYY-MM-DD or -1y)
 ```
 
 - Exports compacted history only. Raw runs are accessible via `runs paths`.
+- Relative offsets use the diff forms and resolve to a UTC day before the inclusive filter is applied.
 - `json` emits one object: `{"exportedAt":"...","rows":[...]}`.
 - `jsonl` emits one history row per line.
 - `csv` emits a header row: `date,kind,subject,stars,forks,followers`, where `kind` is `repo` or `user`, and unused cells are empty.
@@ -175,9 +183,12 @@ gh-track dashboard [options]
 ```
 
 - Metrics are fixed: `stars` and `forks` for repositories, `followers` for accounts.
-- References use the diff forms: `latest`, `previous`, a run id, or `YYYY-MM-DD`. `--to` cannot be `previous`.
+- References use the diff forms: `latest`, `previous`, a run id, `YYYY-MM-DD`, or a relative offset like `-1y`. `--to` cannot be `previous`.
+- A date or offset `--from` older than a subject's data snaps to that subject's oldest observation. A date or offset `--to` older than a subject's data leaves the row with `—`.
 - Each subject resolves its own observations. Raw runs win over compacted history for the same day.
 - A subject with no observations is included with `—`.
+- In the compact layout, a selected repository whose owner is also a selected account is nested under that account: the group sits at the earliest selection position of any member, the account renders first, and its repositories follow in selection order, indented two spaces with the `owner/` prefix removed. Owner matching is case-insensitive. Repositories without a selected owner keep their full name and position. The columns layout and `--format json` rows are unchanged.
+- In the compact layout, the `METRICS` count and delta fields are sized to the widest formatted value and delta in the list; there is no fixed minimum. The count field stays at least one character so `—` fits, the `~` marker slot is reserved only when a compacted value is present, and values widen rather than truncate. The columns layout and `--format json` are unaffected.
 - `--from previous` selects each row's observation immediately before its `to` observation.
 - `--from latest` uses the same observation as `to`, so deltas are zero.
 - A run-id reference must name a complete run on disk, matching `diff`.
@@ -304,7 +315,7 @@ Validation:
 | View `to` is `previous`, or a range value is not a valid reference | `config_invalid` |
 | Duplicate tracking/view item for one subject | Deduplicate metrics with a warning |
 
-Tracking keys are canonical subjects (`user:<login>` or `repo:<owner>/<name>`). A bare key is accepted and canonicalized. `[views.<name>]` stores a full snapshot: `items`, `layout` (`compact` or `columns`), `from`, and `to`; missing range fields default to `previous` and `latest`.
+Tracking keys are canonical subjects (`user:<login>` or `repo:<owner>/<name>`). A bare key is accepted and canonicalized. `[views.<name>]` stores a full snapshot: `items`, `layout` (`compact` or `columns`), `from`, and `to`; missing range fields default to `previous` and `latest`. Range values accept the diff forms, including relative offsets; an offset is stored literally and re-resolved at render time, so that view is a rolling window.
 
 A missing config file is allowed for `fetch <subject>`, `runs`, `help`, and `--version`. Commands that need the watchlist (`fetch` with no arguments, `watch ls`) exit `2` with `config_missing`.
 
@@ -504,8 +515,8 @@ Dry run:
 
 ```json
 {
-  "from": { "id": "2026-10-18T09-00-00Z", "finishedAt": "..." },
-  "to": { "id": "2026-10-19T21-30-05Z", "finishedAt": "..." },
+  "from": { "id": "2026-10-18T09-00-00Z", "finishedAt": "...", "day": "2026-10-18" },
+  "to": { "id": "2026-10-19T21-30-05Z", "finishedAt": "...", "day": "2026-10-19" },
   "source": "raw",
   "repos": [
     {
@@ -542,6 +553,7 @@ Dry run:
 ```
 
 - `source`: `raw` | `compacted` | `mixed`.
+- Each endpoint carries the resolved UTC `day` alongside `id` and `finishedAt`, so a relative or snapped reference is visible in the report.
 - `change`: `changed` | `added` | `removed` | `renamed`.
 - Under `compacted`/`mixed`, `fields` contains only `stargazers_count` and `forks_count`, and each `followers` object carries `"added": null`, `"removed": null`, `"identitiesAvailable": false`.
 - Field names mirror the GitHub payload (`stargazers_count`), not human aliases. Tables may render friendlier labels.

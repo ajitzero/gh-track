@@ -30,6 +30,8 @@ Decisions made during the initial design interview on 2026-10-19. Each entry rec
 | D024 | Flat docs and harness-owned plans |
 | D025 | `dashboard add`: composite setup and repository browsing |
 | D026 | Review hardening: shared helpers, origin checks, JSON warnings |
+| D027 | Compact dashboard hierarchy for tracked owners |
+| D028 | Compact metric widths track actual values |
 
 ## D001 — Local files only
 
@@ -227,7 +229,7 @@ Decisions made during the initial design interview on 2026-10-19. Each entry rec
 
 **Decision.**
 
-1. **Comparable points.** Every complete raw run is a point. A day with compacted history is also a point, unless a complete raw run for that day still exists; raw data always wins because it carries ids and follower identities. Points are ordered by UTC day and then run id. `latest` is the last point, `previous` is the point immediately before the resolved `--to`, and `YYYY-MM-DD` is the last point on or before that day. At least two points are required.
+1. **Comparable points.** Every complete raw run is a point. A day with compacted history is also a point, unless a complete raw run for that day still exists; raw data always wins because it carries ids and follower identities. Points are ordered by UTC day and then run id. `latest` is the last point, `previous` is the point immediately before the resolved `--to`, and a day or relative offset (`-1y`) is the last point on or before that day. A start bound older than every point snaps forward to the oldest point. At least two points are required.
 2. **Run ids must still exist.** A run-id reference resolves only to a complete raw run on disk. A pruned run id yields `run_not_found` rather than silently substituting the day's history, because history stores only the day's chosen complete run. Date and keyword references may resolve to compacted days.
 3. **Compacted endpoints.** A compacted point reports the UTC date as `id` and `null` as `finishedAt`; the exact finish time was not retained. `source` is `raw` when both points are raw, `compacted` when both are compacted, and `mixed` otherwise.
 4. **Field limits.** Under `compacted` and `mixed`, repository fields are restricted to `stargazers_count` and `forks_count`, and follower results use counts with `added: null`, `removed: null`, and `identitiesAvailable: false`. Any change touching history therefore loses ids, renames, other scalar fields, and follower identities.
@@ -326,6 +328,48 @@ Decisions made during the initial design interview on 2026-10-19. Each entry rec
 **Rejected.** Keeping per-command error strings (they drifted); suppressing JSON-mode warnings to satisfy D022 literally (hides dashboard state changes from the operator and contradicts spec §6); `redirect: 'error'` on fetch (GitHub's renamed-repository endpoints rely on same-origin redirects); a new origin-filtering layer in `fetch` (the client owns headers and URLs, so it must own the origin check).
 
 **Consequence.** One copy of each cross-cutting rule, with fewer places to drift. JSON consumers still get exactly one document on stdout, while stderr may carry warnings; D022's stricter wording is superseded by this entry.
+
+## D027 — Compact dashboard hierarchy for tracked owners
+
+**Context.** When an account and its repositories are both tracked, the compact dashboard rendered them as unrelated rows: repositories showed `owner/name` and the account could sit at the bottom of the selection. The repeated owner and the distance between an account and its projects made the listing harder to scan.
+
+**Decision.**
+
+1. **Display-only grouping.** Nesting is computed from the rendered rows and never changes `[tracking]`, views, observation resolution, or JSON. JSON rows keep selection order and full `subject` values.
+2. **Compact layout only.** `columns` deliberately keeps its Repositories and Accounts sections with full names. A repository cannot sit directly under its account without merging the sections and the differing metric columns, which is a larger change to the documented layout.
+3. **Group at the earliest member.** A group is anchored at the minimum selection index of its account or any of its repositories, so a repository listed before its account pulls the account up rather than moving itself down. Repositories with untracked owners keep their place.
+4. **Two-space indentation and no repeated owner.** Nested repositories drop the `owner/` prefix and are indented two spaces in the `NAME` cell. Owner matching is case-insensitive; display casing is preserved for the repository name.
+5. **Only selected accounts group repositories.** A configured but unselected account has no effect, so `--subject` and saved views remain predictable.
+
+**Rejected.** Merging columns into one table (a larger layout change than this refinement needs); rows nested on the JSON shape (couples presentation to the machine contract); moving all groups to the top (moves unrelated repositories for no user-visible gain); repeating the account on every nested row (the indentation is the hierarchy).
+
+**Consequence.** The default dashboard reads top-down as account then projects. No storage or config migration is needed, and consumers of `--format json` see no change.
+
+## D028 — Compact metric widths track actual values
+
+**Context.** The compact layout reserved at least five characters for counts and for deltas including parentheses. That kept alignment stable but left visible dead space whenever every tracked value was small, because the five-character floor was larger than the widest number actually rendered. D023 §4 documented that floor.
+
+**Decision.** The compact `METRICS` count and delta fields are exactly as wide as the widest formatted value and delta in the rendered list. There is no fixed minimum. The count field starts at one character so the `—` of a never-fetched subject still fits, and the delta field collapses to zero when every baseline is missing. The compacted-marker slot is reserved only when the list actually contains a compacted value; a raw-only list does not pay for a blank `~` slot. Labels stay variable-width, and the whole `METRICS` cell stays right-aligned, so the numeric fields remain aligned across rows.
+
+**Rejected.** Keeping the five-character floor for counts (the reported problem); shrinking only counts and leaving deltas padded (deltas are the other number field and suffer the same dead space); per-metric widths (the numeric fields would stop aligning across metric lines); a fixed label width (changes the documented variable-label layout for no gain).
+
+**Consequence.** Narrow dashboards lose the artificial padding, while wide values still widen their fields rather than truncating. This amends D023 §4's "at least five characters" wording; D023 is otherwise unchanged.
+
+## D029 — Relative date refs for `--from` / `--to`
+
+**Context.** Ranges had to be written with absolute days or run ids, so "the last year" needed a hand-computed date, and on a fresh dataset `--from <one year ago>` failed because no point existed on or before the bound.
+
+**Decision.**
+
+1. **One offset syntax, shared everywhere.** `--from` and `--to` (diff, dashboard, `track view save`, export) accept `-<n><unit>` with units `d`, `w`, `m`, and `y`. Offsets resolve once per invocation against the current UTC day and then reuse the existing `YYYY-MM-DD` rules, so every consumer shares one parser and one set of semantics. Amounts are positive integers and only past offsets are accepted.
+2. **Calendar arithmetic.** Days and weeks shift whole days; months and years are calendar-based and clamp the day, so `2026-03-31 -1m` is `2026-02-28` and `2024-02-29 -1y` is `2023-02-28`.
+3. **Nearest stored point.** A date-like `--from` older than the data snaps forward to the oldest point (diff) or the oldest observation of that subject (dashboard). A date-like `--to` older than the data exits `2` with `usage` in diff, naming the bound and the oldest day; in dashboard the row has no `to` observation and renders `—`. Run ids stay exact and never snap.
+4. **Parser seam.** The CLI accepts a leading `-` as an option value only for `--from`/`--to`, using a loose shape; strict validation stays in the ref parser so `-1x` and `-0d` produce an invalid-reference error rather than "requires a value".
+5. **Resolved range is visible.** The diff text report always prints `Range: <from-day> to <to-day> (UTC days)`, and JSON endpoints carry `day`. Saved views store the literal offset, so a `-1y` view is a rolling window.
+
+**Rejected.** Offsets only, with no absolute dates (breaks existing scripts); resolving offsets to exact timestamps (points are day-granular; it would add false precision); clamping `--to` upward to the newest point (a window entirely before the data would silently dump everything); storing resolved days in `[views]` (a saved `-1y` is meant to roll); future offsets (`+1d`), because there is no future data; hour units, because points are days.
+
+**Consequence.** `--from -1y --to latest` works on a fresh dataset, and every report shows the days actually compared. This extends D021 §1 and D023's range rules without changing keyword or run-id behavior.
 
 ## Plan history
 

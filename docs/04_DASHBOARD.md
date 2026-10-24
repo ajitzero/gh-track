@@ -121,8 +121,8 @@ For each selected subject:
 
 Resolution:
 
-- `--to` (default `latest`) is an upper bound per subject: `latest` is unbounded, `YYYY-MM-DD` is end of day, a run id is that run's finish time.
-- `--from` (default `previous`) selects the observation immediately before the row's chosen `to`. Explicit date or run-id refs are upper bounds. `--from latest` uses the same observation as `to`, so deltas are zero.
+- `--to` (default `latest`) is an upper bound per subject: `latest` is unbounded, a day or offset is end of day, a run id is that run's finish time.
+- `--from` (default `previous`) selects the observation immediately before the row's chosen `to`. Explicit day, offset, or run-id refs are upper bounds; a day or offset older than the subject's data snaps to its oldest observation. `--from latest` uses the same observation as `to`, so deltas are zero.
 - `delta = to − from`. A row without a baseline omits the delta and renders `—` in `SINCE`.
 - Row `source` is `raw`, `compacted`, `mixed`, or `null` when the row has no `to` observation (never fetched or outside the range).
 - Repository observations require both stars and forks; incomplete payloads are skipped.
@@ -136,13 +136,13 @@ Default `compact`:
 ```
 gh-track dashboard — my-repos (from 2026-09-01 to latest)
 
-NAME                 METRICS                 SINCE
-octocat/hello-world      stars   132  (+12)  2026-10-17
-                         forks     4   (+1)
-octocat/spoon-knife      stars    48   (−2)  2026-10-17
-                         forks     1    (0)
-never/fetched                      —         —
-octocat              followers 1,204~  (+9)  2026-09-01
+NAME           METRICS                 SINCE
+octocat        followers 1,204~  (+9)  2026-09-01
+  hello-world      stars   132  (+12)  2026-10-17
+                   forks     4   (+1)
+  spoon-knife      stars    48   (−2)  2026-10-17
+                   forks     1    (0)
+never/fetched                —         —
 
 ~ compacted history
 ```
@@ -160,8 +160,10 @@ octocat  1,204~ (+9)  2026-09-01
 ```
 
 - The compact layout gives each selected metric its own line. `NAME` and `SINCE` appear only on the first line; continuation lines leave both cells blank.
-- Compact metric values are right-aligned within the `METRICS` column; the header stays at the column's left edge. Labels (`stars`, `forks`, `followers`) take the variable width, counts reserve at least five characters, and deltas reserve at least five including parentheses. Values widen their fields instead of truncating.
-- The compacted `~` marker has its own one-character slot after the count, so compacted and raw values keep the same count and delta alignment.
+- In `compact`, a repository whose owner is also a selected account is nested under that account. The group sits at the earliest selection position of any member; the account renders first, then its repositories in selection order, each indented two spaces with the `owner/` prefix removed. Owner matching is case-insensitive. Repositories without a selected owner keep their full name and their place in the selection.
+- `columns` keeps its separate Repositories and Accounts sections and always renders full names, since a repository there cannot sit directly under its account. JSON rows keep selection order and full `subject` values in both layouts.
+- Compact metric values are right-aligned within the `METRICS` column; the header stays at the column's left edge. Labels (`stars`, `forks`, `followers`) take the variable width, while the count and delta fields are exactly as wide as the largest formatted value or delta in the list. The count field is at least one character so `—` still fits, and the delta field collapses to zero when no row has a baseline. Values widen their fields instead of truncating.
+- When any displayed value is compacted, the `~` marker has its own one-character slot after the count, so compacted and raw values keep the same count and delta alignment. A list with no compacted values does not reserve the slot.
 - A value without a baseline leaves the delta slot blank; a subject with no observation at all renders one `—` in the metrics block and `—` in `SINCE`.
 - Repository names and section headers are bold light blue (`1` + `94`); accounts are bold purple (`1` + `95`). Names are not prefixed with `@` in either layout; color carries the kind.
 - Values are bold. `(+n)` is green, `(−n)` is red, `(0)` is dim.
