@@ -6,7 +6,7 @@ test('root help lists commands and global options', () => {
   const text = renderHelp([]);
   assert.ok(text !== null);
   assert.match(text, /^gh-track — track GitHub metadata/);
-  assert.match(text, /Usage:\n  gh-track <command> \[options\]/);
+  assert.match(text, /Usage:\n  gh-track \[command\] \[options\]/);
   assert.match(text, /Commands:/);
   assert.match(text, /Global options:/);
   assert.match(text, /fetch {2,}/);

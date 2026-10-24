@@ -206,6 +206,20 @@ test('compact dashboard resolves each subject independently', async (t) => {
   assert.doesNotMatch(result.stdout, /999/);
 });
 
+test('bare invocation renders the dashboard with dashboard options', async (t) => {
+  const w = await workspace(t);
+  await seedWorkspace(w.dataDir);
+
+  const bare = await invoke(args(w));
+  const explicit = await invoke(args(w, 'dashboard'));
+  assert.equal(bare.code, 0, bare.stderr);
+  assert.equal(bare.stdout, explicit.stdout);
+
+  const withOptions = await invoke(args(w, '--view', 'my-repos'));
+  assert.equal(withOptions.code, 0, withOptions.stderr);
+  assert.match(withOptions.stdout, /gh-track dashboard — my-repos/);
+});
+
 test('--from and --to bound each subject and mark compacted baselines', async (t) => {
   const w = await workspace(t);
   await seedWorkspace(w.dataDir);

@@ -207,8 +207,8 @@ const DASHBOARD_ADD: HelpNode = {
 
 const DASHBOARD: HelpNode = {
   name: 'dashboard',
-  summary: 'show selected metrics and per-subject deltas',
-  usage: ['gh-track dashboard [options]'],
+  summary: 'show selected metrics and per-subject deltas (default command)',
+  usage: ['gh-track dashboard [options]', 'gh-track [options]'],
   options: [
     { flags: '--view <name>', summary: 'Render a saved view' },
     { flags: '--from <ref>', summary: 'Baseline: previous observation, run id, day, or -1y' },
@@ -217,6 +217,7 @@ const DASHBOARD: HelpNode = {
     { flags: '--layout <fmt>', summary: 'compact (default) or columns' },
   ],
   examples: [
+    'gh-track',
     'gh-track dashboard',
     'gh-track dashboard add',
     'gh-track dashboard --view my-repos',
@@ -306,7 +307,7 @@ const HELP: HelpNode = {
 export const ROOT: HelpNode = {
   name: 'gh-track',
   summary: 'track GitHub metadata with an offline history',
-  usage: ['gh-track <command> [options]'],
+  usage: ['gh-track [command] [options]'],
   children: [FETCH, WATCH, RUNS, DIFF, COMPACT, EXPORT, DASHBOARD, TRACK, HELP],
 };
 

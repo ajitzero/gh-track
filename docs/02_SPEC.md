@@ -3,8 +3,10 @@ Binding contract for the CLI. If implementation and this document disagree, eith
 ## 1. Invocation
 
 ```
-gh-track <command> [subcommand] [arguments] [options]
+gh-track [command] [subcommand] [arguments] [options]
 ```
+
+With no command, `gh-track` runs `dashboard`. Dashboard options are valid without naming the command, so `gh-track --view my-repos` and `gh-track dashboard --view my-repos` are equivalent. `--help` still prints root help.
 
 Global options may appear before or after the command. Command options win over global defaults when both describe the same setting.
 
@@ -174,6 +176,7 @@ Render the selected subjects and metrics as a read-only value view. Never writes
 
 ```
 gh-track dashboard [options]
+gh-track [options]
 
   --view <name>            Render a saved view
   --from <ref>             Baseline bound (default: previous observation)
@@ -182,6 +185,7 @@ gh-track dashboard [options]
   --layout <fmt>           compact (default) or columns
 ```
 
+- `dashboard` is the default command: a bare `gh-track` is equivalent to `gh-track dashboard`.
 - Metrics are fixed: `stars` and `forks` for repositories, `followers` for accounts.
 - References use the diff forms: `latest`, `previous`, a run id, `YYYY-MM-DD`, or a relative offset like `-1y`. `--to` cannot be `previous`.
 - A date or offset `--from` older than a subject's data snaps to that subject's oldest observation. A date or offset `--to` older than a subject's data leaves the row with `—`.
@@ -317,7 +321,7 @@ Validation:
 
 Tracking keys are canonical subjects (`user:<login>` or `repo:<owner>/<name>`). A bare key is accepted and canonicalized. `[views.<name>]` stores a full snapshot: `items`, `layout` (`compact` or `columns`), `from`, and `to`; missing range fields default to `previous` and `latest`. Range values accept the diff forms, including relative offsets; an offset is stored literally and re-resolved at render time, so that view is a rolling window.
 
-A missing config file is allowed for `fetch <subject>`, `runs`, `help`, and `--version`. Commands that need the watchlist (`fetch` with no arguments, `watch ls`) exit `2` with `config_missing`.
+A missing config file is allowed for `fetch <subject>`, `runs`, `help`, and `--version`. Commands that need the watchlist (`fetch` with no arguments, `watch ls`, and `dashboard`, including a bare `gh-track`) exit `2` with `config_missing`.
 
 `watch add` creates the file and parent directories if needed. Writes go to a temp file in the same directory and are renamed. Comments may not survive a rewrite; that is acceptable.
 
@@ -710,6 +714,7 @@ A single registry drives every page. Each command node carries: `name`, `summary
 Rules:
 
 - `gh-track --help` lists commands with one-line summaries and global options.
+- A bare `gh-track` renders the dashboard instead of help.
 - `gh-track <command> --help` shows usage, options, and subcommands if any.
 - `gh-track <command> <subcommand> --help` shows the leaf page.
 - An `Examples` section renders only when at least one example exists. No placeholder text.

@@ -141,6 +141,9 @@ const COMMAND_OPTIONS: Readonly<Record<string, ReadonlySet<string>>> = {
 
 const KNOWN_COMMANDS = new Set(Object.keys(COMMAND_OPTIONS));
 
+/** Command used when the invocation names none. */
+const DEFAULT_COMMAND = 'dashboard';
+
 type CommandRunner = (context: CommandContext) => Promise<CommandResult>;
 
 /** Single dispatch table; `help` is handled before the table is consulted. */
@@ -531,29 +534,25 @@ export async function run(
 
     const parsed = parseArgv(argv);
     const options = new ParsedOptionBag(parsed.options);
-    const command = parsed.positionals[0];
-    const rest = parsed.positionals.slice(1);
+    const requestedCommand = parsed.positionals[0];
+    const command = requestedCommand ?? DEFAULT_COMMAND;
+    const rest = requestedCommand === undefined ? [] : parsed.positionals.slice(1);
 
-    if (command !== undefined && !KNOWN_COMMANDS.has(command)) {
-      throw unknownCommandError([command]);
+    if (requestedCommand !== undefined && !KNOWN_COMMANDS.has(requestedCommand)) {
+      throw unknownCommandError([requestedCommand]);
     }
 
     validateOptions(command, options);
     format = resolveFormat(command, options.get('format'));
-
-    if (command === undefined) {
-      io.stdout(renderHelp([]) ?? '');
-      return 0;
-    }
 
     if (command === 'help') {
       io.stdout(renderHelpCommand(rest));
       return 0;
     }
 
-    const runner = command === undefined ? undefined : COMMAND_RUNNERS[command];
+    const runner = COMMAND_RUNNERS[command];
     if (runner === undefined) {
-      throw new CliError('internal', `Unhandled command: ${command ?? ''}`);
+      throw new CliError('internal', `Unhandled command: ${command}`);
     }
 
     const context = buildContext(io, options, rest, format, runOptions);

@@ -33,6 +33,7 @@ Recorded as [D023](03_DECISIONS.md).
 ```
 gh-track dashboard [--view <name>] [--from <ref>] [--to <ref>]
                    [--subject <s>]... [--layout compact|columns]
+gh-track [same dashboard options]          # dashboard is the default command
 gh-track dashboard add [user <login> | repo <owner/name> | repo <owner> | <subject>]
 gh-track track edit
 gh-track track set --item <subject>=<metrics>...

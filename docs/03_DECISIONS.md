@@ -32,6 +32,8 @@ Decisions made during the initial design interview on 2026-10-19. Each entry rec
 | D026 | Review hardening: shared helpers, origin checks, JSON warnings |
 | D027 | Compact dashboard hierarchy for tracked owners |
 | D028 | Compact metric widths track actual values |
+| D029 | Relative date refs for `--from` / `--to` |
+| D030 | Dashboard is the default command |
 
 ## D001 — Local files only
 
@@ -370,6 +372,16 @@ Decisions made during the initial design interview on 2026-10-19. Each entry rec
 **Rejected.** Offsets only, with no absolute dates (breaks existing scripts); resolving offsets to exact timestamps (points are day-granular; it would add false precision); clamping `--to` upward to the newest point (a window entirely before the data would silently dump everything); storing resolved days in `[views]` (a saved `-1y` is meant to roll); future offsets (`+1d`), because there is no future data; hour units, because points are days.
 
 **Consequence.** `--from -1y --to latest` works on a fresh dataset, and every report shows the days actually compared. This extends D021 §1 and D023's range rules without changing keyword or run-id behavior.
+
+## D030 — Dashboard is the default command
+
+**Context.** A bare `gh-track` printed root help, so the most common invocation showed a command list instead of the dashboard. The dashboard is the tool's read-only summary surface and reads the same config the other commands already use.
+
+**Decision.** When no command is named, the CLI dispatches `dashboard`. Dashboard options are valid without naming the command, so `gh-track --view my-repos` is equivalent to `gh-track dashboard --view my-repos`. `--help` and `--version` keep their precedence, and `gh-track help` still shows the root page.
+
+**Rejected.** A bare invocation that prints help (the status quo); making `fetch` the default (it spends API quota and writes data, which is unsafe for an unadorned command); rewriting `argv` to insert the command name (hidden arity and a second parse); allowing bare `add` or other positional shorthands (ambiguous with future commands and beyond the scope of a default command).
+
+**Consequence.** The common path is one word shorter, while scripted calls can keep naming `dashboard` explicitly. An unconfigured install now exits `2` with `config_missing` instead of printing help, matching every other command that needs the watchlist.
 
 ## Plan history
 

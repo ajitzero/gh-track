@@ -60,7 +60,7 @@ Use `--config <path>` and `--data-dir <path>` to override them.
 | `diff [--from <ref>] [--to <ref>]` | Compare two points in time (`-1y` offsets supported) |
 | `compact [--dry-run]` | Roll old runs into daily history |
 | `export [--format json\|jsonl\|csv]` | Export compacted history |
-| `dashboard [--view <name>]` | Show selected metrics and per-subject deltas |
+| `dashboard [--view <name>]` | Show selected metrics and per-subject deltas (default command) |
 | `dashboard add [user <login> \| repo <owner/name> \| repo <owner>]` | Add and watch subjects; an owner browses their public repositories |
 | `track edit` | Pick subjects and metrics interactively |
 | `track set --item <subject>=<metrics>` | Set a subject's dashboard metrics |
@@ -69,13 +69,16 @@ Use `--config <path>` and `--data-dir <path>` to override them.
 | `track view save <name>` | Save a named dashboard snapshot |
 | `track view rm <name>` | Remove a saved dashboard snapshot |
 
-Run `gh-track help` or `gh-track <command> --help` for the full option reference.
+Run `gh-track` with no command to render the dashboard, or `gh-track help` / `gh-track <command> --help` for the full option reference.
 
 ## Dashboard
 
 `dashboard` is a read-only value view over the same data as `diff`. Metrics are fixed: stars and forks for repositories, followers for accounts. Each row compares against that subject's own previous observation, so subjects fetched at different times keep their values.
 
 ```bash
+# The dashboard is the default command
+gh-track
+
 # Add and watch subjects interactively (user or repository)
 gh-track dashboard add
 
