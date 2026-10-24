@@ -56,6 +56,9 @@ test('compact rendering uses blue repos, purple accounts, and delta colors', () 
   assert.match(text, /\u001b\[2m\(0\)/);
   assert.match(text, /1,204\u001b\[0m\u001b\[2m~/);
   assert.match(text, /\u001b\[2m~ compacted history/);
+  assert.match(text, /\u001b\[2mstars /);
+  assert.match(text, /\u001b\[2mforks /);
+  assert.match(text, /\u001b\[2mfollowers /);
   assert.match(plain, /never\/fetched\s+—/);
   assert.doesNotMatch(plain, /@octocat/);
   assert.doesNotMatch(plain, /octocat\/hello-world/);

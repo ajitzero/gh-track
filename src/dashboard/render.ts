@@ -143,12 +143,15 @@ function metricLineCell(
   widths: CompactWidths,
 ): TableCell {
   if (value.value === null) {
-    return richCell([{ text: `${label} ` }, ...nullMetricSegments(colors, widths)]);
+    return richCell([
+      { text: `${label} `, paint: colors.dim },
+      ...nullMetricSegments(colors, widths),
+    ]);
   }
 
   const count = formatCount(value.value);
   const segments: CellSegment[] = [
-    { text: `${label} ` },
+    { text: `${label} `, paint: colors.dim },
     { text: ' '.repeat(widths.count - count.length) },
     { text: count, paint: colors.bold },
   ];
