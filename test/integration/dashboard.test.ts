@@ -194,12 +194,14 @@ test('compact dashboard resolves each subject independently', async (t) => {
   assert.equal(result.code, 0, result.stderr);
   assert.equal(result.stderr, '');
 
-  assert.match(result.stdout, /octocat\/hello-world\s+stars\s+120\s+\(\+20\)/);
+  assert.match(result.stdout, /\n  hello-world\s+stars\s+120\s+\(\+20\)/);
   assert.match(result.stdout, /\n\s+forks\s+4\s+\(\+1\)/);
   assert.match(result.stdout, /history\/only\s+stars\s+50~/);
   assert.match(result.stdout, /never\/fetched\s+—\s+—/);
   assert.match(result.stdout, /\noctocat\s+followers\s+3\s+\(\+1\)/);
+  assert.doesNotMatch(result.stdout, /octocat\/hello-world/);
   assert.doesNotMatch(result.stdout, /@octocat/);
+  assert.ok(result.stdout.indexOf('\noctocat') < result.stdout.indexOf('hello-world'));
   assert.match(result.stdout, /~ compacted history/);
   assert.doesNotMatch(result.stdout, /999/);
 });
@@ -217,7 +219,7 @@ test('--from and --to bound each subject and mark compacted baselines', async (t
 
   const early = await invoke(args(w, 'dashboard', '--to', '2026-09-15'));
   assert.equal(early.code, 0, early.stderr);
-  assert.match(early.stdout, /octocat\/hello-world\s+stars\s+80~\s+—/);
+  assert.match(early.stdout, /\n  hello-world\s+stars\s+80~\s+—/);
   assert.match(early.stdout, /\n\s+forks\s+2~/);
   assert.match(early.stdout, /history\/only\s+stars\s+50~/);
   assert.match(early.stdout, /\noctocat\s+followers\s+1~/);
@@ -309,6 +311,15 @@ test('dashboard JSON is one document with per-row sources', async (t) => {
   assert.equal(result.view, undefined);
   assert.deepEqual(result.range, { from: 'previous', to: 'latest' });
   assert.equal(result.rows.length, 4);
+  assert.deepEqual(
+    result.rows.map((row) => row.subject),
+    [
+      'repo:octocat/hello-world',
+      'repo:history/only',
+      'repo:never/fetched',
+      'user:octocat',
+    ],
+  );
 
   const bySubject = new Map(result.rows.map((row) => [row.subject, row]));
   assert.equal(bySubject.get('repo:octocat/hello-world')?.source, 'raw');

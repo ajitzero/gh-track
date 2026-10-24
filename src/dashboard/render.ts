@@ -1,6 +1,7 @@
 /** Dashboard table rendering for the compact and columns layouts. */
 
 import { renderTable, richCell, type CellSegment, type TableCell } from '../output/table.js';
+import { groupDashboardRows } from './group.js';
 import type {
   Colors,
   DashboardLayout,
@@ -48,11 +49,16 @@ function displayName(row: DashboardRow): string {
   return row.subject.slice(row.subject.indexOf(':') + 1);
 }
 
-function nameCell(row: DashboardRow, colors: Colors): TableCell {
+function nameCell(
+  row: DashboardRow,
+  colors: Colors,
+  label: string = displayName(row),
+  nested = false,
+): TableCell {
   const paint = row.kind === 'repo'
     ? (text: string) => colors.bold(colors.blue(text))
     : (text: string) => colors.bold(colors.magenta(text));
-  return richCell([{ text: displayName(row), paint }]);
+  return richCell([{ text: nested ? `  ${label}` : label, paint }]);
 }
 
 function hasMetric(row: DashboardRow, metric: Metric): boolean {
@@ -171,7 +177,8 @@ function compactRows(result: DashboardResult, colors: Colors): TableCell[][] {
   const widths = compactWidths(result.rows);
   const rows: TableCell[][] = [];
 
-  for (const row of result.rows) {
+  for (const display of groupDashboardRows(result.rows)) {
+    const row = display.row;
     const metrics = compactMetrics(row);
     const anyValue = metrics.some((metric) => {
       const value = metricValue(row, metric);
@@ -180,7 +187,7 @@ function compactRows(result: DashboardResult, colors: Colors): TableCell[][] {
 
     if (metrics.length === 0 || !anyValue) {
       rows.push([
-        nameCell(row, colors),
+        nameCell(row, colors, display.label, display.nested),
         nullMetricsCell(colors, widths),
         sinceCell(row, colors),
       ]);
@@ -193,7 +200,7 @@ function compactRows(result: DashboardResult, colors: Colors): TableCell[][] {
         return;
       }
       rows.push([
-        index === 0 ? nameCell(row, colors) : '',
+        index === 0 ? nameCell(row, colors, display.label, display.nested) : '',
         metricLineCell(METRIC_LABELS[metric], value, colors, compacted(row), widths),
         index === 0 ? sinceCell(row, colors) : '',
       ]);

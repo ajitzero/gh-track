@@ -48,7 +48,7 @@ test('compact rendering uses blue repos, purple accounts, and delta colors', () 
   const text = renderDashboard(RESULT, 'compact', colors);
   const plain = text.replace(/\u001b\[[0-9;]*m/g, '');
 
-  assert.match(text, /\u001b\[1m\u001b\[94moctocat\/hello-world/);
+  assert.match(text, /\u001b\[1m\u001b\[94m  hello-world/);
   assert.match(text, /\u001b\[1m\u001b\[95moctocat/);
   assert.match(text, /\u001b\[1m1,204/);
   assert.match(text, /\u001b\[32m\(\+24\)/);
@@ -58,9 +58,11 @@ test('compact rendering uses blue repos, purple accounts, and delta colors', () 
   assert.match(text, /\u001b\[2m~ compacted history/);
   assert.match(plain, /never\/fetched\s+—/);
   assert.doesNotMatch(plain, /@octocat/);
-  assert.match(plain, /octocat\/hello-world\s+stars\s+1,204\s+\(\+24\)/);
+  assert.doesNotMatch(plain, /octocat\/hello-world/);
+  assert.match(plain, /octocat\s+followers\s+1,204~\s+\(0\)/);
+  assert.match(plain, /\n  hello-world\s+stars\s+1,204 {2}\(\+24\)/);
   assert.match(plain, /\n\s+forks\s+4\s+\(−1\)/);
-  assert.match(plain, /\noctocat\s+followers\s+1,204~\s+\(0\)/);
+  assert.ok(plain.indexOf('\noctocat') < plain.indexOf('hello-world'));
 });
 
 test('columns rendering groups repositories and accounts', () => {
@@ -70,6 +72,8 @@ test('columns rendering groups repositories and accounts', () => {
 
   assert.match(plain, /Repositories\n/);
   assert.match(plain, /Accounts\n/);
+  assert.match(plain, /octocat\/hello-world/);
+  assert.doesNotMatch(plain, /\n  hello-world/);
   assert.match(plain, /STARS/);
   assert.match(plain, /FORKS/);
   assert.match(plain, /FOLLOWERS/);
