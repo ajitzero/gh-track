@@ -110,10 +110,10 @@ References:
 | `previous` | Most recent complete run before the resolved `--to` |
 | `<run-id>` | That run, which must be `complete` |
 | `YYYY-MM-DD` | Most recent complete run on or before that UTC day |
-| `-<n>d`, `-<n>w` | `<n>` days or weeks before the current UTC day |
-| `-<n>m`, `-<n>y` | `<n>` calendar months or years before the current UTC day, day-clamped |
+| `<n>d`, `<n>w` | `<n>` days or weeks before the current UTC day |
+| `<n>m`, `<n>y` | `<n>` calendar months or years before the current UTC day, day-clamped |
 
-Relative offsets (`-1y`, `-6m`, `-2w`, `-30d`) are resolved once per invocation against the current UTC day, then treated exactly like `YYYY-MM-DD`. Units are `d`, `w`, `m`, and `y`; the amount must be a positive integer (`-0d` is invalid), only past offsets are accepted (`+1d` is invalid), and month/year shifts clamp the day (`2026-03-31 -1m` is `2026-02-28`).
+Past offsets (`1y`, `6m`, `2w`, `30d`) are resolved once per invocation against the current UTC day, then treated exactly like `YYYY-MM-DD`. Units are `d`, `w`, `m`, and `y`; the amount must be a positive integer (`0d` is invalid), the value is always in the past (`latest` is the only open-ended point), a leading `-` or `+` is invalid, and month/year shifts clamp the day (`2026-03-31` offset by `1m` is `2026-02-28`).
 
 - A date or offset `--from` older than every stored point snaps forward to the oldest point.
 - A date or offset `--to` older than every stored point exits `2` with `usage`, naming the bound and the oldest stored day.
@@ -149,8 +149,8 @@ gh-track export [options]
 
   --format <fmt>         json | jsonl | csv   (default: jsonl)
   --subject <s>          Repeatable filter
-  --from <date|offset>   Inclusive UTC start day (YYYY-MM-DD or -1y)
-  --to <date|offset>     Inclusive UTC end day (YYYY-MM-DD or -1y)
+  --from <date|offset>   Inclusive UTC start day (YYYY-MM-DD or 1y)
+  --to <date|offset>     Inclusive UTC end day (YYYY-MM-DD or 1y)
 ```
 
 - Exports compacted history only. Raw runs are accessible via `runs paths`.
@@ -188,7 +188,7 @@ gh-track [options]
 
 - `dashboard` is the default command: a bare `gh-track` is equivalent to `gh-track dashboard`.
 - Metrics are fixed: `stars` and `forks` for repositories, `followers` for accounts.
-- References use the diff forms: `latest`, `previous`, a run id, `YYYY-MM-DD`, or a relative offset like `-1y`. `--to` cannot be `previous`.
+- References use the diff forms: `latest`, `previous`, a run id, `YYYY-MM-DD`, or a past offset like `1y`. `--to` cannot be `previous`.
 - A date or offset `--from` older than a subject's data snaps to that subject's oldest observation. A date or offset `--to` older than a subject's data leaves the row with `—`.
 - Each subject resolves its own observations. Raw runs win over compacted history for the same day.
 - A subject with no observations is included with `—`.

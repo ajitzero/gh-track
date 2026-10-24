@@ -501,7 +501,7 @@ test('a relative --from clamps to each subject’s oldest observation', async (t
   const w = await workspace(t);
   await seedWorkspace(w.dataDir);
 
-  const result = await invoke(args(w, 'dashboard', '--from', '-100y'));
+  const result = await invoke(args(w, 'dashboard', '--from', '100y'));
   assert.equal(result.code, 0, result.stderr);
   assert.match(result.stdout, /stars\s+120\s+\(\+40\)\s+forks\s+4\s+\(\+2\)\s+2026-09-01~/);
   assert.match(result.stdout, /\noctocat\s+followers\s+3\s+\(\+2\)\s+2026-09-01~/);

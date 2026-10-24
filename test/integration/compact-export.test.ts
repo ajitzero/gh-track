@@ -344,13 +344,13 @@ test('export filters by subject and date range', async (t) => {
   assert.match(badDate.stderr, /--from is not a valid calendar date/);
 
   const relative = await invoke([
-    'export', '--format', 'json', '--from', '-100y', '--data-dir', dataDir,
+    'export', '--format', 'json', '--from', '100y', '--data-dir', dataDir,
   ]);
   assert.equal(relative.code, 0, relative.stderr);
   const relativeRows = (JSON.parse(relative.stdout) as { rows: Array<{ date: string }> }).rows;
   assert.equal(relativeRows[0]?.date, '2026-08-01');
 
-  const badOffset = await invoke(['export', '--from', '-1x', '--data-dir', dataDir]);
+  const badOffset = await invoke(['export', '--from', '1x', '--data-dir', dataDir]);
   assert.equal(badOffset.code, 2);
   assert.match(badOffset.stderr, /is not a valid calendar date or relative offset/);
 

@@ -288,7 +288,7 @@ export function resolveRefs(
   const toParsed = parseRef(toRef, { label: '--to', now: instant });
   if (toParsed.kind === 'previous') {
     throw new UsageError(
-      '--to cannot be "previous"; use latest, a run id, YYYY-MM-DD, or a relative offset like -1y.',
+      '--to cannot be "previous"; use latest, a run id, YYYY-MM-DD, or a past offset like 1y.',
     );
   }
 

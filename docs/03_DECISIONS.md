@@ -36,6 +36,7 @@ Decisions made during the initial design interview on 2026-10-19. Each entry rec
 | D030 | Dashboard is the default command |
 | D031 | Compact dashboard puts all metrics of a subject on one line |
 | D032 | Dashboard supports an interactive TTY list |
+| D033 | Past offsets drop the minus prefix |
 
 ## D001 — Local files only
 
@@ -375,6 +376,8 @@ Decisions made during the initial design interview on 2026-10-19. Each entry rec
 
 **Consequence.** `--from -1y --to latest` works on a fresh dataset, and every report shows the days actually compared. This extends D021 §1 and D023's range rules without changing keyword or run-id behavior.
 
+**Superseded in part by D033.** Offsets are now written without the minus (`1y`) and are ordinary option values; the arithmetic and range semantics above are unchanged.
+
 ## D030 — Dashboard is the default command
 
 **Context.** A bare `gh-track` printed root help, so the most common invocation showed a command list instead of the dashboard. The dashboard is the tool's read-only summary surface and reads the same config the other commands already use.
@@ -406,6 +409,16 @@ Static output remains the default for JSON, non-TTY invocations, `--yes`, and `-
 **Rejected.** A subprocess for refresh (duplicates CLI startup and complicates terminal ownership); always-on TUI (would break scripts and scrollback use); clipboard dependency (unnecessary for a short URL); clearing the tracked account header when only a child repository matches (breaks the displayed group relationship).
 
 **Consequence.** Interactive users can inspect, add, and refresh from one screen, while machine-readable and non-interactive consumers retain the static contract. The dashboard is no longer strictly read-only when the user invokes refresh or add.
+
+## D033 — Past offsets drop the minus prefix
+
+**Context.** Relative refs were written `-1y` or `-30d`. Every offset is already a past value, so the minus was redundant, and it forced the CLI to treat `-1y` as a special option value instead of an ordinary argument.
+
+**Decision.** Relative offsets are written `1d`, `2w`, `6m`, and `1y` with no sign. Offsets remain past-only and resolve against the invocation instant; `latest` is the only open-ended point. A leading `-` or `+` is invalid. The CLI no longer needs a special value shape for `--from`/`--to`; a legacy `--from -1y` exits `2` with a message pointing at `1y`. Pair validation only compares the resolved bounds: the dashboard rejects a `to` earlier than `from` (equal bounds remain valid for `--from latest` zero deltas), and diff requires its resolved start point to come before the end point.
+
+**Rejected.** Keeping the minus for backward compatibility (two spellings for one concept, plus the CLI parser exception); accepting both spellings (ambiguous docs and errors).
+
+**Consequence.** Offsets read as durations and are ordinary option values. This supersedes D029 §1's `-<n><unit>` spelling and §4's leading-dash parser seam; the arithmetic, snapping, view storage, and range behavior are unchanged.
 
 ## Plan history
 

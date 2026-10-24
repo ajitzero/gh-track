@@ -218,7 +218,7 @@ Retries use bounded exponential backoff with jitter for `5xx` and network errors
 
 ## Diff model
 
-`diff` compares two points in time, resolved from run IDs, UTC dates, relative offsets (`-1w`, `-6m`, `-1y`), or the keywords `latest` / `previous`. It reads raw runs when both sides are raw, and falls back to compacted history when either side is older than the retention window. The output declares which source was used.
+`diff` compares two points in time, resolved from run IDs, UTC dates, past offsets (`1w`, `6m`, `1y`), or the keywords `latest` / `previous`. It reads raw runs when both sides are raw, and falls back to compacted history when either side is older than the retention window. The output declares which source was used.
 
 - **Repositories** are matched by numeric `id`, falling back to `full_name` when an id is unavailable. A rename therefore produces one `renamed` entry, not an add plus a remove.
 - **Fields** are compared across all scalar values present in either payload. Numeric fields get a `delta`; booleans and strings get before/after values. Nulls are treated as values, not as missing.

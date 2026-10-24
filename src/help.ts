@@ -134,15 +134,15 @@ const DIFF: HelpNode = {
   options: [
     {
       flags: '--from <ref>',
-      summary: 'Start point: latest, previous, run id, YYYY-MM-DD, or -1y',
+      summary: 'Start point: latest, previous, run id, YYYY-MM-DD, or 1y',
     },
-    { flags: '--to <ref>', summary: 'End point: latest, run id, YYYY-MM-DD, or -1y' },
+    { flags: '--to <ref>', summary: 'End point: latest, run id, YYYY-MM-DD, or 1y' },
     { flags: '--subject <s>', summary: 'Repeatable; restrict to one or more subjects (or a URL)' },
   ],
   examples: [
     'gh-track diff',
     'gh-track diff --from 2026-09-01 --to latest',
-    'gh-track diff --from -1y --to latest',
+    'gh-track diff --from 1y --to latest',
     'gh-track diff --subject user:octocat',
   ],
 };
@@ -163,14 +163,14 @@ const EXPORT: HelpNode = {
   usage: ['gh-track export [--format json|jsonl|csv] [options]'],
   options: [
     { flags: '--subject <s>', summary: 'Repeatable; restrict to one or more subjects (or a URL)' },
-    { flags: '--from <date|offset>', summary: 'Inclusive UTC start day (YYYY-MM-DD or -1y)' },
-    { flags: '--to <date|offset>', summary: 'Inclusive UTC end day (YYYY-MM-DD or -1y)' },
+    { flags: '--from <date|offset>', summary: 'Inclusive UTC start day (YYYY-MM-DD or 1y)' },
+    { flags: '--to <date|offset>', summary: 'Inclusive UTC end day (YYYY-MM-DD or 1y)' },
   ],
   examples: [
     'gh-track export',
     'gh-track export --format json',
     'gh-track export --format csv --from 2026-09-01',
-    'gh-track export --format csv --from -90d',
+    'gh-track export --format csv --from 90d',
   ],
 };
 
@@ -212,8 +212,8 @@ const DASHBOARD: HelpNode = {
   usage: ['gh-track dashboard [options]', 'gh-track [options]'],
   options: [
     { flags: '--view <name>', summary: 'Render a saved view' },
-    { flags: '--from <ref>', summary: 'Baseline: previous observation, run id, day, or -1y' },
-    { flags: '--to <ref>', summary: 'Current point: latest, run id, day, or -1y' },
+    { flags: '--from <ref>', summary: 'Baseline: previous observation, run id, day, or 1y' },
+    { flags: '--to <ref>', summary: 'Current point: latest, run id, day, or 1y' },
     { flags: '--subject <s>', summary: 'Repeatable; override the selected subjects (or a URL)' },
     { flags: '--layout <fmt>', summary: 'compact (default) or columns' },
     { flags: '--no-interactive', summary: 'Print a static table even in a TTY' },
@@ -268,8 +268,8 @@ const TRACK_VIEW_SAVE: HelpNode = {
   options: [
     { flags: '--item <s>=<m>', summary: 'Repeatable; omit to use the picker' },
     { flags: '--layout <fmt>', summary: 'compact or columns' },
-    { flags: '--from <ref>', summary: 'Baseline: previous, run id, day, or -1y' },
-    { flags: '--to <ref>', summary: 'Current reference: latest, run id, day, or -1y' },
+    { flags: '--from <ref>', summary: 'Baseline: previous, run id, day, or 1y' },
+    { flags: '--to <ref>', summary: 'Current reference: latest, run id, day, or 1y' },
   ],
   examples: [
     'gh-track track view save my-repos --item repo:octocat/hello-world=stars',

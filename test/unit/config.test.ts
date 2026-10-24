@@ -313,14 +313,14 @@ type = "repo"
 repo = "a/b"
 
 [views."rolling"]
-from = "-6m"
+from = "6m"
 to = "latest"
 
 [[views."rolling".items]]
 subject = "repo:a/b"
 metrics = ["stars"]
 `);
-  assert.equal(config.views[0]?.from, '-6m');
+  assert.equal(config.views[0]?.from, '6m');
 
   assert.throws(
     () =>
@@ -331,13 +331,13 @@ type = "repo"
 repo = "a/b"
 
 [views."bad"]
-from = "-0d"
+from = "0d"
 
 [[views."bad".items]]
 subject = "repo:a/b"
 metrics = ["stars"]
 `),
-    /must be latest, previous, a run id, YYYY-MM-DD, or a relative offset/,
+    /must be latest, previous, a run id, YYYY-MM-DD, or a past offset/,
   );
 });
 

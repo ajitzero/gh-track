@@ -195,6 +195,12 @@ test('watch add rejects invalid subjects', async (t) => {
   assert.match(result.stderr, /invalid_subject/);
 });
 
+test('relative offsets reject the old leading minus with a migration hint', async () => {
+  const result = await invoke(['diff', '--from', '-1y', '--data-dir', '/tmp/gh-track-none']);
+  assert.equal(result.code, 2);
+  assert.match(result.stderr, /Relative offsets no longer use a leading "-": use 1y/);
+});
+
 test('watch add accepts GitHub profile and repository URLs', async (t) => {
   const dir = await tempDir(t);
   const configPath = path.join(dir, 'config.toml');

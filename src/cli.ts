@@ -13,7 +13,6 @@ import { runFetch } from './commands/fetch.js';
 import { runRuns } from './commands/runs.js';
 import { runTrack } from './commands/track.js';
 import { runWatch } from './commands/watch.js';
-import { RELATIVE_VALUE_PATTERN } from './date.js';
 import { CliError, UsageError, toCliError } from './errors.js';
 import { renderHelp } from './help.js';
 import { createColors, shouldUseColor } from './output/color.js';
@@ -64,8 +63,6 @@ interface OptionSpec {
   flags: readonly string[];
   value: ValueKind;
   repeatable?: boolean;
-  /** Extra shape accepted as a value even though it starts with `-`, e.g. `-1y`. */
-  valuePattern?: RegExp;
 }
 
 const OPTION_SPECS: readonly OptionSpec[] = [
@@ -85,8 +82,8 @@ const OPTION_SPECS: readonly OptionSpec[] = [
   { name: 'keep-raw-days', flags: ['--keep-raw-days'], value: 'required' },
   { name: 'token', flags: ['--token'], value: 'required' },
   { name: 'limit', flags: ['--limit'], value: 'required' },
-  { name: 'from', flags: ['--from'], value: 'required', valuePattern: RELATIVE_VALUE_PATTERN },
-  { name: 'to', flags: ['--to'], value: 'required', valuePattern: RELATIVE_VALUE_PATTERN },
+  { name: 'from', flags: ['--from'], value: 'required' },
+  { name: 'to', flags: ['--to'], value: 'required' },
   { name: 'subject', flags: ['--subject'], value: 'required', repeatable: true },
   { name: 'keep-days', flags: ['--keep-days'], value: 'required' },
   { name: 'view', flags: ['--view'], value: 'required' },
@@ -259,13 +256,14 @@ function parseArgv(argv: readonly string[]): ParsedArgs {
         value = inlineValue;
       } else {
         const next = argv[index];
-        const nextIsFlagValue =
-          next !== undefined && spec.valuePattern !== undefined && spec.valuePattern.test(next);
-        const nextIsValue =
-          next !== undefined &&
-          (!next.startsWith('-') || next === '-' || nextIsFlagValue);
+        const nextIsValue = next !== undefined && (!next.startsWith('-') || next === '-');
         if (spec.value === 'required') {
           if (!nextIsValue || next === undefined) {
+            if (next !== undefined && /^-\d+[dwmy]$/i.test(next)) {
+              throw new UsageError(
+                `Relative offsets no longer use a leading "-": use ${next.slice(1)}.`,
+              );
+            }
             throw new UsageError(`Option ${flag} requires a value`);
           }
           value = next;

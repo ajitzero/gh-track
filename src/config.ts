@@ -410,7 +410,7 @@ function parseRangeRef(raw: unknown, location: string, allowPrevious: boolean): 
     return raw;
   }
   fail(
-    `${location} must be latest, previous, a run id, YYYY-MM-DD, or a relative offset like -1y`,
+    `${location} must be latest, previous, a run id, YYYY-MM-DD, or a past offset like 1y`,
   );
 }
 

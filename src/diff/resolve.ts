@@ -148,7 +148,7 @@ export async function resolveDiffRange(
   const toRef = options.to ?? 'latest';
   if (toRef === 'previous') {
     throw new UsageError(
-      '--to cannot be "previous"; use latest, a run id, YYYY-MM-DD, or a relative offset like -1y.',
+      '--to cannot be "previous"; use latest, a run id, YYYY-MM-DD, or a past offset like 1y.',
     );
   }
   parseRef(toRef, { label: 'diff', now });

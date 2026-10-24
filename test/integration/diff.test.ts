@@ -441,17 +441,17 @@ test('relative refs are option values and the resolved range is always reported'
   await seedNewer(dataDir);
   const now = new Date('2026-08-15T00:00:00.000Z');
 
-  const text = await invoke(['diff', '--from', '-1y', '--to', 'latest', '--data-dir', dataDir], {
+  const text = await invoke(['diff', '--from', '1y', '--to', 'latest', '--data-dir', dataDir], {
     now,
   });
   assert.equal(text.code, 0, text.stderr);
-  // -1y is before the data, so the start clamps to the oldest run.
+  // 1y is before the data, so the start clamps to the oldest run.
   assert.match(text.stdout, /From 2026-08-01T10-00-00Z to 2026-08-02T10-00-00Z/);
   assert.match(text.stdout, /Range: 2026-08-01 to 2026-08-02 \(UTC days\)/);
 
   const json = parseDiff(
     await invoke(
-      ['diff', '--from', '-1y', '--to', 'latest', '--format', 'json', '--data-dir', dataDir],
+      ['diff', '--from', '1y', '--to', 'latest', '--format', 'json', '--data-dir', dataDir],
       { now },
     ),
   );
@@ -459,7 +459,7 @@ test('relative refs are option values and the resolved range is always reported'
   assert.equal(json.to.day, '2026-08-02');
 
   const inline = await invoke(
-    ['diff', '--from=-1y', '--format', 'json', '--data-dir', dataDir],
+    ['diff', '--from=1y', '--format', 'json', '--data-dir', dataDir],
     { now },
   );
   assert.equal(parseDiff(inline).from.day, '2026-08-01');
@@ -471,11 +471,11 @@ test('relative refs reject bad offsets and a --to older than the data', async (t
   await seedNewer(dataDir);
   const now = new Date('2026-08-15T00:00:00.000Z');
 
-  const badOffset = await invoke(['diff', '--from', '-1x', '--data-dir', dataDir], { now });
+  const badOffset = await invoke(['diff', '--from', '1x', '--data-dir', dataDir], { now });
   assert.equal(badOffset.code, 2);
   assert.match(badOffset.stderr, /Invalid diff reference/);
 
-  const beforeData = await invoke(['diff', '--to', '-20y', '--data-dir', dataDir], { now });
+  const beforeData = await invoke(['diff', '--to', '20y', '--data-dir', dataDir], { now });
   assert.equal(beforeData.code, 2);
   assert.match(beforeData.stderr, /before the oldest stored point \(2026-08-01\)/);
 });

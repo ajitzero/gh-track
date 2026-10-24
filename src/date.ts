@@ -2,11 +2,8 @@
 
 export const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
-/** Strict `-<n><unit>` offset: days, weeks, calendar months, or calendar years. */
-export const RELATIVE_DAY_PATTERN = /^-(\d+)([dwmy])$/;
-
-/** Loose shape used by the CLI parser to accept `--from -1y` as an option value. */
-export const RELATIVE_VALUE_PATTERN = /^-\d+[a-z]+$/i;
+/** Strict `<n><unit>` past offset: days, weeks, calendar months, or calendar years. */
+export const RELATIVE_DAY_PATTERN = /^(\d+)([dwmy])$/;
 
 /** True for a real UTC calendar day in `YYYY-MM-DD` form. */
 export function isCalendarDay(value: string): boolean {
@@ -53,15 +50,15 @@ function formatDay(year: number, monthIndex: number, day: number): string | null
   return isoDay(utcDate(year, monthIndex, day));
 }
 
-/** True for the `-1y`/`-6m`/`-2w`/`-30d` offset shape, without validating the amount. */
+/** True for the `1y`/`6m`/`2w`/`30d` offset shape, without validating the amount. */
 export function isRelativeDay(value: string): boolean {
   return RELATIVE_DAY_PATTERN.test(value);
 }
 
 /**
- * Resolves a relative offset against `now` (default: the current instant) to a
- * UTC calendar day. Days and weeks shift whole days; months and years use
- * calendar arithmetic with day clamping, so `2026-03-31 -1m` is `2026-02-28`.
+ * Resolves a past offset against `now` (default: the current instant) to a UTC
+ * calendar day. Days and weeks shift whole days; months and years use calendar
+ * arithmetic with day clamping, so `2026-03-31` offset by `1m` is `2026-02-28`.
  * Returns null for malformed or out-of-range offsets.
  */
 export function relativeDay(ref: string, now: Date = new Date()): string | null {

@@ -22,7 +22,7 @@ export interface ParseRefOptions {
 }
 
 const REF_FORMS =
-  'latest, previous, a run id, YYYY-MM-DD, or a relative offset like -1y (units: d, w, m, y)';
+  'latest, previous, a run id, YYYY-MM-DD, or a past offset like 1y (units: d, w, m, y)';
 
 /**
  * Parses a reference once. Relative offsets are resolved to an absolute UTC day
