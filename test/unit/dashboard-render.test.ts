@@ -107,6 +107,67 @@ test('compact widths expand instead of truncating large values', () => {
   assert.match(plain, /stars\s+1,234,567\s+\(\+1,234,566\)/);
 });
 
+test('compact widths track the widest available values without a fixed floor', () => {
+  const result: DashboardResult = {
+    layout: 'compact',
+    range: { from: 'previous', to: 'latest' },
+    rows: [
+      {
+        kind: 'repo',
+        subject: 'repo:big/numbers',
+        source: 'raw',
+        from: { id: '2026-10-01T10-00-00Z', finishedAt: '2026-10-01T10:00:00.000Z' },
+        to: { id: '2026-10-02T10-00-00Z', finishedAt: '2026-10-02T10:00:00.000Z' },
+        metrics: {
+          stars: { value: 132, from: 120, delta: 12 },
+          forks: { value: 4, from: 3, delta: 1 },
+        },
+      },
+      {
+        kind: 'repo',
+        subject: 'repo:small/values',
+        source: 'raw',
+        from: { id: '2026-10-01T10-00-00Z', finishedAt: '2026-10-01T10:00:00.000Z' },
+        to: { id: '2026-10-02T10-00-00Z', finishedAt: '2026-10-02T10:00:00.000Z' },
+        metrics: {
+          stars: { value: 9, from: 9, delta: 0 },
+        },
+      },
+    ],
+  };
+  const plain = renderDashboard(result, 'compact', createColors(false));
+
+  // The count field is 3 wide ("132") and the delta field is 5 wide ("(+12)").
+  // No compacted value is present, so there is no reserved `~` slot: the widest
+  // delta sits one separator space after the count.
+  assert.match(plain, /big\/numbers\s+stars 132 \(\+12\)/);
+  assert.match(plain, /forks {3}4 {2}\(\+1\)/);
+  assert.match(plain, /small\/values\s+stars {3}9 {3}\(0\)/);
+  assert.doesNotMatch(plain, /stars {3}132/);
+});
+
+test('compact widths handle a list with no numeric values', () => {
+  const result: DashboardResult = {
+    layout: 'compact',
+    range: { from: 'previous', to: 'latest' },
+    rows: [
+      {
+        kind: 'repo',
+        subject: 'repo:never/fetched',
+        source: null,
+        from: null,
+        to: null,
+        metrics: {
+          stars: { value: null, from: null, delta: null },
+          forks: { value: null, from: null, delta: null },
+        },
+      },
+    ],
+  };
+  const plain = renderDashboard(result, 'compact', createColors(false));
+  assert.match(plain, /never\/fetched\s+—\s+—/);
+});
+
 test('right alignment keeps styled leading padding and headers can differ', () => {
   const colors = createColors(true);
   const table = renderTable(

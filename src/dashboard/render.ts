@@ -100,18 +100,18 @@ function metricSegments(
 interface CompactWidths {
   count: number;
   delta: number;
+  /** True when a compacted value is rendered, so the `~` slot must be reserved. */
+  marker: boolean;
 }
-
-const MIN_COUNT_WIDTH = 5;
-const MIN_DELTA_WIDTH = 5;
 
 function compactMetrics(row: DashboardRow): Metric[] {
   return METRIC_ORDER.filter((metric) => hasMetric(row, metric));
 }
 
+/** Number fields track the widest formatted value in the list, not a fixed minimum. */
 function compactWidths(rows: readonly DashboardRow[]): CompactWidths {
-  let count = MIN_COUNT_WIDTH;
-  let delta = MIN_DELTA_WIDTH;
+  let count = 1;
+  let delta = 0;
   for (const row of rows) {
     for (const metric of compactMetrics(row)) {
       const value = metricValue(row, metric);
@@ -124,15 +124,14 @@ function compactWidths(rows: readonly DashboardRow[]): CompactWidths {
       }
     }
   }
-  return { count, delta };
+  return { count, delta, marker: rows.some(compacted) };
 }
 
 function nullMetricSegments(colors: Colors, widths: CompactWidths): CellSegment[] {
   return [
     { text: ' '.repeat(widths.count - 1) },
     { text: '—', paint: colors.dim },
-    { text: ' ' },
-    { text: ' '.repeat(1 + widths.delta) },
+    { text: ' '.repeat((widths.marker ? 1 : 0) + 1 + widths.delta) },
   ];
 }
 
@@ -152,9 +151,11 @@ function metricLineCell(
     { text: `${label} ` },
     { text: ' '.repeat(widths.count - count.length) },
     { text: count, paint: colors.bold },
-    compactedValue ? { text: '~', paint: colors.dim } : { text: ' ' },
-    { text: ' ' },
   ];
+  if (widths.marker) {
+    segments.push(compactedValue ? { text: '~', paint: colors.dim } : { text: ' ' });
+  }
+  segments.push({ text: ' ' });
 
   if (value.delta === null) {
     segments.push({ text: ' '.repeat(widths.delta) });
