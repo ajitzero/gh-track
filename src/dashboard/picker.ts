@@ -1,6 +1,6 @@
 /** Shared clack picker for dashboard subjects, metrics, layout, and range. */
 
-import { summarizeLastRun } from '../store/runs.js';
+import { summarizeLastRuns } from '../store/runs.js';
 import type {
   CommandContext,
   Config,
@@ -8,7 +8,8 @@ import type {
   Metric,
   SubjectChoice,
 } from '../types.js';
-import { defaultMetricsFor, type SelectionItem } from './select.js';
+import { defaultMetricsFor } from '../metrics.js';
+import type { SelectionItem } from './select.js';
 
 export interface PickerInitial {
   items: readonly SelectionItem[];
@@ -34,16 +35,18 @@ async function subjectChoices(
   context: CommandContext,
   config: Config,
 ): Promise<SubjectChoice[]> {
-  const choices: SubjectChoice[] = [];
-  for (const subject of config.subjects) {
-    const lastRun = await summarizeLastRun(context.paths.dataDir, subject.subject);
-    choices.push({
+  const summaries = await summarizeLastRuns(
+    context.paths.dataDir,
+    config.subjects.map((subject) => subject.subject),
+  );
+  return config.subjects.map((subject) => {
+    const lastRun = summaries.get(subject.subject) ?? null;
+    return {
       value: subject.subject,
       label: subject.subject,
       hint: lastRun === null ? 'never' : `last run ${lastRun.id}`,
-    });
-  }
-  return choices;
+    };
+  });
 }
 
 function initialMetrics(

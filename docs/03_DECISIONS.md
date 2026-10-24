@@ -28,6 +28,8 @@ Decisions made during the initial design interview on 2026-10-19. Each entry rec
 | D022 | v1 hardening: JSON purity matrix, failed-response quotas, watch table |
 | D023 | Dashboard: narrow metrics, per-subject observations, full-snapshot views |
 | D024 | Flat docs and harness-owned plans |
+| D025 | `dashboard add`: composite setup and repository browsing |
+| D026 | Review hardening: shared helpers, origin checks, JSON warnings |
 
 ## D001 — Local files only
 
@@ -306,6 +308,24 @@ Decisions made during the initial design interview on 2026-10-19. Each entry rec
 **Rejected.** Keeping `--setup` as an alias (two entry points with different scopes: the flag forced a picker, add is additive); making `dashboard add` tracking-only (forces a hidden second command on a fresh install); auto-watching without preserving existing resources (silently changes fetch cost); prompting for metrics on explicit forms (breaks the complete-command contract); filtering already-tracked repositories out of the listing (hides state); preselecting them (accidental metric re-prompts).
 
 **Consequence.** A fresh install reaches a populated dashboard with one command. Scripts using `--setup` must migrate to `dashboard add`; the error names the replacement. The dashboard still writes config only through the first-run picker and `dashboard add`.
+
+## D026 — Review hardening: shared helpers, origin checks, JSON warnings
+
+**Context.** A review of the post-M8.1 tree found duplicated date, guard, metric, reference, and CLI-error logic spread across commands and stores, plus three gaps around the GitHub client: redirects could leave the configured origin, a refused `Link` URL was queued forever, and the request timeout stopped at the response headers. It also surfaced undocumented behavior changes (JSON-mode warnings, the view-name length cap, and `track view save` layout defaults) and a conflict with D022's empty-stderr test contract.
+
+**Decision.**
+
+1. **One implementation per cross-cutting rule.** `date.ts`, `guards.ts`, `metrics.ts`, `refs.ts`, `cli-args.ts`, and `result.ts` own UTC-day helpers, runtime guards, metric parsing/order, reference classification, CLI argument errors, and command result helpers. `cli.ts` dispatches through one runner table. Stores and commands import these instead of keeping local copies.
+2. **Origin is enforced end to end.** The client refuses a request URL outside the configured API origin, refuses a redirect whose final URL leaves that origin, and attaches the token only to same-origin requests. A refused URL is recorded as a subject error, fails the run (`partial`), and is excluded from `pending`; a resume never retries it.
+3. **The timeout covers the response body.** The abort timer stays attached through `response.text()`. A body timeout is a retryable network error, like a header timeout. An unresolvable `304` drops the validator and retries unconditionally once, subject to the request cap.
+4. **CLI edge cases are explicit.** `--limit` is valid only for `runs ls`; `export` rejects `--from` later than `--to`; `help bogus` and `bogus --help` return the same `Unknown command` error with usage.
+5. **Warnings are allowed on stderr in JSON mode.** Spec §6 defines stdout as the single result document and stderr as progress, warnings, diagnostics, and errors. `watch rm` now emits its removal warnings in JSON mode too. This amends D022 §1: the JSON purity matrix asserts one clean document on stdout, not an empty stderr.
+6. **Configuration tolerances are documented.** View names have no length cap; `[a-z0-9][a-z0-9_-]*` is the only constraint. `track view save` without `--layout` prompts for a layout and preserves an existing view's layout, matching spec §2.9's "supplying a flag skips the matching prompt".
+7. **Calendar days are validated strictly.** Every `YYYY-MM-DD` check rejects impossible dates, including rows read from existing history files.
+
+**Rejected.** Keeping per-command error strings (they drifted); suppressing JSON-mode warnings to satisfy D022 literally (hides dashboard state changes from the operator and contradicts spec §6); `redirect: 'error'` on fetch (GitHub's renamed-repository endpoints rely on same-origin redirects); a new origin-filtering layer in `fetch` (the client owns headers and URLs, so it must own the origin check).
+
+**Consequence.** One copy of each cross-cutting rule, with fewer places to drift. JSON consumers still get exactly one document on stdout, while stderr may carry warnings; D022's stricter wording is superseded by this entry.
 
 ## Plan history
 

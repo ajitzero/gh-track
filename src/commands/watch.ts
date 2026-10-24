@@ -1,17 +1,18 @@
 /** `gh-track watch add|ls|rm`. */
 
+import { missingSubcommand, unexpectedArgument, unknownSubcommand } from '../cli-args.js';
 import { loadConfig, saveConfig, defaultConfig } from '../config.js';
 import { toConfigSubject, upsertSubject } from '../config-edit.js';
 import { UsageError, unknownSubject } from '../errors.js';
 import { renderTable } from '../output/table.js';
 import { USER_RESOURCES, parseResources } from '../resources.js';
-import { summarizeLastRun } from '../store/runs.js';
-import { parseExplicitSubject, parseSubject, subjectKey } from '../subjects.js';
+import { summarizeLastRuns } from '../store/runs.js';
+import { parseExplicitSubject, parseSubject, subjectKey, subjectKeyOf } from '../subjects.js';
+import { cancelled, requirePrompt } from '../result.js';
 import type {
   CommandContext,
   CommandResult,
   Config,
-  ConfigSubject,
   Resource,
   SubjectType,
   WatchListResult,
@@ -21,22 +22,12 @@ import type {
 const ADD_USAGE =
   'gh-track watch add user <login> [--resources followers,repos] or gh-track watch add repo <owner/name>';
 
-function cancelled(): CommandResult {
-  return {
-    json: { cancelled: true },
-    text: 'Cancelled.\n',
-    warnings: [],
-  };
-}
-
 async function addSubject(context: CommandContext, args: string[]): Promise<CommandResult> {
   let type: SubjectType;
   let value: string;
 
   if (args.length === 0) {
-    if (!context.canPrompt) {
-      throw new UsageError(`Missing arguments. Use: ${ADD_USAGE}`);
-    }
+    requirePrompt(context, 'gh-track watch add', ADD_USAGE);
     const answer = await context.prompts.watchAdd();
     if (answer === null) {
       return cancelled();
@@ -61,7 +52,7 @@ async function addSubject(context: CommandContext, args: string[]): Promise<Comm
       );
     }
     if (args.length > 2) {
-      throw new UsageError(`Unexpected argument ${JSON.stringify(args[2])}. Use: ${ADD_USAGE}`);
+      throw unexpectedArgument(args[2], ADD_USAGE);
     }
     type = requestedType;
     value = requestedValue;
@@ -115,42 +106,38 @@ async function addSubject(context: CommandContext, args: string[]): Promise<Comm
   };
 }
 
-async function toWatched(dataDir: string, subject: ConfigSubject): Promise<WatchedSubject> {
-  const lastRun = await summarizeLastRun(dataDir, subject.subject);
-  if (subject.type === 'user') {
-    return {
-      subject: subject.subject,
-      type: 'user',
-      account: subject.account,
-      resources: [...subject.resources],
-      lastRun,
-    };
-  }
-  return {
-    subject: subject.subject,
-    type: 'repo',
-    repo: subject.repo,
-    resources: ['repo'],
-    lastRun,
-  };
-}
-
 async function listSubjects(
   context: CommandContext,
   args: string[],
 ): Promise<CommandResult> {
   if (args.length > 0) {
-    throw new UsageError(`Unexpected argument ${JSON.stringify(args[0])}. Use: gh-track watch ls`);
+    throw unexpectedArgument(args[0], 'gh-track watch ls');
   }
 
   const loaded = await loadConfig(context.paths.configPath, { required: true });
-  if (loaded === null) {
-    throw new UsageError('Config file is required for watch ls.');
-  }
-
-  const watched = await Promise.all(
-    loaded.config.subjects.map((subject) => toWatched(context.paths.dataDir, subject)),
+  const summaries = await summarizeLastRuns(
+    context.paths.dataDir,
+    loaded.config.subjects.map((subject) => subject.subject),
   );
+  const watched: WatchedSubject[] = loaded.config.subjects.map((subject) => {
+    const lastRun = summaries.get(subject.subject) ?? null;
+    if (subject.type === 'user') {
+      return {
+        subject: subject.subject,
+        type: 'user',
+        account: subject.account,
+        resources: [...subject.resources],
+        lastRun,
+      };
+    }
+    return {
+      subject: subject.subject,
+      type: 'repo',
+      repo: subject.repo,
+      resources: ['repo'],
+      lastRun,
+    };
+  });
   const result: WatchListResult = {
     configPath: context.paths.configPath,
     dataDir: context.paths.dataDir,
@@ -183,13 +170,10 @@ async function removeSubject(
   args: string[],
 ): Promise<CommandResult> {
   if (args.length > 1) {
-    throw new UsageError(`Unexpected argument ${JSON.stringify(args[1])}. Use: gh-track watch rm <subject>`);
+    throw unexpectedArgument(args[1], 'gh-track watch rm <subject>');
   }
 
   const loaded = await loadConfig(context.paths.configPath, { required: true });
-  if (loaded === null) {
-    throw new UsageError('Config file is required for watch rm.');
-  }
   const config = loaded.config;
   const warnings = [...loaded.warnings];
 
@@ -240,16 +224,16 @@ async function removeSubject(
   const removedKey = subjectKey(existing);
   const trackedBefore = config.tracking.length;
   config.tracking = config.tracking.filter(
-    (entry) => subjectKey(parseSubject(entry.subject)) !== removedKey,
+    (entry) => subjectKeyOf(entry.subject) !== removedKey,
   );
-  if (config.tracking.length !== trackedBefore && context.format !== 'json') {
+  if (config.tracking.length !== trackedBefore) {
     warnings.push(`Removed ${existing.subject} from the dashboard selection.`);
   }
 
   const emptyViews: string[] = [];
   config.views = config.views.filter((view) => {
     const items = view.items.filter(
-      (entry) => subjectKey(parseSubject(entry.subject)) !== removedKey,
+      (entry) => subjectKeyOf(entry.subject) !== removedKey,
     );
     if (items.length === 0) {
       emptyViews.push(view.name);
@@ -258,10 +242,8 @@ async function removeSubject(
     view.items = items;
     return true;
   });
-  if (context.format !== 'json') {
-    for (const name of emptyViews) {
-      warnings.push(`Removed empty dashboard view ${name}.`);
-    }
+  for (const name of emptyViews) {
+    warnings.push(`Removed empty dashboard view ${name}.`);
   }
 
   await saveConfig(context.paths.configPath, config);
@@ -294,7 +276,7 @@ export async function runWatch(context: CommandContext): Promise<CommandResult> 
     return removeSubject(context, args);
   }
   if (subcommand === undefined) {
-    throw new UsageError('Missing watch subcommand. Use: gh-track watch add|ls|rm');
+    throw missingSubcommand('watch', 'gh-track watch add|ls|rm');
   }
-  throw new UsageError(`Unknown watch subcommand: ${subcommand}. Use: gh-track watch add|ls|rm`);
+  throw unknownSubcommand('watch', subcommand, 'gh-track watch add|ls|rm');
 }

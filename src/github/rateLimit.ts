@@ -1,5 +1,7 @@
 /** Rate-limit header parsing, budgets, and persisted state. */
 
+import { isRecord } from '../guards.js';
+
 /** Requests held back so a run never drains the quota to exactly zero. */
 export const HEADROOM = 2;
 
@@ -34,10 +36,6 @@ function parseInteger(value: string | null): number | null {
   }
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function isIsoTimestamp(value: unknown): value is string {

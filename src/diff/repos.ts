@@ -1,7 +1,8 @@
 /** Repository snapshots and the id-based repository diff. */
 
-import type { DiffField, Manifest, RepoDiffEntry, RepoHistoryRow } from '../types.js';
+import { isRecord } from '../guards.js';
 import { readRunPayload } from '../store/runs.js';
+import type { DiffField, Manifest, RepoDiffEntry, RepoHistoryRow } from '../types.js';
 
 /** Scalar payload fields for one repository; identity is kept separately. */
 export interface RepoRecord {
@@ -17,10 +18,6 @@ export const COMPACTED_REPO_FIELDS: ReadonlySet<string> = new Set([
 ]);
 
 const IDENTITY_FIELDS = new Set(['id', 'full_name']);
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 export function isScalar(value: unknown): boolean {
   return (

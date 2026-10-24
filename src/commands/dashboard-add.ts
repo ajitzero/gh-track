@@ -1,18 +1,23 @@
 /** `gh-track dashboard add`: add subjects to the dashboard and watchlist. */
 
+import { unexpectedArgument } from '../cli-args.js';
 import { defaultConfig, loadConfig, saveConfig } from '../config.js';
 import { toConfigSubject } from '../config-edit.js';
-import { defaultMetricsFor, sortTracking } from '../dashboard/select.js';
+import { sortTracking } from '../dashboard/select.js';
 import { CliError, UsageError } from '../errors.js';
 import { listUserRepos, type RepoListing } from '../github/repos-list.js';
 import { createGitHubClient, resolveToken } from '../github/runtime.js';
+import { errorMessage } from '../guards.js';
+import { defaultMetricsFor, parseMetricList } from '../metrics.js';
 import { USER_RESOURCES, parseResources } from '../resources.js';
 import {
   parseExplicitSubject,
   parseSubject,
   subjectKey,
+  subjectKeyOf,
   type ParsedSubject,
 } from '../subjects.js';
+import { cancelled, requirePrompt } from '../result.js';
 import type {
   CommandContext,
   CommandResult,
@@ -39,14 +44,6 @@ interface AppliedEntry extends DashboardAddEntry {
   changed: boolean;
 }
 
-function cancelled(): CommandResult {
-  return {
-    json: { cancelled: true },
-    text: 'Cancelled.\n',
-    warnings: [],
-  };
-}
-
 function rejectRenderFlags(context: CommandContext): void {
   for (const name of ['view', 'subject', 'from', 'to', 'layout']) {
     if (context.options.has(name)) {
@@ -55,39 +52,10 @@ function rejectRenderFlags(context: CommandContext): void {
   }
 }
 
-function parseMetricsFlag(value: string): Metric[] {
-  const parts = value.split(',').map((part) => part.trim());
-  if (parts.length === 0 || parts.some((part) => part.length === 0)) {
-    throw new UsageError(
-      `Invalid --metrics value ${JSON.stringify(value)}. Expected a comma-separated subset of stars,forks.`,
-    );
-  }
-
-  const selected = new Set<Metric>();
-  for (const part of parts) {
-    if (part !== 'stars' && part !== 'forks') {
-      throw new UsageError(
-        `Invalid --metrics value ${JSON.stringify(value)}. Expected a comma-separated subset of stars,forks.`,
-      );
-    }
-    selected.add(part);
-  }
-  return REPO_METRICS.filter((metric) => selected.has(metric));
-}
-
-function metricsForUser(): Metric[] {
-  return ['followers'];
-}
-
-function canonicalRepoMetrics(metrics: readonly Metric[]): Metric[] {
-  const selected = new Set(metrics);
-  return REPO_METRICS.filter((metric) => selected.has(metric));
-}
-
 function trackedMetrics(config: Config, subject: string): Metric[] | null {
-  const key = subjectKey(parseSubject(subject));
+  const key = subjectKeyOf(subject);
   const entry = config.tracking.find(
-    (candidate) => subjectKey(parseSubject(candidate.subject)) === key,
+    (candidate) => subjectKeyOf(candidate.subject) === key,
   );
   return entry === undefined ? null : [...entry.metrics];
 }
@@ -100,12 +68,6 @@ function metricsForRepo(
   return override !== undefined
     ? [...override]
     : (trackedMetrics(config, subject) ?? defaultMetricsFor('repo'));
-}
-
-function requirePrompt(context: CommandContext, action: string, usage: string): void {
-  if (!context.canPrompt) {
-    throw new UsageError(`${action} requires an interactive terminal. Use: ${usage}`);
-  }
 }
 
 function promptCancelled(value: string | null): boolean {
@@ -147,11 +109,10 @@ async function askRepoMetrics(
   if (metrics === null) {
     return null;
   }
-  const canonical = canonicalRepoMetrics(metrics);
-  if (canonical.length === 0) {
+  if (metrics.length === 0) {
     throw new UsageError('Select at least one metric.');
   }
-  return canonical;
+  return parseMetricList(metrics.join(','), 'repo');
 }
 
 async function manualRepo(
@@ -189,7 +150,7 @@ async function browseRepos(
     if (error instanceof CliError && error.code === 'interrupted') {
       throw error;
     }
-    const message = error instanceof Error ? error.message : String(error);
+    const message = errorMessage(error);
     warnings.push(`Could not list repositories for ${owner}: ${message}. Enter one manually.`);
     return manualRepo(
       context,
@@ -241,7 +202,35 @@ async function promptUser(
     return null;
   }
   const parsed = parseExplicitSubject('user', login ?? '');
-  return [{ parsed, metrics: metricsForUser() }];
+  return [{ parsed, metrics: defaultMetricsFor('user') }];
+}
+
+/** Prompts for a repository, then either takes `owner/name` or opens the picker. */
+async function promptRepo(
+  context: CommandContext,
+  config: Config,
+  metricsOverride: readonly Metric[] | undefined,
+  warnings: string[],
+): Promise<PendingAdd[] | null> {
+  const input = await context.prompts.askRepoInput();
+  if (promptCancelled(input)) {
+    return null;
+  }
+  const raw = (input ?? '').trim();
+  if (!raw.includes('/')) {
+    return browseRepos(context, config, raw, metricsOverride, warnings);
+  }
+  const parsed = parseExplicitSubject('repo', raw);
+  const metrics = await askRepoMetrics(context, config, parsed.subject, metricsOverride);
+  return metrics === null ? null : [{ parsed, metrics }];
+}
+
+function explicitRepo(
+  config: Config,
+  parsed: ParsedSubject,
+  metricsOverride: readonly Metric[] | undefined,
+): PendingAdd[] {
+  return [{ parsed, metrics: metricsForRepo(config, parsed.subject, metricsOverride) }];
 }
 
 async function collect(
@@ -253,7 +242,7 @@ async function collect(
 ): Promise<PendingAdd[] | null> {
   const args = context.positionals;
   if (args.length > 2) {
-    throw new UsageError(`Unexpected argument ${JSON.stringify(args[2])}. Use: ${ADD_USAGE}`);
+    throw unexpectedArgument(args[2], ADD_USAGE);
   }
 
   const first = args[0];
@@ -284,17 +273,7 @@ async function collect(
       return promptUser(context, null);
     }
 
-    const input = await context.prompts.askRepoInput();
-    if (promptCancelled(input)) {
-      return null;
-    }
-    const raw = (input ?? '').trim();
-    if (raw.includes('/')) {
-      const parsed = parseExplicitSubject('repo', raw);
-      const metrics = await askRepoMetrics(context, config, parsed.subject, metricsOverride);
-      return metrics === null ? null : [{ parsed, metrics }];
-    }
-    return browseRepos(context, config, raw, metricsOverride, warnings);
+    return promptRepo(context, config, metricsOverride, warnings);
   }
 
   if (first === 'user') {
@@ -318,27 +297,11 @@ async function collect(
         'gh-track dashboard add repo',
         'gh-track dashboard add repo <owner/name>',
       );
-      const input = await context.prompts.askRepoInput();
-      if (promptCancelled(input)) {
-        return null;
-      }
-      const raw = (input ?? '').trim();
-      if (raw.includes('/')) {
-        const parsed = parseExplicitSubject('repo', raw);
-        const metrics = await askRepoMetrics(context, config, parsed.subject, metricsOverride);
-        return metrics === null ? null : [{ parsed, metrics }];
-      }
-      return browseRepos(context, config, raw, metricsOverride, warnings);
+      return promptRepo(context, config, metricsOverride, warnings);
     }
 
     if (second.includes('/')) {
-      const parsed = parseExplicitSubject('repo', second);
-      return [
-        {
-          parsed,
-          metrics: metricsForRepo(config, parsed.subject, metricsOverride),
-        },
-      ];
+      return explicitRepo(config, parseExplicitSubject('repo', second), metricsOverride);
     }
 
     requirePrompt(
@@ -352,14 +315,9 @@ async function collect(
   const parsed = parseSubject(first);
   rejectUserMetrics(parsed.type);
   if (parsed.type === 'user') {
-    return [{ parsed, metrics: metricsForUser() }];
+    return [{ parsed, metrics: defaultMetricsFor('user') }];
   }
-  return [
-    {
-      parsed,
-      metrics: metricsForRepo(config, parsed.subject, metricsOverride),
-    },
-  ];
+  return explicitRepo(config, parsed, metricsOverride);
 }
 
 function applyAdds(
@@ -403,7 +361,7 @@ function applyAdds(
     }
 
     const trackingIndex = config.tracking.findIndex(
-      (entry) => subjectKey(parseSubject(entry.subject)) === key,
+      (entry) => subjectKeyOf(entry.subject) === key,
     );
     const metrics = [...item.metrics];
     const previous = trackingIndex < 0 ? null : config.tracking[trackingIndex]?.metrics;
@@ -448,7 +406,8 @@ export async function runDashboardAdd(context: CommandContext): Promise<CommandR
   rejectRenderFlags(context);
 
   const metricsValue = context.options.get('metrics');
-  const metricsOverride = metricsValue === undefined ? undefined : parseMetricsFlag(metricsValue);
+  const metricsOverride =
+    metricsValue === undefined ? undefined : parseMetricList(metricsValue, 'repo');
   const resourcesValue = context.options.get('resources');
   const resourcesOverride =
     resourcesValue === undefined ? undefined : parseResources(resourcesValue);

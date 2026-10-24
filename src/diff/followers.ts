@@ -1,5 +1,6 @@
 /** Follower set extraction and the named/count follower diffs. */
 
+import { isRecord } from '../guards.js';
 import type {
   FollowerIdentity,
   Manifest,
@@ -28,10 +29,6 @@ export interface FollowerCount {
 
 /** Account key (lowercase) to an aggregate follower count. */
 export type FollowerCounts = Map<string, FollowerCount>;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 function accountKey(account: string): string {
   return account.toLowerCase();

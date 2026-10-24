@@ -104,3 +104,27 @@ export function subjectKey(subject: {
   }
   return `repo:${(subject.repo ?? '').toLowerCase()}`;
 }
+
+/** Parses a canonical subject string and returns its case-insensitive key. */
+export function subjectKeyOf(subject: string): string {
+  return subjectKey(parseSubject(subject));
+}
+
+/** Best-effort key for persisted subjects that may predate validation. */
+export function tolerantSubjectKey(subject: string): string {
+  try {
+    return subjectKeyOf(subject);
+  } catch {
+    return subject.toLowerCase();
+  }
+}
+
+/** The login encoded in a canonical `user:` subject. */
+export function accountOf(subject: string): string {
+  return subject.startsWith('user:') ? subject.slice('user:'.length) : subject;
+}
+
+/** The `owner/name` encoded in a canonical `repo:` subject. */
+export function repoOf(subject: string): string {
+  return subject.startsWith('repo:') ? subject.slice('repo:'.length) : subject;
+}

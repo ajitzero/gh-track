@@ -1,18 +1,15 @@
 /** Compaction: select eligible days, extract metrics, and prune raw runs. */
 
+import { isCalendarDay } from '../date.js';
 import { UsageError } from '../errors.js';
+import { isRecord } from '../guards.js';
 import type { CompactedDay, CompactionResult, Manifest, PrunedRun } from '../types.js';
-import { replaceHistoryDay } from './history.js';
+import { replaceHistoryDays, type HistoryDay } from './history.js';
 import { findPrunableRuns, pruneRuns, runDay } from './prune.js';
 import { listManifests, readRunPayload } from './runs.js';
 import { readStateJson, STATE_COMPACTED_FILE, writeStateJson } from './state.js';
 
-const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const DAY_MS = 86_400_000;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 /** The UTC day at or before which raw data is retained. */
 export function retentionCutoff(now: Date, keepDays: number): string {
@@ -22,7 +19,7 @@ export function retentionCutoff(now: Date, keepDays: number): string {
 
 /** A day is eligible only when it is strictly older than the retention window. */
 export function isEligibleDay(day: string, cutoff: string): boolean {
-  return DAY_PATTERN.test(day) && day < cutoff;
+  return isCalendarDay(day) && day < cutoff;
 }
 
 export interface CompactCandidate {
@@ -158,7 +155,9 @@ function parseCompactedDays(raw: unknown): Set<string> {
   if (!isRecord(raw) || !Array.isArray(raw.days)) {
     return new Set();
   }
-  return new Set(raw.days.filter((day): day is string => typeof day === 'string' && DAY_PATTERN.test(day)));
+  return new Set(
+    raw.days.filter((day): day is string => typeof day === 'string' && isCalendarDay(day)),
+  );
 }
 
 /** UTC days previously compacted into history. */
@@ -166,7 +165,10 @@ export async function readCompactedDays(dataDir: string): Promise<Set<string>> {
   return parseCompactedDays(await readStateJson(dataDir, STATE_COMPACTED_FILE));
 }
 
-async function markCompactedDays(dataDir: string, days: Iterable<string>): Promise<void> {
+async function markCompactedDays(
+  dataDir: string,
+  days: Iterable<string>,
+): Promise<Set<string>> {
   const current = await readCompactedDays(dataDir);
   let changed = false;
   for (const day of days) {
@@ -180,6 +182,7 @@ async function markCompactedDays(dataDir: string, days: Iterable<string>): Promi
       days: [...current].sort(),
     });
   }
+  return current;
 }
 
 export interface CompactionOptions {
@@ -206,12 +209,10 @@ export async function runCompaction(
   const candidates = await selectCompactCandidates(dataDir, cutoff);
 
   const compacted: CompactedDay[] = [];
+  const historyDays: HistoryDay[] = [];
   for (const candidate of candidates) {
     const metrics = await extractDayMetrics(dataDir, candidate.manifest);
-    if (!dryRun) {
-      await replaceHistoryDay(dataDir, candidate.date, metrics.repos, metrics.users);
-      await markCompactedDays(dataDir, [candidate.date]);
-    }
+    historyDays.push({ date: candidate.date, repos: metrics.repos, users: metrics.users });
     compacted.push({
       date: candidate.date,
       repos: metrics.repos.size,
@@ -219,11 +220,18 @@ export async function runCompaction(
     });
   }
 
-  const compactedDays = await readCompactedDays(dataDir);
+  let compactedDays: Set<string>;
   if (dryRun) {
+    compactedDays = await readCompactedDays(dataDir);
     for (const candidate of candidates) {
       compactedDays.add(candidate.date);
     }
+  } else {
+    await replaceHistoryDays(dataDir, historyDays);
+    compactedDays = await markCompactedDays(
+      dataDir,
+      candidates.map((candidate) => candidate.date),
+    );
   }
 
   let pruned: PrunedRun[];

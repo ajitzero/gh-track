@@ -1,6 +1,7 @@
 /** `gh-track dashboard`: read-only per-subject value view. */
 
-import { configMissing, emptyWatchlist, UsageError } from '../errors.js';
+import { unknownSubcommand } from '../cli-args.js';
+import { emptyWatchlist, UsageError } from '../errors.js';
 import { loadConfig, saveConfig } from '../config.js';
 import { runDashboardAdd } from './dashboard-add.js';
 import { pickSelection } from '../dashboard/picker.js';
@@ -8,12 +9,12 @@ import { renderDashboard } from '../dashboard/render.js';
 import {
   buildDashboardRows,
   buildObservationData,
-  classifyRangeRef,
   resolveRefs,
   type ObservationSubject,
 } from '../dashboard/observations.js';
+import { classifyRangeRef, rejectPreviousTo } from '../refs.js';
+import { defaultMetricsFor } from '../metrics.js';
 import {
-  defaultMetricsFor,
   parseLayout,
   resolveSelection,
   toTracking,
@@ -26,14 +27,7 @@ import type {
   Config,
   DashboardResult,
 } from '../types.js';
-
-function cancelled(): CommandResult {
-  return {
-    json: { cancelled: true },
-    text: 'Cancelled.\n',
-    warnings: [],
-  };
-}
+import { cancelled } from '../result.js';
 
 function initialItems(config: Config): SelectionItem[] {
   if (config.tracking.length > 0) {
@@ -61,9 +55,7 @@ export async function runDashboard(context: CommandContext): Promise<CommandResu
     return runDashboardAdd({ ...context, positionals: rest });
   }
   if (subcommand !== undefined) {
-    throw new UsageError(
-      `Unknown dashboard subcommand: ${subcommand}. Use: gh-track dashboard add`,
-    );
+    throw unknownSubcommand('dashboard', subcommand, 'gh-track dashboard add');
   }
 
   for (const name of ['metrics', 'resources', 'token']) {
@@ -75,9 +67,6 @@ export async function runDashboard(context: CommandContext): Promise<CommandResu
   const view = context.options.get('view');
 
   const loaded = await loadConfig(context.paths.configPath, { required: true });
-  if (loaded === null) {
-    throw configMissing(context.paths.configPath);
-  }
   const config = loaded.config;
   if (config.subjects.length === 0) {
     throw emptyWatchlist();
@@ -92,10 +81,7 @@ export async function runDashboard(context: CommandContext): Promise<CommandResu
   if (fromFlag !== undefined) {
     classifyRangeRef(fromFlag, '--from');
   }
-  const toFlag = context.options.get('to');
-  if (toFlag !== undefined && classifyRangeRef(toFlag, '--to') === 'previous') {
-    throw new UsageError('--to cannot be "previous"; use latest, a run id, or YYYY-MM-DD.');
-  }
+  rejectPreviousTo(context.options.get('to'));
 
   const firstRun =
     view === undefined &&

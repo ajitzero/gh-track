@@ -1,7 +1,8 @@
 /** Dashboard selection: default tracking, saved views, and CLI overrides. */
 
 import { noSelection, unknownSubject, unknownView, UsageError } from '../errors.js';
-import { parseSubject, subjectKey } from '../subjects.js';
+import { defaultMetricsFor, orderMetrics } from '../metrics.js';
+import { parseSubject, subjectKey, subjectKeyOf } from '../subjects.js';
 import type {
   Config,
   ConfigSubject,
@@ -31,15 +32,6 @@ export interface SelectionOverrides {
   to?: string | undefined;
   layout?: string | undefined;
   subjects?: readonly string[];
-}
-
-const METRIC_ORDER: Readonly<Record<'user' | 'repo', readonly Metric[]>> = {
-  user: ['followers'],
-  repo: ['stars', 'forks'],
-};
-
-export function defaultMetricsFor(kind: 'user' | 'repo'): Metric[] {
-  return [...METRIC_ORDER[kind]];
 }
 
 function configuredByKey(config: Config): Map<string, ConfigSubject> {
@@ -77,16 +69,16 @@ function subjectOrder(config: Config): Map<string, number> {
 export function sortTracking(config: Config, entries: TrackingEntry[]): TrackingEntry[] {
   const order = subjectOrder(config);
   entries.sort((left, right) => {
-    const leftIndex = order.get(subjectKey(parseSubject(left.subject))) ?? Number.MAX_SAFE_INTEGER;
-    const rightIndex = order.get(subjectKey(parseSubject(right.subject))) ?? Number.MAX_SAFE_INTEGER;
+    const leftIndex = order.get(subjectKeyOf(left.subject)) ?? Number.MAX_SAFE_INTEGER;
+    const rightIndex = order.get(subjectKeyOf(right.subject)) ?? Number.MAX_SAFE_INTEGER;
     return leftIndex - rightIndex;
   });
   return entries;
 }
 
-export function parseLayout(value: string | undefined): DashboardLayout {
+export function parseOptionalLayout(value: string | undefined): DashboardLayout | undefined {
   if (value === undefined) {
-    return 'compact';
+    return undefined;
   }
   if (value !== 'compact' && value !== 'columns') {
     throw new UsageError(
@@ -96,6 +88,10 @@ export function parseLayout(value: string | undefined): DashboardLayout {
   return value;
 }
 
+export function parseLayout(value: string | undefined): DashboardLayout {
+  return parseOptionalLayout(value) ?? 'compact';
+}
+
 function itemFor(
   subject: ConfigSubject,
   view: DashboardView | undefined,
@@ -103,13 +99,13 @@ function itemFor(
 ): SelectionItem {
   const key = subjectKey(subject);
   const fromView = view?.items.find(
-    (item) => subjectKey(parseSubject(item.subject)) === key,
+    (item) => subjectKeyOf(item.subject) === key,
   );
   if (fromView !== undefined) {
     return { subject: fromView.subject, metrics: [...fromView.metrics] };
   }
   const fromTracking = tracking.find(
-    (item) => subjectKey(parseSubject(item.subject)) === key,
+    (item) => subjectKeyOf(item.subject) === key,
   );
   if (fromTracking !== undefined) {
     return { subject: fromTracking.subject, metrics: [...fromTracking.metrics] };
@@ -121,7 +117,7 @@ function dedupeItems(items: readonly SelectionItem[]): SelectionItem[] {
   const seen = new Set<string>();
   const result: SelectionItem[] = [];
   for (const item of items) {
-    const key = subjectKey(parseSubject(item.subject));
+    const key = subjectKeyOf(item.subject);
     if (seen.has(key)) {
       continue;
     }
@@ -205,7 +201,7 @@ export function parseItem(value: string): SelectionItem {
 
   return {
     subject: parsed.subject,
-    metrics: allowed.filter((metric) => selected.has(metric)),
+    metrics: orderMetrics(parsed.type, selected),
   };
 }
 
@@ -214,7 +210,7 @@ export function parseItems(values: readonly string[]): SelectionItem[] {
   const items: SelectionItem[] = [];
   for (const value of values) {
     const item = parseItem(value);
-    const key = subjectKey(parseSubject(item.subject));
+    const key = subjectKeyOf(item.subject);
     if (seen.has(key)) {
       throw new UsageError(`Duplicate --item for ${item.subject}.`);
     }
@@ -242,9 +238,9 @@ export function mergeTracking(
     metrics: [...entry.metrics],
   }));
   for (const item of items) {
-    const key = subjectKey(parseSubject(item.subject));
+    const key = subjectKeyOf(item.subject);
     const index = next.findIndex(
-      (entry) => subjectKey(parseSubject(entry.subject)) === key,
+      (entry) => subjectKeyOf(entry.subject) === key,
     );
     const entry: TrackingEntry = { subject: item.subject, metrics: [...item.metrics] };
     if (index >= 0) {

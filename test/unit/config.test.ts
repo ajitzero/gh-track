@@ -383,6 +383,22 @@ repo = "a/b"
   assert.throws(() => parseConfig(`${base}\n[views."v"]\n`));
 });
 
+test('view names have no length cap', () => {
+  const name = 'very-long-view-name-'.repeat(4);
+  const { config } = parseConfig(`schema_version = 1
+
+[[subjects]]
+type = "repo"
+repo = "a/b"
+
+[views."${name}"]
+[[views."${name}".items]]
+subject = "repo:a/b"
+metrics = ["stars"]
+`);
+  assert.equal(config.views[0]?.name, name);
+});
+
 test('deduplicates tracking entries and merges metrics', () => {
   const { config, warnings } = parseConfig(`schema_version = 1
 

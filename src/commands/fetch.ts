@@ -13,9 +13,17 @@ import {
   hasNextPage,
   nextPageUrl,
   MAX_PAGES,
+  type GitHubResponse,
 } from '../github/client.js';
 import { createGitHubClient, resolveToken } from '../github/runtime.js';
-import { etagFor, parseEtagCache, recordEtag, resolveNotModified, type EtagCache } from '../github/etag.js';
+import {
+  etagFor,
+  parseEtagCache,
+  recordEtag,
+  resolveNotModified,
+  type EtagCache,
+  type ResolvedPayload,
+} from '../github/etag.js';
 import {
   effectiveMaxRequests,
   parseRateLimitState,
@@ -43,7 +51,7 @@ import { acquireLock } from '../store/lock.js';
 import { latestPartialRun, readRunPayload } from '../store/runs.js';
 import { readStateJson, STATE_ETAGS_FILE, STATE_LIMITS_FILE, writeStateJson } from '../store/state.js';
 import { formatRunId } from '../store/paths.js';
-import { parseSubject, subjectKey } from '../subjects.js';
+import { accountOf, parseSubject, repoOf, subjectKey } from '../subjects.js';
 import type {
   CommandContext,
   CommandResult,
@@ -184,7 +192,7 @@ function addPaginated(
   resource: Resource,
   urlForPage: (page: number) => string,
 ): void {
-  const login = subjectLogin(subject);
+  const login = accountOf(subject);
   const pagePathFor: (page: number) => string =
     resource === 'followers'
       ? (page) => followerPagePath(login, page)
@@ -393,22 +401,14 @@ async function runDryRun(context: CommandContext): Promise<CommandResult> {
 // Live fetch
 // ---------------------------------------------------------------------------
 
-function subjectLogin(subject: string): string {
-  return subject.slice('user:'.length);
-}
-
-function subjectRepo(subject: string): string {
-  return subject.slice('repo:'.length);
-}
-
 function payloadPathFor(request: PendingRequest): string {
   if (request.resource === 'followers') {
-    return followerPagePath(subjectLogin(request.subject), request.page);
+    return followerPagePath(accountOf(request.subject), request.page);
   }
   if (request.resource === 'repos') {
-    return repoPagePath(subjectLogin(request.subject), request.page);
+    return repoPagePath(accountOf(request.subject), request.page);
   }
-  return standaloneRepoPath(subjectRepo(request.subject));
+  return standaloneRepoPath(repoOf(request.subject));
 }
 
 function nextRequestFor(
@@ -426,7 +426,7 @@ function nextRequestFor(
     if (!hasNextPage(link, itemCount, perPage)) {
       return null;
     }
-    const login = subjectLogin(request.subject);
+    const login = accountOf(request.subject);
     const url =
       nextPageUrl(link) ??
       (request.resource === 'followers'
@@ -469,7 +469,11 @@ async function expandRepos(writer: RunWriter, login: string, payload: unknown): 
   }
 }
 
-async function recountStats(writer: RunWriter, manifest: Manifest): Promise<void> {
+async function recountStats(
+  writer: RunWriter,
+  manifest: Manifest,
+  knownCounts: ReadonlyMap<string, number>,
+): Promise<void> {
   let repos = 0;
   let followers = 0;
   let notModified = 0;
@@ -485,18 +489,20 @@ async function recountStats(writer: RunWriter, manifest: Manifest): Promise<void
       continue;
     }
     if (entry.resource === 'followers' || entry.resource === 'repos') {
-      let payload: unknown = null;
-      try {
-        payload = await writer.readPayload(entry.path);
-      } catch {
-        payload = null;
-      }
-      if (Array.isArray(payload)) {
-        if (entry.resource === 'followers') {
-          followers += payload.length;
-        } else {
-          repos += payload.length;
+      let count = knownCounts.get(entry.path);
+      if (count === undefined) {
+        let payload: unknown = null;
+        try {
+          payload = await writer.readPayload(entry.path);
+        } catch {
+          payload = null;
         }
+        count = payloadCount(payload);
+      }
+      if (entry.resource === 'followers') {
+        followers += count;
+      } else {
+        repos += count;
       }
     }
   }
@@ -507,6 +513,11 @@ interface RunOutcome {
   manifest: Manifest;
   interrupted: boolean;
   resumeAfter: string | null;
+}
+
+/** Array payloads count their items; anything else counts zero. */
+function payloadCount(payload: unknown): number {
+  return Array.isArray(payload) ? payload.length : 0;
 }
 
 async function executeRun(
@@ -534,7 +545,9 @@ async function executeRun(
   const pendingQueue: PendingRequest[] = [...queue];
   const scheduled = new Set<string>(pendingQueue.map((request) => pageKey(request)));
   const processed = new Set<string>();
+  const payloadCounts = new Map<string, number>();
   const failed: PendingRequest[] = [];
+  const unresumable = new Set<string>();
   let lastRateLimit: RateLimitHeaders | null = null;
   let stopped: 'cap' | 'rate' | 'interrupt' | null = null;
   let resumeAfter: string | null = null;
@@ -554,6 +567,19 @@ async function executeRun(
       scheduled.add(key);
       pendingQueue.push(next);
     }
+  };
+
+  /** Issues one request and keeps the last rate-limit headers current. */
+  const issue = async (
+    request: PendingRequest,
+    ifNoneMatch: string | null,
+  ): Promise<GitHubResponse> => {
+    const response = await client.get(request.url, {
+      ifNoneMatch,
+      signal: context.signal,
+    });
+    lastRateLimit = response.rateLimit;
+    return response;
   };
 
   while (pendingQueue.length > 0) {
@@ -579,30 +605,49 @@ async function executeRun(
     // A resumed request that succeeds replaces any error recorded earlier.
     manifest.errors = manifest.errors.filter((entry) => entry.url !== request.url);
 
-    const cachedEtag = cache[request.url]?.etag ?? null;
+    const entry = cache[request.url];
+    const cachedEtag = entry?.etag ?? null;
 
     try {
-      const response = await client.get(request.url, {
-        ifNoneMatch: cachedEtag,
-        signal: context.signal,
-      });
-      lastRateLimit = response.rateLimit;
+      let response = await issue(request, cachedEtag);
       const checkedAt = new Date().toISOString();
       const relativePath = payloadPathFor(request);
 
+      // A 304 is only useful while the run named by its ETag still has the
+      // payload. If pruning or manual cleanup removed it, forget the validator
+      // and retry unconditionally so `--resume` cannot get stuck forever.
+      let resolved: ResolvedPayload<unknown> | null = null;
       if (response.status === 304) {
-        const entry = cache[request.url];
         if (entry === undefined) {
           throw httpError(304, `Received 304 without a cached validator: ${request.url}`, {
             url: request.url,
           });
         }
-        const resolved = await resolveNotModified(entry, (runId, relativePath2) =>
-          readRunPayload(dataDir, runId, relativePath2),
-        );
+        try {
+          resolved = await resolveNotModified(entry, (runId, relativePath2) =>
+            readRunPayload(dataDir, runId, relativePath2),
+          );
+        } catch (error) {
+          if (made >= cap) {
+            throw error;
+          }
+          delete cache[request.url];
+          made += 1;
+          response = await issue(request, null);
+        }
+      }
+
+      if (response.status === 304) {
+        if (entry === undefined || resolved === null) {
+          throw httpError(304, `Cannot resolve 304 response for ${request.url}`, {
+            url: request.url,
+          });
+        }
         await writer.writePayload(relativePath, resolved.payload);
+        const itemCount = payloadCount(resolved.payload);
+        payloadCounts.set(relativePath, itemCount);
         if (request.resource === 'repos') {
-          await expandRepos(writer, subjectLogin(request.subject), resolved.payload);
+          await expandRepos(writer, accountOf(request.subject), resolved.payload);
         }
         manifest.requests.push({
           subject: request.subject,
@@ -626,16 +671,14 @@ async function executeRun(
 
         // A 304 has no body, so pagination continues from the copied payload.
         // Without this, a full unchanged page 1 would hide every later page.
-        enqueueNextPage(
-          request,
-          response.link,
-          Array.isArray(resolved.payload) ? resolved.payload.length : 0,
-        );
+        enqueueNextPage(request, response.link, itemCount);
       } else if (response.status === 200) {
         const payload = response.payload ?? null;
         await writer.writePayload(relativePath, payload);
+        const itemCount = payloadCount(payload);
+        payloadCounts.set(relativePath, itemCount);
         if (request.resource === 'repos') {
-          await expandRepos(writer, subjectLogin(request.subject), payload);
+          await expandRepos(writer, accountOf(request.subject), payload);
         }
         const entry: ManifestRequestEntry = {
           subject: request.subject,
@@ -660,7 +703,6 @@ async function executeRun(
         }
         manifest.requests.push(entry);
 
-        const itemCount = Array.isArray(payload) ? payload.length : 0;
         enqueueNextPage(request, response.link, itemCount);
       } else if (response.status === 404) {
         manifest.errors.push({
@@ -698,15 +740,22 @@ async function executeRun(
         code: cliError.code,
         message: cliError.message,
       });
+      // An off-origin URL is permanent. Record it and fail the run, but do not
+      // queue it as pending: no future resume can make it succeed.
+      if (cliError.code === 'refused_url') {
+        unresumable.add(request.url);
+      }
       failed.push(request);
     }
   }
 
   manifest.status = stopped === null && failed.length === 0 ? 'complete' : 'partial';
-  manifest.pending = dedupePending([...failed, ...pendingQueue]);
+  manifest.pending = dedupePending([...failed, ...pendingQueue]).filter(
+    (request) => !unresumable.has(request.url),
+  );
   manifest.finishedAt = new Date().toISOString();
 
-  await recountStats(writer, manifest);
+  await recountStats(writer, manifest, payloadCounts);
   await writer.writeManifest(manifest);
   await writer.promote();
 

@@ -99,10 +99,16 @@ function daysAgo(days: number): string {
   );
 }
 
-function assertJsonDocument(result: Capture, label: string): unknown {
+function assertJsonDocument(
+  result: Capture,
+  label: string,
+  options: { allowWarnings?: boolean } = {},
+): unknown {
   assert.equal(/\u001b\[[0-9;]*m/.test(result.stdout), false, `${label}: ANSI in stdout`);
   assert.equal(/\u001b\[[0-9;]*m/.test(result.stderr), false, `${label}: ANSI in stderr`);
-  assert.equal(result.stderr, '', `${label}: unexpected stderr: ${result.stderr}`);
+  if (options.allowWarnings !== true) {
+    assert.equal(result.stderr, '', `${label}: unexpected stderr: ${result.stderr}`);
+  }
   assert.equal(result.stdout.endsWith('\n'), true, `${label}: missing trailing newline`);
   try {
     return JSON.parse(result.stdout);
@@ -266,7 +272,8 @@ test('every JSON command emits one clean document on a fake TTY', async (t) => {
   const removed = await invoke([
     'watch', 'rm', 'user:octocat', '--yes', '--config', configPath, '--format', 'json',
   ]);
-  assertJsonDocument(removed, 'watch rm');
+  assertJsonDocument(removed, 'watch rm', { allowWarnings: true });
+  assert.match(removed.stderr, /Removed user:octocat/);
 });
 
 test('JSON errors are one clean document on stderr with empty stdout', async (t) => {

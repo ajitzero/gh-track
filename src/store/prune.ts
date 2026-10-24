@@ -2,20 +2,16 @@
 
 import { rm } from 'node:fs/promises';
 import path from 'node:path';
+import { utcDay } from '../date.js';
 import { ioError } from '../errors.js';
+import { errorMessage, isRecord } from '../guards.js';
 import type { PrunedRun } from '../types.js';
 import { isValidRunId, runDir, runsDir } from './paths.js';
 import { listRunIds } from './runs.js';
 import { readStateJson, STATE_ETAGS_FILE, writeStateJson } from './state.js';
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
 /** UTC day encoded in a run id. */
-export function runDay(id: string): string {
-  return id.slice(0, 'YYYY-MM-DD'.length);
-}
+export const runDay = utcDay;
 
 /** Runs whose day is in `days`, without deleting anything. */
 export async function findPrunableRuns(
@@ -85,7 +81,7 @@ export async function pruneRuns(
     try {
       await rm(candidate.path, { recursive: true, force: true });
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = errorMessage(error);
       throw ioError(`Failed to prune run ${candidate.id}: ${message}`, { path: candidate.path });
     }
     pruned.push(candidate);

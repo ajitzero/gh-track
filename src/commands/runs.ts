@@ -1,29 +1,27 @@
 /** `gh-track runs ls|show|paths`. */
 
-import { UsageError, runNotFound } from '../errors.js';
+import {
+  invalidOption,
+  missingSubcommand,
+  positiveIntegerOption,
+  unexpectedArgument,
+  unknownSubcommand,
+} from '../cli-args.js';
+import { runNotFound, UsageError } from '../errors.js';
 import { renderTable } from '../output/table.js';
 import { readManifest } from '../store/manifest.js';
 import { runDir } from '../store/paths.js';
 import { listManifests } from '../store/runs.js';
 import type { CommandContext, CommandResult, Manifest } from '../types.js';
 
-function parseLimit(raw: string | undefined): number {
-  if (raw === undefined) {
-    return 20;
-  }
-  const value = Number(raw);
-  if (!Number.isInteger(value) || value < 1) {
-    throw new UsageError('--limit must be a positive integer.');
-  }
-  return value;
-}
+const RUNS_USAGE = 'gh-track runs ls|show|paths';
 
 async function listRuns(context: CommandContext, args: readonly string[]): Promise<CommandResult> {
   if (args.length > 0) {
-    throw new UsageError(`Unexpected argument ${JSON.stringify(args[0])}. Use: gh-track runs ls`);
+    throw unexpectedArgument(args[0], 'gh-track runs ls');
   }
-  const limit = parseLimit(context.options.get('limit'));
-  const manifests = (await listManifests(context.paths.dataDir)).slice(0, limit);
+  const limit = positiveIntegerOption(context.options.get('limit'), '--limit', 20) ?? 20;
+  const manifests = await listManifests(context.paths.dataDir, limit);
 
   const rows = manifests.map((manifest) => ({
     id: manifest.id,
@@ -56,20 +54,21 @@ async function listRuns(context: CommandContext, args: readonly string[]): Promi
   return { json: { runs: rows }, text, warnings: [] };
 }
 
-async function requireRun(context: CommandContext, args: readonly string[]): Promise<Manifest> {
+async function requireRun(
+  context: CommandContext,
+  args: readonly string[],
+  usage: string,
+): Promise<Manifest> {
   if (args.length === 0) {
-    throw new UsageError('Missing run id. Use: gh-track runs show <run-id>');
+    throw new UsageError(`Missing run id. Use: ${usage}`);
   }
   if (args.length > 1) {
-    throw new UsageError(`Unexpected argument ${JSON.stringify(args[1])}.`);
+    throw unexpectedArgument(args[1], usage);
   }
   const id = args[0];
-  if (id === undefined) {
-    throw new UsageError('Missing run id.');
-  }
-  const manifest = await readManifest(context.paths.dataDir, id);
+  const manifest = id === undefined ? null : await readManifest(context.paths.dataDir, id);
   if (manifest === null) {
-    throw runNotFound(id);
+    throw runNotFound(id ?? '');
   }
   return manifest;
 }
@@ -97,12 +96,12 @@ function renderManifest(manifest: Manifest): string {
 }
 
 async function showRun(context: CommandContext, args: readonly string[]): Promise<CommandResult> {
-  const manifest = await requireRun(context, args);
+  const manifest = await requireRun(context, args, 'gh-track runs show <run-id>');
   return { json: manifest, text: renderManifest(manifest), warnings: [] };
 }
 
 async function showPath(context: CommandContext, args: readonly string[]): Promise<CommandResult> {
-  const manifest = await requireRun(context, args);
+  const manifest = await requireRun(context, args, 'gh-track runs paths <run-id>');
   const directory = runDir(context.paths.dataDir, manifest.id);
   return {
     json: { path: directory },
@@ -117,14 +116,14 @@ export async function runRuns(context: CommandContext): Promise<CommandResult> {
   if (subcommand === 'ls') {
     return listRuns(context, args);
   }
-  if (subcommand === 'show') {
-    return showRun(context, args);
-  }
-  if (subcommand === 'paths') {
-    return showPath(context, args);
+  if (subcommand === 'show' || subcommand === 'paths') {
+    if (context.options.has('limit')) {
+      throw invalidOption('--limit', `'gh-track runs ${subcommand}'`);
+    }
+    return subcommand === 'show' ? showRun(context, args) : showPath(context, args);
   }
   if (subcommand === undefined) {
-    throw new UsageError('Missing runs subcommand. Use: gh-track runs ls|show|paths');
+    throw missingSubcommand('runs', RUNS_USAGE);
   }
-  throw new UsageError(`Unknown runs subcommand: ${subcommand}. Use: gh-track runs ls|show|paths`);
+  throw unknownSubcommand('runs', subcommand, RUNS_USAGE);
 }

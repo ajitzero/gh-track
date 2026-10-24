@@ -1,24 +1,23 @@
 /** `gh-track track`: manage the dashboard selection and named views. */
 
+import { missingSubcommand, unexpectedArgument, unknownSubcommand } from '../cli-args.js';
 import { loadConfig, isValidViewName, saveConfig } from '../config.js';
-import {
-  configMissing,
-  emptyWatchlist,
-  UsageError,
-} from '../errors.js';
-import { classifyRangeRef } from '../dashboard/observations.js';
+import { emptyWatchlist, UsageError } from '../errors.js';
+import { classifyRangeRef, rejectPreviousTo } from '../refs.js';
+import { defaultMetricsFor } from '../metrics.js';
 import { pickSelection } from '../dashboard/picker.js';
 import {
   canonicalizeItems,
-  defaultMetricsFor,
   mergeTracking,
   parseItems,
+  parseOptionalLayout,
   toTracking,
   toViewItems,
   type SelectionItem,
 } from '../dashboard/select.js';
 import { renderTable } from '../output/table.js';
-import { parseSubject, subjectKey } from '../subjects.js';
+import { cancelled } from '../result.js';
+import { parseSubject, subjectKey, subjectKeyOf } from '../subjects.js';
 import type {
   CommandContext,
   CommandResult,
@@ -28,31 +27,11 @@ import type {
   TrackListResult,
 } from '../types.js';
 
-function cancelled(): CommandResult {
-  return {
-    json: { cancelled: true },
-    text: 'Cancelled.\n',
-    warnings: [],
-  };
-}
-
-function parseLayout(value: string | undefined): DashboardLayout | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-  if (value !== 'compact' && value !== 'columns') {
-    throw new UsageError(`Unsupported --layout value: ${value}. Expected compact or columns.`);
-  }
-  return value;
-}
-
 function validateRefs(from: string | undefined, to: string | undefined): void {
   if (from !== undefined) {
     classifyRangeRef(from, '--from');
   }
-  if (to !== undefined && classifyRangeRef(to, '--to') === 'previous') {
-    throw new UsageError('--to cannot be "previous"; use latest, a run id, or YYYY-MM-DD.');
-  }
+  rejectPreviousTo(to);
 }
 
 function itemCell(item: SelectionItem): string {
@@ -122,9 +101,6 @@ async function loadRequired(
   context: CommandContext,
 ): Promise<{ config: Config; warnings: string[] }> {
   const loaded = await loadConfig(context.paths.configPath, { required: true });
-  if (loaded === null) {
-    throw configMissing(context.paths.configPath);
-  }
   return { config: loaded.config, warnings: [...loaded.warnings] };
 }
 
@@ -143,9 +119,7 @@ function initialItems(config: Config): SelectionItem[] {
 
 async function runEdit(context: CommandContext): Promise<CommandResult> {
   if (context.positionals.length > 1) {
-    throw new UsageError(
-      `Unexpected argument ${JSON.stringify(context.positionals[1])}. Use: gh-track track edit`,
-    );
+    throw unexpectedArgument(context.positionals[1], 'gh-track track edit');
   }
   if (context.options.has('item') || context.options.has('layout') || context.options.has('from') || context.options.has('to')) {
     throw new UsageError('track edit does not accept --item, --layout, --from, or --to. Use track set or track view save.');
@@ -190,7 +164,7 @@ async function runEdit(context: CommandContext): Promise<CommandResult> {
 
 async function runSet(context: CommandContext, args: readonly string[]): Promise<CommandResult> {
   if (args.length > 0) {
-    throw new UsageError(`Unexpected argument ${JSON.stringify(args[0])}. Use: gh-track track set --item <subject>=<metrics>`);
+    throw unexpectedArgument(args[0], 'gh-track track set --item <subject>=<metrics>');
   }
   const values = context.options.getAll('item');
   if (values.length === 0) {
@@ -219,7 +193,7 @@ async function runRm(context: CommandContext, args: readonly string[]): Promise<
     throw new UsageError('Missing subject. Use: gh-track track rm <subject>');
   }
   if (args.length > 1) {
-    throw new UsageError(`Unexpected argument ${JSON.stringify(args[1])}. Use: gh-track track rm <subject>`);
+    throw unexpectedArgument(args[1], 'gh-track track rm <subject>');
   }
   if (context.options.has('item') || context.options.has('layout') || context.options.has('from') || context.options.has('to')) {
     throw new UsageError('track rm only accepts a subject.');
@@ -229,7 +203,7 @@ async function runRm(context: CommandContext, args: readonly string[]): Promise<
   const key = subjectKey(parsed);
   const { config, warnings } = await loadRequired(context);
   const index = config.tracking.findIndex(
-    (entry) => subjectKey(parseSubject(entry.subject)) === key,
+    (entry) => subjectKeyOf(entry.subject) === key,
   );
   if (index < 0) {
     throw new UsageError(`${parsed.subject} is not in the dashboard selection.`);
@@ -247,7 +221,7 @@ async function runRm(context: CommandContext, args: readonly string[]): Promise<
 
 async function runLs(context: CommandContext, args: readonly string[]): Promise<CommandResult> {
   if (args.length > 0) {
-    throw new UsageError(`Unexpected argument ${JSON.stringify(args[0])}. Use: gh-track track ls`);
+    throw unexpectedArgument(args[0], 'gh-track track ls');
   }
   if (context.options.has('item') || context.options.has('layout') || context.options.has('from') || context.options.has('to')) {
     throw new UsageError('track ls does not accept selection options.');
@@ -270,7 +244,7 @@ async function saveView(
     throw new UsageError('Missing view name. Use: gh-track track view save <name>');
   }
   if (args.length > 1) {
-    throw new UsageError(`Unexpected argument ${JSON.stringify(args[1])}. Use: gh-track track view save <name>`);
+    throw unexpectedArgument(args[1], 'gh-track track view save <name>');
   }
   if (!isValidViewName(name)) {
     throw new UsageError(
@@ -284,7 +258,7 @@ async function saveView(
   }
 
   const existing = config.views.find((view) => view.name === name);
-  const layoutFlag = parseLayout(context.options.get('layout'));
+  const layoutFlag = parseOptionalLayout(context.options.get('layout'));
   const fromFlag = context.options.get('from');
   const toFlag = context.options.get('to');
   validateRefs(fromFlag, toFlag);
@@ -369,7 +343,7 @@ async function removeView(
     throw new UsageError('Missing view name. Use: gh-track track view rm <name>');
   }
   if (args.length > 1) {
-    throw new UsageError(`Unexpected argument ${JSON.stringify(args[1])}. Use: gh-track track view rm <name>`);
+    throw unexpectedArgument(args[1], 'gh-track track view rm <name>');
   }
   if (context.options.has('item') || context.options.has('layout') || context.options.has('from') || context.options.has('to')) {
     throw new UsageError('track view rm only accepts a view name.');
@@ -414,12 +388,12 @@ export async function runTrack(context: CommandContext): Promise<CommandResult> 
       return removeView(context, viewArgs);
     }
     if (viewCommand === undefined) {
-      throw new UsageError('Missing track view subcommand. Use: gh-track track view save|rm');
+      throw missingSubcommand('track view', 'gh-track track view save|rm');
     }
-    throw new UsageError(`Unknown track view subcommand: ${viewCommand}. Use: gh-track track view save|rm`);
+    throw unknownSubcommand('track view', viewCommand, 'gh-track track view save|rm');
   }
   if (subcommand === undefined) {
-    throw new UsageError('Missing track subcommand. Use: gh-track track edit|set|rm|ls|view');
+    throw missingSubcommand('track', 'gh-track track edit|set|rm|ls|view');
   }
-  throw new UsageError(`Unknown track subcommand: ${subcommand}. Use: gh-track track edit|set|rm|ls|view`);
+  throw unknownSubcommand('track', subcommand, 'gh-track track edit|set|rm|ls|view');
 }

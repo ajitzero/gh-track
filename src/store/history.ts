@@ -2,19 +2,15 @@
 
 import { readFile, readdir, unlink } from 'node:fs/promises';
 import path from 'node:path';
+import { isCalendarDay } from '../date.js';
+import { isRecord } from '../guards.js';
 import type { RepoHistoryRow, UserHistoryRow } from '../types.js';
 import { writeFileAtomic } from './atomic.js';
 import { historyReposDir, historyUsersDir } from './paths.js';
 import { repoFileStem, safeSegment } from './runWriter.js';
 
-const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
 function isDate(value: unknown): value is string {
-  return typeof value === 'string' && DATE_PATTERN.test(value);
+  return typeof value === 'string' && isCalendarDay(value);
 }
 
 /** Parses one repository history line, rejecting anything malformed. */
@@ -165,13 +161,14 @@ async function writeHistoryFile<T>(
 }
 
 /**
- * Replaces one UTC day across a history family: the date is removed from every
- * file and the supplied rows are written. This makes compaction idempotent and
- * makes the chosen complete run authoritative for the day.
+ * Replaces one or more UTC days across a history family in a single read/write
+ * pass: each date is removed from every file and the supplied rows are written.
+ * This makes compaction idempotent and makes the chosen complete run
+ * authoritative for each day.
  */
-async function replaceFamily<T>(
+async function replaceFamilyDays<T>(
   dir: string,
-  day: string,
+  days: ReadonlySet<string>,
   additions: readonly T[],
   parse: (value: unknown) => T | null,
   identity: (row: T) => string,
@@ -181,11 +178,14 @@ async function replaceFamily<T>(
 ): Promise<void> {
   const files = await readHistoryFiles(dir, parse, identity);
   const updates = new Map<string, HistoryFile<T>>();
+  const dirty = new Set<string>();
+
   for (const [key, file] of files) {
-    updates.set(key, {
-      name: file.name,
-      rows: file.rows.filter((row) => dateOf(row) !== day),
-    });
+    const rows = file.rows.filter((row) => !days.has(dateOf(row)));
+    if (rows.length !== file.rows.length) {
+      dirty.add(key);
+    }
+    updates.set(key, { name: file.name, rows });
   }
 
   for (const row of additions) {
@@ -196,38 +196,56 @@ async function replaceFamily<T>(
     } else {
       updates.set(key, { name: `${stem(row)}.ndjson`, rows: [row] });
     }
+    dirty.add(key);
   }
 
-  for (const file of updates.values()) {
-    await writeHistoryFile(path.join(dir, file.name), file.rows, serialize, dateOf);
+  for (const key of dirty) {
+    const file = updates.get(key);
+    if (file !== undefined) {
+      await writeHistoryFile(path.join(dir, file.name), file.rows, serialize, dateOf);
+    }
   }
 }
 
-/**
- * Replaces repository and account history for one day. The maps passed in are
- * the metrics of the day's chosen complete run.
- */
-export async function replaceHistoryDay(
-  dataDir: string,
-  day: string,
-  repos: ReadonlyMap<string, { stars: number; forks: number }>,
-  users: ReadonlyMap<string, number>,
-): Promise<void> {
-  const repoRows: RepoHistoryRow[] = [...repos].map(([repository, metrics]) => ({
-    date: day,
-    repository,
-    stars: metrics.stars,
-    forks: metrics.forks,
-  }));
-  const userRows: UserHistoryRow[] = [...users].map(([account, followers]) => ({
-    date: day,
-    account,
-    followers,
-  }));
+export interface HistoryDay {
+  date: string;
+  repos: ReadonlyMap<string, { stars: number; forks: number }>;
+  users: ReadonlyMap<string, number>;
+}
 
-  await replaceFamily<RepoHistoryRow>(
+/**
+ * Replaces repository and account history for several days. The maps passed in
+ * are the metrics of each day's chosen complete run.
+ */
+export async function replaceHistoryDays(
+  dataDir: string,
+  days: readonly HistoryDay[],
+): Promise<void> {
+  if (days.length === 0) {
+    return;
+  }
+
+  const repoRows: RepoHistoryRow[] = [];
+  const userRows: UserHistoryRow[] = [];
+  const dates = new Set<string>();
+  for (const day of days) {
+    dates.add(day.date);
+    for (const [repository, metrics] of day.repos) {
+      repoRows.push({
+        date: day.date,
+        repository,
+        stars: metrics.stars,
+        forks: metrics.forks,
+      });
+    }
+    for (const [account, followers] of day.users) {
+      userRows.push({ date: day.date, account, followers });
+    }
+  }
+
+  await replaceFamilyDays<RepoHistoryRow>(
     historyReposDir(dataDir),
-    day,
+    dates,
     repoRows,
     parseRepoHistoryRow,
     (row) => row.repository,
@@ -235,9 +253,9 @@ export async function replaceHistoryDay(
     serializeRepoHistoryRow,
     (row) => row.date,
   );
-  await replaceFamily<UserHistoryRow>(
+  await replaceFamilyDays<UserHistoryRow>(
     historyUsersDir(dataDir),
-    day,
+    dates,
     userRows,
     parseUserHistoryRow,
     (row) => row.account,

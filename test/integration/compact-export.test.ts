@@ -342,6 +342,12 @@ test('export filters by subject and date range', async (t) => {
   const badDate = await invoke(['export', '--from', '2026-13-01', '--data-dir', dataDir]);
   assert.equal(badDate.code, 2);
   assert.match(badDate.stderr, /--from is not a valid calendar date/);
+
+  const reversed = await invoke([
+    'export', '--from', '2026-08-03', '--to', '2026-08-01', '--data-dir', dataDir,
+  ]);
+  assert.equal(reversed.code, 2);
+  assert.match(reversed.stderr, /--from must not be later than --to/);
 });
 
 test('a complete fetch auto-compacts old runs unless --no-compact', async (t) => {

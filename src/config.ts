@@ -2,7 +2,10 @@
 
 import { readFile } from 'node:fs/promises';
 import { parse as parseToml } from 'smol-toml';
+import { isCalendarDay } from './date.js';
 import { configInvalid, configMissing, ioError } from './errors.js';
+import { errorMessage, hasOwn, isRecord } from './guards.js';
+import { isMetric, METRIC_ORDER, orderMetrics } from './metrics.js';
 import { writeFileAtomic } from './store/atomic.js';
 import { isValidRunId } from './store/paths.js';
 import {
@@ -31,12 +34,6 @@ export const SCHEMA_VERSION = 1;
 const USER_RESOURCE_ORDER: readonly Resource[] = ['followers', 'repos'];
 const USER_RESOURCE_SET = new Set<string>(USER_RESOURCE_ORDER);
 
-const METRIC_ORDER: Readonly<Record<SubjectType, readonly Metric[]>> = {
-  user: ['followers'],
-  repo: ['stars', 'forks'],
-};
-const METRIC_SET = new Set<string>(['stars', 'forks', 'followers']);
-
 const ROOT_KEYS = new Set(['schema_version', 'defaults', 'subjects', 'tracking', 'views']);
 const DEFAULTS_KEYS = new Set([
   'raw_retention_days',
@@ -49,8 +46,7 @@ const TRACKING_KEYS = new Set(['metrics']);
 const VIEW_KEYS = new Set(['items', 'layout', 'from', 'to']);
 const VIEW_ITEM_KEYS = new Set(['subject', 'metrics']);
 
-const VIEW_NAME_PATTERN = /^[a-z0-9][a-z0-9_-]{0,31}$/;
-const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const VIEW_NAME_PATTERN = /^[a-z0-9][a-z0-9_-]*$/;
 
 export function isValidViewName(name: string): boolean {
   return VIEW_NAME_PATTERN.test(name);
@@ -69,14 +65,6 @@ export interface LoadConfigOptions {
 export interface LoadedConfig {
   config: Config;
   warnings: string[];
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function hasOwn(value: Record<string, unknown>, key: string): boolean {
-  return Object.prototype.hasOwnProperty.call(value, key);
 }
 
 function fail(message: string): never {
@@ -287,14 +275,6 @@ function parseSubjects(raw: unknown): { subjects: ConfigSubject[]; warnings: str
   return { subjects, warnings };
 }
 
-function isCalendarDay(value: string): boolean {
-  if (!DATE_PATTERN.test(value)) {
-    return false;
-  }
-  const date = new Date(`${value}T00:00:00.000Z`);
-  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
-}
-
 function parseSubjectInput(
   input: string,
   location: string,
@@ -328,25 +308,19 @@ function parseMetrics(raw: unknown, type: SubjectType, location: string): Metric
 
   const selected = new Set<Metric>();
   for (const value of raw) {
-    if (typeof value !== 'string' || !METRIC_SET.has(value)) {
+    if (typeof value !== 'string' || !isMetric(value)) {
       fail(`${location} must be a subset of ${allowed.join(',')}`);
     }
-    if (!allowed.includes(value as Metric)) {
+    if (!allowed.includes(value)) {
       fail(`${location} must be a subset of ${allowed.join(',')} for ${type} subjects`);
     }
-    selected.add(value as Metric);
+    selected.add(value);
   }
-  return allowed.filter((metric) => selected.has(metric));
+  return orderMetrics(type, selected);
 }
 
 function mergeMetrics(type: SubjectType, ...groups: readonly (readonly Metric[])[]): Metric[] {
-  const merged = new Set<Metric>();
-  for (const group of groups) {
-    for (const metric of group) {
-      merged.add(metric);
-    }
-  }
-  return METRIC_ORDER[type].filter((metric) => merged.has(metric));
+  return orderMetrics(type, groups.flat());
 }
 
 function parseTracking(
@@ -534,7 +508,7 @@ export function parseConfig(text: string): ParseConfigResult {
   try {
     raw = parseToml(text);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = errorMessage(error);
     throw configInvalid(`Invalid TOML: ${message}`);
   }
 
@@ -635,6 +609,18 @@ function isMissingFile(error: unknown): boolean {
  * Reads config from disk. A missing file throws `config_missing` unless
  * `required` is false, in which case it returns null.
  */
+export function loadConfig(
+  configPath: string,
+  options?: { required?: true },
+): Promise<LoadedConfig>;
+export function loadConfig(
+  configPath: string,
+  options: { required: false },
+): Promise<LoadedConfig | null>;
+export function loadConfig(
+  configPath: string,
+  options: { required: boolean },
+): Promise<LoadedConfig | null>;
 export async function loadConfig(
   configPath: string,
   options: LoadConfigOptions = {},
@@ -649,7 +635,7 @@ export async function loadConfig(
       }
       throw configMissing(configPath);
     }
-    const message = error instanceof Error ? error.message : String(error);
+    const message = errorMessage(error);
     throw ioError(`Failed to read ${configPath}: ${message}`, { path: configPath });
   }
 

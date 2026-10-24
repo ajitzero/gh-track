@@ -4,10 +4,10 @@ import os from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import {
-  classifyRef,
   loadDiffPoints,
   resolveDiffRange,
 } from '../../src/diff/resolve.js';
+import { classifyRef } from '../../src/refs.js';
 import { runCompaction } from '../../src/store/compact.js';
 import { seedRun } from '../helpers/seed.js';
 

@@ -7,9 +7,18 @@ import {
   parseRepoHistoryRow,
   parseUserHistoryRow,
   readAllHistory,
-  replaceHistoryDay,
+  replaceHistoryDays,
   repoHistoryFile,
 } from '../../src/store/history.js';
+
+async function replaceDays(
+  dataDir: string,
+  date: string,
+  repos: ReadonlyMap<string, { stars: number; forks: number }>,
+  users: ReadonlyMap<string, number>,
+): Promise<void> {
+  await replaceHistoryDays(dataDir, [{ date, repos, users }]);
+}
 
 async function tempDir(t: TestContext): Promise<string> {
   const dir = await mkdtemp(path.join(os.tmpdir(), 'gh-track-history-'));
@@ -37,16 +46,16 @@ test('history parsers reject malformed rows', () => {
   );
 });
 
-test('replaceHistoryDay writes sorted rows and replaces one day in place', async (t) => {
+test('replaceHistoryDays writes sorted rows and replaces one day in place', async (t) => {
   const dataDir = await tempDir(t);
 
-  await replaceHistoryDay(
+  await replaceDays(
     dataDir,
     '2026-01-02',
     new Map([['octocat/a', { stars: 1, forks: 2 }]]),
     new Map([['octocat', 3]]),
   );
-  await replaceHistoryDay(
+  await replaceDays(
     dataDir,
     '2026-01-01',
     new Map([
@@ -75,7 +84,7 @@ test('replaceHistoryDay writes sorted rows and replaces one day in place', async
 
   // Replacing 2026-01-02 updates the repo row, drops the now-absent account
   // row for that date, and leaves the other day untouched.
-  await replaceHistoryDay(
+  await replaceDays(
     dataDir,
     '2026-01-02',
     new Map([['octocat/a', { stars: 9, forks: 4 }]]),
@@ -96,7 +105,7 @@ test('replaceHistoryDay writes sorted rows and replaces one day in place', async
   );
 
   // Idempotent: replacing the same day with the same metrics changes nothing.
-  await replaceHistoryDay(
+  await replaceDays(
     dataDir,
     '2026-01-02',
     new Map([['octocat/a', { stars: 9, forks: 4 }]]),
@@ -105,9 +114,38 @@ test('replaceHistoryDay writes sorted rows and replaces one day in place', async
   assert.deepEqual(await readAllHistory(dataDir), history);
 });
 
+test('replaceHistoryDays replaces several days in one pass', async (t) => {
+  const dataDir = await tempDir(t);
+  await replaceHistoryDays(dataDir, [
+    {
+      date: '2026-01-01',
+      repos: new Map([['octocat/a', { stars: 1, forks: 2 }]]),
+      users: new Map([['octocat', 3]]),
+    },
+    {
+      date: '2026-01-02',
+      repos: new Map([['octocat/b', { stars: 3, forks: 4 }]]),
+      users: new Map(),
+    },
+  ]);
+
+  const history = await readAllHistory(dataDir);
+  assert.deepEqual(
+    history.repos.map((row) => [row.date, row.repository]),
+    [
+      ['2026-01-01', 'octocat/a'],
+      ['2026-01-02', 'octocat/b'],
+    ],
+  );
+  assert.deepEqual(
+    history.users.map((row) => [row.date, row.account]),
+    [['2026-01-01', 'octocat']],
+  );
+});
+
 test('readAllHistory tolerates malformed lines', async (t) => {
   const dataDir = await tempDir(t);
-  await replaceHistoryDay(
+  await replaceDays(
     dataDir,
     '2026-01-01',
     new Map([['octocat/a', { stars: 1, forks: 2 }]]),

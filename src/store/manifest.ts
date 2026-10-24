@@ -2,7 +2,7 @@
 
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { ioError } from '../errors.js';
+import { isRecord } from '../guards.js';
 import type {
   Manifest,
   ManifestErrorEntry,
@@ -48,10 +48,6 @@ export function createManifest(
 
 export function serializeManifest(manifest: Manifest): string {
   return `${JSON.stringify(manifest, null, 2)}\n`;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function asResource(value: unknown): Resource | null {

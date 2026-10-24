@@ -3,6 +3,7 @@
 import { readFile, readdir, rename, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { ioError } from '../errors.js';
+import { errorMessage } from '../guards.js';
 import type { Manifest } from '../types.js';
 import { writeFileAtomic } from './atomic.js';
 import { writeManifest } from './manifest.js';
@@ -94,7 +95,7 @@ async function makeWriter(
             { path: finalDir },
           );
         }
-        const message = error instanceof Error ? error.message : String(error);
+        const message = errorMessage(error);
         throw ioError(`Failed to promote run ${id}: ${message}`, { path: finalDir });
       }
     },

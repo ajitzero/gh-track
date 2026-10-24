@@ -38,8 +38,14 @@ There is no npm workflow. Do not add one.
 
 ```
 src/cli.ts             entry, global flags, dispatch
+src/cli-args.ts        shared CLI argument errors and parsers
 src/help.ts            command registry + help renderer
 src/config.ts          TOML load/validate/save
+src/date.ts            UTC calendar-day helpers
+src/guards.ts          runtime guards and error messages
+src/metrics.ts         canonical metric sets, parsing, and ordering
+src/refs.ts            `--from`/`--to` reference classification
+src/result.ts          shared command result helpers
 src/subjects.ts        subject parsing and canonical keys
 src/errors.ts          typed errors and exit codes
 src/types.ts           shared types

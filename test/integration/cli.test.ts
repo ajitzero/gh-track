@@ -100,6 +100,26 @@ test('unknown command exits 2 with usage on stderr', async () => {
   assert.match(result.stderr, /Usage:/);
 });
 
+test('help bogus and bogus --help share one unknown-command error', async () => {
+  for (const argv of [['help', 'bogus'], ['bogus', '--help']]) {
+    const result = await invoke(argv);
+    assert.equal(result.code, 2, argv.join(' '));
+    assert.equal(result.stdout, '');
+    assert.match(result.stderr, /Unknown command: bogus/);
+    assert.match(result.stderr, /Usage:/);
+  }
+});
+
+test('runs show and paths reject --limit', async () => {
+  for (const subcommand of ['show', 'paths']) {
+    const result = await invoke([
+      'runs', subcommand, '2026-10-19T10-00-00Z', '--limit', '1',
+    ]);
+    assert.equal(result.code, 2, subcommand);
+    assert.match(result.stderr, /--limit is not valid for 'gh-track runs/);
+  }
+});
+
 test('unknown option exits 2', async () => {
   const result = await invoke(['watch', 'ls', '--bogus']);
   assert.equal(result.code, 2);

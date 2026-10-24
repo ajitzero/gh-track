@@ -15,6 +15,7 @@ export type ErrorCode =
   | 'no_history'
   | 'rate_limited'
   | 'network'
+  | 'refused_url'
   | 'http_error'
   | 'io_error'
   | 'locked'
@@ -38,6 +39,7 @@ const EXIT_CODES: Record<ErrorCode, number> = {
   no_history: 1,
   rate_limited: 3,
   network: 1,
+  refused_url: 1,
   http_error: 1,
   io_error: 1,
   locked: 1,
@@ -122,6 +124,15 @@ export function rateLimited(resumeAfter?: string): CliError {
 
 export function networkError(message: string, details?: ErrorDetails): CliError {
   return new CliError('network', message, details);
+}
+
+/** A URL outside the configured API origin. Permanent: never worth a retry. */
+export function refusedUrl(url: string, apiBase: string): CliError {
+  return new CliError(
+    'refused_url',
+    `Refusing to request a URL outside ${apiBase}: ${url}`,
+    { url },
+  );
 }
 
 export function httpError(status: number, message: string, details?: ErrorDetails): CliError {

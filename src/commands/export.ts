@@ -1,8 +1,10 @@
 /** `gh-track export`: compacted history as JSON, JSONL, or CSV. */
 
+import { unexpectedArgument } from '../cli-args.js';
+import { isCalendarDay } from '../date.js';
 import { noHistory, UsageError } from '../errors.js';
 import { readAllHistory } from '../store/history.js';
-import { parseSubject, subjectKey } from '../subjects.js';
+import { subjectKey, subjectKeyOf } from '../subjects.js';
 import type {
   CommandContext,
   CommandResult,
@@ -11,22 +13,13 @@ import type {
   UserHistoryRow,
 } from '../types.js';
 
-const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const CSV_HEADER = 'date,kind,subject,stars,forks,followers';
 
 function parseDateOption(raw: string | undefined, flag: string): string | undefined {
   if (raw === undefined) {
     return undefined;
   }
-  if (!DATE_PATTERN.test(raw)) {
-    throw new UsageError(`${flag} must be a UTC date in YYYY-MM-DD form.`);
-  }
-  const [yearText, monthText, dayText] = raw.split('-');
-  const year = Number(yearText);
-  const month = Number(monthText);
-  const day = Number(dayText);
-  const date = new Date(Date.UTC(year, month - 1, day));
-  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== raw) {
+  if (!isCalendarDay(raw)) {
     throw new UsageError(`${flag} is not a valid calendar date: ${raw}`);
   }
   return raw;
@@ -101,12 +94,15 @@ function renderJsonl(rows: readonly ExportRow[]): string {
 
 export async function runExport(context: CommandContext): Promise<CommandResult> {
   if (context.positionals.length > 0) {
-    throw new UsageError(`Unexpected argument ${JSON.stringify(context.positionals[0])}. Use: gh-track export`);
+    throw unexpectedArgument(context.positionals[0], 'gh-track export');
   }
 
   const from = parseDateOption(context.options.get('from'), '--from');
   const to = parseDateOption(context.options.get('to'), '--to');
-  const requested = context.options.getAll('subject').map((value) => subjectKey(parseSubject(value)));
+  if (from !== undefined && to !== undefined && from > to) {
+    throw new UsageError('--from must not be later than --to.');
+  }
+  const requested = context.options.getAll('subject').map(subjectKeyOf);
   const requestedKeys = new Set(requested);
 
   const history = await readAllHistory(context.paths.dataDir);

@@ -1,6 +1,7 @@
 /** Public repository listing used by the `dashboard add` picker. */
 
 import { githubUserNotFound } from '../errors.js';
+import { isRecord } from '../guards.js';
 import { isValidRepoFullName } from '../subjects.js';
 import {
   GitHubClient,
@@ -15,10 +16,6 @@ export interface RepoListing {
   fork: boolean;
   archived: boolean;
   stars: number;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /** Extracts the fields the picker needs from one `/users/{login}/repos` entry. */

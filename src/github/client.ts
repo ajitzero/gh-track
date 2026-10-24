@@ -1,6 +1,7 @@
 /** HTTP client for the GitHub REST API: headers, auth, timeout, retries, pagination. */
 
-import { httpError, interrupted, networkError, rateLimited } from '../errors.js';
+import { httpError, interrupted, networkError, rateLimited, refusedUrl } from '../errors.js';
+import { errorMessage } from '../guards.js';
 import { parseRateLimitHeaders, type RateLimitHeaders } from './rateLimit.js';
 
 export const GITHUB_API_BASE = 'https://api.github.com';
@@ -51,10 +52,6 @@ function defaultSleep(ms: number): Promise<void> {
   });
 }
 
-function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 function isAborted(signal: AbortSignal | undefined): boolean {
   return signal !== undefined && signal.aborted;
 }
@@ -95,13 +92,27 @@ export class GitHubClient {
     return this.lastRateLimitHeaders;
   }
 
-  private buildHeaders(ifNoneMatch: string | null | undefined): Record<string, string> {
+  /** True when `url` has the configured API origin. */
+  isApiUrl(url: string): boolean {
+    try {
+      return new URL(url).origin === new URL(this.apiBase).origin;
+    } catch {
+      return false;
+    }
+  }
+
+  private buildHeaders(
+    url: string,
+    ifNoneMatch: string | null | undefined,
+  ): Record<string, string> {
     const headers: Record<string, string> = {
       accept: ACCEPT,
       'user-agent': this.userAgent,
       'x-github-api-version': API_VERSION,
     };
-    if (this.token !== undefined && this.token.length > 0) {
+    // Never attach credentials to a URL supplied by a Link header on another
+    // origin. `get` also refuses such requests before they reach fetch.
+    if (this.token !== undefined && this.token.length > 0 && this.isApiUrl(url)) {
       headers.authorization = `Bearer ${this.token}`;
     }
     if (ifNoneMatch !== null && ifNoneMatch !== undefined) {
@@ -130,6 +141,10 @@ export class GitHubClient {
    * the caller can record it as a subject error and continue.
    */
   async get(url: string, options: RequestOptions = {}): Promise<GitHubResponse> {
+    if (!this.isApiUrl(url)) {
+      throw refusedUrl(url, this.apiBase);
+    }
+
     let attempt = 0;
 
     for (;;) {
@@ -157,7 +172,7 @@ export class GitHubClient {
       try {
         response = await this.fetchImpl(url, {
           method: 'GET',
-          headers: this.buildHeaders(options.ifNoneMatch),
+          headers: this.buildHeaders(url, options.ifNoneMatch),
           signal: controller.signal,
         });
       } catch (error) {
@@ -176,71 +191,108 @@ export class GitHubClient {
         throw networkError(
           timedOut
             ? `Request timed out after ${this.timeoutMs} ms: ${url}`
-            : `Network error for ${url}: ${errorText(error)}`,
+            : `Network error for ${url}: ${errorMessage(error)}`,
           { url },
         );
       }
-      detach();
 
-      const rateLimit = parseRateLimitHeaders(response.headers);
-      this.lastRateLimitHeaders = rateLimit;
-      const etag = response.headers.get('etag');
-      const lastModified = response.headers.get('last-modified');
-      const link = response.headers.get('link');
-      const status = response.status;
+      // Keep the timeout and SIGINT bridge attached until the body has been
+      // read. Headers alone do not make a response complete.
+      try {
+        // Follow same-origin redirects (GitHub uses them for renamed
+        // repositories), but never accept a response carried to another origin.
+        if (response.redirected && !this.isApiUrl(response.url)) {
+          if (response.body !== null) {
+            await response.body.cancel().catch(() => undefined);
+          }
+          throw refusedUrl(response.url, this.apiBase);
+        }
 
-      if (status === 304) {
-        return { url, status, etag, lastModified, link, rateLimit, notModified: true };
-      }
+        const rateLimit = parseRateLimitHeaders(response.headers);
+        this.lastRateLimitHeaders = rateLimit;
+        const etag = response.headers.get('etag');
+        const lastModified = response.headers.get('last-modified');
+        const link = response.headers.get('link');
+        const status = response.status;
 
-      if (status === 403) {
-        if (rateLimit.remaining === 0) {
+        if (status === 304) {
+          return { url, status, etag, lastModified, link, rateLimit, notModified: true };
+        }
+
+        if (status === 403) {
+          if (rateLimit.remaining === 0) {
+            throw rateLimited(rateLimit.resetAt ?? undefined);
+          }
+          if (rateLimit.retryAfterSeconds !== null && attempt <= this.maxRetries) {
+            this.diagnostic(`retrying ${url} after HTTP 403 (attempt ${attempt})`);
+            await this.backoff(attempt, rateLimit.retryAfterSeconds);
+            continue;
+          }
+          throw httpError(403, `GitHub returned HTTP 403 for ${url}`, { url });
+        }
+
+        if (status === 429) {
+          if (attempt <= this.maxRetries) {
+            this.diagnostic(`retrying ${url} after HTTP 429 (attempt ${attempt})`);
+            await this.backoff(attempt, rateLimit.retryAfterSeconds);
+            continue;
+          }
           throw rateLimited(rateLimit.resetAt ?? undefined);
         }
-        if (rateLimit.retryAfterSeconds !== null && attempt <= this.maxRetries) {
-          this.diagnostic(`retrying ${url} after HTTP 403 (attempt ${attempt})`);
-          await this.backoff(attempt, rateLimit.retryAfterSeconds);
-          continue;
+
+        if (status >= 500) {
+          if (attempt <= this.maxRetries) {
+            this.diagnostic(`retrying ${url} after HTTP ${status} (attempt ${attempt})`);
+            await this.backoff(attempt, rateLimit.retryAfterSeconds);
+            continue;
+          }
+          throw httpError(status, `GitHub returned HTTP ${status} for ${url}`, { url });
         }
-        throw httpError(403, `GitHub returned HTTP 403 for ${url}`, { url });
-      }
 
-      if (status === 429) {
-        if (attempt <= this.maxRetries) {
-          this.diagnostic(`retrying ${url} after HTTP 429 (attempt ${attempt})`);
-          await this.backoff(attempt, rateLimit.retryAfterSeconds);
-          continue;
+        if (status === 404) {
+          return { url, status, etag, lastModified, link, rateLimit, notModified: false };
         }
-        throw rateLimited(rateLimit.resetAt ?? undefined);
-      }
 
-      if (status >= 500) {
-        if (attempt <= this.maxRetries) {
-          this.diagnostic(`retrying ${url} after HTTP ${status} (attempt ${attempt})`);
-          await this.backoff(attempt, rateLimit.retryAfterSeconds);
-          continue;
+        if (status >= 400) {
+          throw httpError(status, `GitHub returned HTTP ${status} for ${url}`, { url });
         }
-        throw httpError(status, `GitHub returned HTTP ${status} for ${url}`, { url });
-      }
 
-      if (status === 404) {
-        return { url, status, etag, lastModified, link, rateLimit, notModified: false };
-      }
-
-      if (status >= 400) {
-        throw httpError(status, `GitHub returned HTTP ${status} for ${url}`, { url });
-      }
-
-      const text = await response.text();
-      let payload: unknown = null;
-      if (text.length > 0) {
+        let text: string;
         try {
-          payload = JSON.parse(text);
-        } catch {
-          throw httpError(status, `Malformed JSON response for ${url}`, { url });
+          text = await response.text();
+        } catch (error) {
+          detach();
+          if (isAborted(options.signal)) {
+            throw interrupted();
+          }
+          const timedOut = controller.signal.aborted;
+          if (attempt <= this.maxRetries) {
+            this.diagnostic(
+              `retrying ${url} after ${timedOut ? 'timeout' : 'network error'} while reading the body (attempt ${attempt})`,
+            );
+            await this.backoff(attempt, null);
+            continue;
+          }
+          throw networkError(
+            timedOut
+              ? `Request timed out after ${this.timeoutMs} ms: ${url}`
+              : `Network error for ${url}: ${errorMessage(error)}`,
+            { url },
+          );
         }
+
+        let payload: unknown = null;
+        if (text.length > 0) {
+          try {
+            payload = JSON.parse(text);
+          } catch {
+            throw httpError(status, `Malformed JSON response for ${url}`, { url });
+          }
+        }
+        return { url, status, etag, lastModified, link, rateLimit, notModified: false, payload };
+      } finally {
+        detach();
       }
-      return { url, status, etag, lastModified, link, rateLimit, notModified: false, payload };
     }
   }
 }

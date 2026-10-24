@@ -3,11 +3,16 @@
 import { UsageError } from '../errors.js';
 import { renderHelp } from '../help.js';
 
+/** One error shape for every unknown command or help path. */
+export function unknownCommandError(path: readonly string[]): UsageError {
+  const label = path.join(' ');
+  return new UsageError(`Unknown command: ${label}`, { showUsage: true });
+}
+
 export function renderHelpCommand(path: readonly string[]): string {
   const rendered = renderHelp(path);
   if (rendered === null) {
-    const topic = path.length === 0 ? '' : `: ${path.join(' ')}`;
-    throw new UsageError(`Unknown help topic${topic}`);
+    throw unknownCommandError(path);
   }
   return rendered;
 }

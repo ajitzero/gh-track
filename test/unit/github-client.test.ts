@@ -177,6 +177,56 @@ test('a request that exceeds the timeout is aborted and reported', async () => {
   await assert.rejects(client.get(URL), /timed out/);
 });
 
+test('the timeout also covers reading the response body', async () => {
+  const client = new GitHubClient({
+    fetchImpl: async (_url, init) => {
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode('['));
+          // Headers arrived, the body never closes. A real fetch aborts the
+          // body when the request signal fires; mirror that here.
+          init?.signal?.addEventListener('abort', () => {
+            controller.error(new Error('aborted'));
+          });
+        },
+      });
+      return new Response(stream, { status: 200 });
+    },
+    timeoutMs: 10,
+    maxRetries: 0,
+  });
+
+  await assert.rejects(client.get(URL), /timed out/);
+});
+
+test('refuses requests outside the configured API origin', async () => {
+  let calls = 0;
+  const client = new GitHubClient({
+    token: 'secret-token',
+    fetchImpl: async () => {
+      calls += 1;
+      return response(200, '[]');
+    },
+  });
+
+  await assert.rejects(client.get('https://evil.example/steal'), expectCliError('refused_url'));
+  assert.equal(calls, 0, 'the foreign URL must not reach fetch');
+});
+
+test('refuses a redirect that lands outside the configured API origin', async () => {
+  const client = new GitHubClient({
+    token: 'secret-token',
+    fetchImpl: async () =>
+      ({
+        redirected: true,
+        url: 'https://evil.example/steal',
+        body: null,
+      }) as unknown as Response,
+  });
+
+  await assert.rejects(client.get(URL), expectCliError('refused_url'));
+});
+
 test('sends the required headers, token, and conditional validator', async () => {
   let seen: Record<string, string> = {};
   const client = new GitHubClient({

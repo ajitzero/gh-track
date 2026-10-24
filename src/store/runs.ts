@@ -3,10 +3,11 @@
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { ioError } from '../errors.js';
+import { errorMessage } from '../guards.js';
+import { tolerantSubjectKey } from '../subjects.js';
 import type { LastRunSummary, Manifest } from '../types.js';
 import { readManifest } from './manifest.js';
 import { isValidRunId, runDir, runsDir } from './paths.js';
-import { parseSubject, subjectKey } from '../subjects.js';
 
 /** Rejects absolute paths and any `..` segment so a read stays inside the run. */
 function safeRelativePath(relativePath: string): string {
@@ -35,7 +36,7 @@ export async function readRunPayload(
     const text = await readFile(target, 'utf8');
     return JSON.parse(text) as unknown;
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = errorMessage(error);
     throw ioError(`Failed to read stored payload ${target}: ${message}`, { path: target });
   }
 }
@@ -54,11 +55,14 @@ export async function listRunIds(dataDir: string): Promise<string[]> {
     .reverse();
 }
 
-/** Reads every valid manifest, newest first, skipping unreadable runs. */
-export async function listManifests(dataDir: string): Promise<Manifest[]> {
+/** Reads valid manifests, newest first, skipping unreadable runs. */
+export async function listManifests(dataDir: string, limit?: number): Promise<Manifest[]> {
   const ids = await listRunIds(dataDir);
   const manifests: Manifest[] = [];
   for (const id of ids) {
+    if (limit !== undefined && manifests.length >= limit) {
+      break;
+    }
     const manifest = await readManifest(dataDir, id);
     if (manifest !== null) {
       manifests.push(manifest);
@@ -78,36 +82,9 @@ export async function latestPartialRun(dataDir: string): Promise<Manifest | null
   return null;
 }
 
-/** The most recent complete-or-partial run that includes a subject. */
-export async function latestRunForSubject(
-  dataDir: string,
-  subject: string,
-): Promise<Manifest | null> {
-  let key: string;
-  try {
-    key = subjectKey(parseSubject(subject));
-  } catch {
-    key = subject.toLowerCase();
-  }
-  for (const id of await listRunIds(dataDir)) {
-    const manifest = await readManifest(dataDir, id);
-    if (manifest === null || manifest.status === 'failed') {
-      continue;
-    }
-    if (manifest.subjects.some((entry) => manifestSubjectKey(entry.subject) === key)) {
-      return manifest;
-    }
-  }
-  return null;
-}
-
 /** Case-insensitive identity for a canonical subject string stored in a manifest. */
 function manifestSubjectKey(subject: string): string {
-  try {
-    return subjectKey(parseSubject(subject));
-  } catch {
-    return subject.toLowerCase();
-  }
+  return tolerantSubjectKey(subject);
 }
 
 async function payloadLength(dataDir: string, manifest: Manifest, relativePath: string): Promise<number> {
@@ -142,23 +119,76 @@ export async function subjectCounts(
   return { repos, followers };
 }
 
+interface PendingSummary {
+  subject: string;
+  key: string;
+  manifest: Manifest | null;
+}
+
+/**
+ * Builds `lastRun` summaries for several subjects while reading the run list
+ * once. This is the batched form used by list views.
+ */
+export async function summarizeLastRuns(
+  dataDir: string,
+  subjects: readonly string[],
+): Promise<Map<string, LastRunSummary | null>> {
+  const pending: PendingSummary[] = subjects.map((subject) => ({
+    subject,
+    key: tolerantSubjectKey(subject),
+    manifest: null,
+  }));
+  let unresolved = pending.length;
+
+  for (const id of await listRunIds(dataDir)) {
+    if (unresolved === 0) {
+      break;
+    }
+    const manifest = await readManifest(dataDir, id);
+    if (manifest === null || manifest.status === 'failed') {
+      continue;
+    }
+    for (const entry of pending) {
+      if (entry.manifest !== null) {
+        continue;
+      }
+      if (manifest.subjects.some((subject) => manifestSubjectKey(subject.subject) === entry.key)) {
+        entry.manifest = manifest;
+        unresolved -= 1;
+      }
+    }
+  }
+
+  const summaries = new Map<string, LastRunSummary | null>();
+  for (const entry of pending) {
+    if (entry.manifest === null) {
+      summaries.set(entry.subject, null);
+      continue;
+    }
+    const stored = entry.manifest.subjects.find(
+      (subject) => manifestSubjectKey(subject.subject) === entry.key,
+    );
+    const counts = await subjectCounts(
+      dataDir,
+      entry.manifest,
+      stored?.subject ?? entry.subject,
+    );
+    summaries.set(entry.subject, {
+      id: entry.manifest.id,
+      status: entry.manifest.status,
+      finishedAt: entry.manifest.finishedAt ?? entry.manifest.startedAt,
+      repos: counts.repos,
+      followers: counts.followers,
+    });
+  }
+  return summaries;
+}
+
 /** Builds the `lastRun` summary for a subject, or null when it has no runs. */
 export async function summarizeLastRun(
   dataDir: string,
   subject: string,
 ): Promise<LastRunSummary | null> {
-  const manifest = await latestRunForSubject(dataDir, subject);
-  if (manifest === null) {
-    return null;
-  }
-  const key = manifestSubjectKey(subject);
-  const stored = manifest.subjects.find((entry) => manifestSubjectKey(entry.subject) === key);
-  const counts = await subjectCounts(dataDir, manifest, stored?.subject ?? subject);
-  return {
-    id: manifest.id,
-    status: manifest.status,
-    finishedAt: manifest.finishedAt ?? manifest.startedAt,
-    repos: counts.repos,
-    followers: counts.followers,
-  };
+  const summaries = await summarizeLastRuns(dataDir, [subject]);
+  return summaries.get(subject) ?? null;
 }

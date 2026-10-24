@@ -337,6 +337,93 @@ test('a 304 resolves to the previous run payload and copies it forward', async (
   );
 });
 
+test('a 304 whose source run is gone retries unconditionally once', async (t) => {
+  const { configPath, dataDir } = await workspace(t);
+  await addUser(configPath);
+
+  const first = await invoke(
+    ['fetch', '--config', configPath, '--data-dir', dataDir, '--format', 'json'],
+    { fetchImpl: router(happyRoutes()) },
+  );
+  assert.equal(first.code, 0, first.stderr);
+  const firstId = (JSON.parse(first.stdout) as { run: { id: string } }).run.id;
+
+  // Simulate pruning or manual cleanup that leaves the ETag pointing at a run
+  // that no longer exists.
+  await rm(path.join(runsDir(dataDir), firstId), { recursive: true, force: true });
+  await new Promise((resolve) => setTimeout(resolve, 1_050));
+
+  let unconditional = 0;
+  const fetchImpl: FetchLike = async (url, init) => {
+    const headers = (init?.headers ?? {}) as Record<string, string>;
+    if (headers['if-none-match'] !== undefined) {
+      return notModified();
+    }
+    unconditional += 1;
+    if (url === FOLLOWERS_1) {
+      return jsonResponse([{ login: 'a' }, { login: 'b' }], { etag: 'W/"f2"' });
+    }
+    if (url === REPOS_1) {
+      return jsonResponse([{ id: 1, full_name: 'octocat/hello-world' }], { etag: 'W/"r2"' });
+    }
+    throw new Error(`unexpected request: ${url}`);
+  };
+
+  const second = await invoke(
+    ['fetch', '--config', configPath, '--data-dir', dataDir, '--format', 'json'],
+    { fetchImpl },
+  );
+
+  assert.equal(second.code, 0, second.stderr);
+  assert.equal(unconditional, 2);
+  const doc = JSON.parse(second.stdout) as {
+    run: { status: string; stats: Record<string, number> };
+  };
+  assert.equal(doc.run.status, 'complete');
+  assert.equal(doc.run.stats.notModified, 0);
+  assert.equal(doc.run.stats.requests, 2);
+});
+
+test('an off-origin Link is recorded but never queued for resume', async (t) => {
+  const { configPath, dataDir } = await workspace(t);
+  await addUser(configPath);
+
+  const evil = 'https://evil.example/followers?page=2';
+  let foreignCalls = 0;
+  const fetchImpl: FetchLike = async (url) => {
+    if (url === FOLLOWERS_1) {
+      return jsonResponse([{ login: 'a' }], {
+        etag: 'W/"f1"',
+        link: `<${evil}>; rel="next"`,
+      });
+    }
+    if (url === REPOS_1) {
+      return jsonResponse([], { etag: 'W/"r1"' });
+    }
+    foreignCalls += 1;
+    throw new Error(`unexpected request: ${url}`);
+  };
+
+  const result = await invoke(
+    ['fetch', '--config', configPath, '--data-dir', dataDir, '--format', 'json'],
+    { fetchImpl },
+  );
+
+  assert.equal(foreignCalls, 0, 'the foreign URL must not reach fetch');
+  assert.equal(result.code, 3, result.stderr);
+  const doc = JSON.parse(result.stdout) as {
+    run: { id: string; status: string };
+    pending: unknown[];
+  };
+  assert.equal(doc.run.status, 'partial');
+  assert.deepEqual(doc.pending, []);
+
+  const manifest = await readManifestFile(dataDir, doc.run.id);
+  const errors = manifest.errors as Array<{ code: string; url: string }>;
+  assert.equal(errors[0]?.code, 'refused_url');
+  assert.equal(errors[0]?.url, evil);
+});
+
 test('the request cap promotes a partial run and --resume completes it', async (t) => {
   const { configPath, dataDir } = await workspace(t);
   await addUser(configPath);

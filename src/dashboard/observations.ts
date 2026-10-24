@@ -1,13 +1,13 @@
 /** Per-subject observation series built from complete runs and compacted history. */
 
+import { endOfDay } from '../date.js';
 import { UsageError, invalidRange, runNotFound } from '../errors.js';
 import { rawFollowerCounts, readRawFollowers } from '../diff/followers.js';
-import { isCalendarDay, type RefKind } from '../diff/resolve.js';
 import { readRawRepos, type RepoRecord } from '../diff/repos.js';
+import { classifyRangeRef, type RefKind } from '../refs.js';
 import { readAllHistory } from '../store/history.js';
-import { isValidRunId } from '../store/paths.js';
 import { listManifests } from '../store/runs.js';
-import { parseSubject, subjectKey } from '../subjects.js';
+import { accountOf, parseSubject, repoOf, subjectKeyOf } from '../subjects.js';
 import type {
   DashboardObservation,
   DashboardRow,
@@ -15,10 +15,6 @@ import type {
   Metric,
   SubjectType,
 } from '../types.js';
-
-function endOfDay(day: string): string {
-  return `${day}T23:59:59.999Z`;
-}
 
 function observationTime(observation: DashboardObservation): string {
   return observation.finishedAt ?? endOfDay(observation.day);
@@ -77,11 +73,11 @@ async function rawFollowers(
 }
 
 function repoName(subject: string): string {
-  return subject.slice('repo:'.length).toLowerCase();
+  return repoOf(subject).toLowerCase();
 }
 
 function accountName(subject: string): string {
-  return subject.slice('user:'.length).toLowerCase();
+  return accountOf(subject).toLowerCase();
 }
 
 function repoObservation(
@@ -120,6 +116,11 @@ function userObservation(
   };
 }
 
+interface SubjectSpec extends ObservationSubject {
+  key: string;
+  name: string;
+}
+
 /** Builds one observation series per requested subject, oldest first. */
 export async function buildObservationData(
   dataDir: string,
@@ -128,13 +129,19 @@ export async function buildObservationData(
   const manifests = await listManifests(dataDir);
   const byId = new Map(manifests.map((manifest) => [manifest.id, manifest]));
   const complete = manifests.filter((manifest) => manifest.status === 'complete');
-  const wantRepo = subjects.some((subject) => subject.kind === 'repo');
-  const wantUser = subjects.some((subject) => subject.kind === 'user');
+
+  const specs: SubjectSpec[] = subjects.map((subject) => ({
+    ...subject,
+    key: subjectKeyOf(subject.subject),
+    name: subject.kind === 'repo' ? repoName(subject.subject) : accountName(subject.subject),
+  }));
+  const repoSpecs = specs.filter((spec) => spec.kind === 'repo');
+  const userSpecs = specs.filter((spec) => spec.kind === 'user');
 
   const cache: RawCaches = { repos: new Map(), followers: new Map() };
   const series = new Map<string, DashboardObservation[]>();
-  for (const subject of subjects) {
-    series.set(subjectKey(parseSubject(subject.subject)), []);
+  for (const spec of specs) {
+    series.set(spec.key, []);
   }
 
   const rawDays = new Map<string, Set<string>>();
@@ -146,15 +153,13 @@ export async function buildObservationData(
 
   // Oldest first so each series ends up chronologically sorted.
   for (const manifest of [...complete].reverse()) {
-    if (wantRepo) {
+    if (repoSpecs.length > 0) {
       const records = await rawRepos(dataDir, manifest, cache);
-      for (const subject of subjects) {
-        if (subject.kind !== 'repo') {
-          continue;
-        }
-        const key = subjectKey(parseSubject(subject.subject));
-        const name = repoName(subject.subject);
-        const record = records.find((candidate) => candidate.fullName.toLowerCase() === name);
+      const byName = new Map(
+        records.map((record) => [record.fullName.toLowerCase(), record]),
+      );
+      for (const spec of repoSpecs) {
+        const record = byName.get(spec.name);
         if (record === undefined) {
           continue;
         }
@@ -162,25 +167,21 @@ export async function buildObservationData(
         if (observation === null) {
           continue;
         }
-        series.get(key)?.push(observation);
-        noteRawDay(key, observation.day);
+        series.get(spec.key)?.push(observation);
+        noteRawDay(spec.key, observation.day);
       }
     }
 
-    if (wantUser) {
+    if (userSpecs.length > 0) {
       const counts = await rawFollowers(dataDir, manifest, cache);
-      for (const subject of subjects) {
-        if (subject.kind !== 'user') {
-          continue;
-        }
-        const key = subjectKey(parseSubject(subject.subject));
-        const count = counts.get(accountName(subject.subject));
+      for (const spec of userSpecs) {
+        const count = counts.get(spec.name);
         if (count === undefined) {
           continue;
         }
         const observation = userObservation(manifest, count.count);
-        series.get(key)?.push(observation);
-        noteRawDay(key, observation.day);
+        series.get(spec.key)?.push(observation);
+        noteRawDay(spec.key, observation.day);
       }
     }
   }
@@ -201,13 +202,12 @@ export async function buildObservationData(
     userRows.set(key, days);
   }
 
-  for (const subject of subjects) {
-    const key = subjectKey(parseSubject(subject.subject));
-    const list = series.get(key) ?? [];
-    const days = rawDays.get(key) ?? new Set<string>();
+  for (const spec of specs) {
+    const list = series.get(spec.key) ?? [];
+    const days = rawDays.get(spec.key) ?? new Set<string>();
 
-    if (subject.kind === 'repo') {
-      for (const [day, metrics] of repoRows.get(key) ?? []) {
+    if (spec.kind === 'repo') {
+      for (const [day, metrics] of repoRows.get(spec.key) ?? []) {
         if (days.has(day)) {
           continue;
         }
@@ -220,7 +220,7 @@ export async function buildObservationData(
         });
       }
     } else {
-      for (const [day, count] of userRows.get(key) ?? []) {
+      for (const [day, count] of userRows.get(spec.key) ?? []) {
         if (days.has(day)) {
           continue;
         }
@@ -235,28 +235,10 @@ export async function buildObservationData(
     }
 
     list.sort(compareObservations);
-    series.set(key, list);
+    series.set(spec.key, list);
   }
 
   return { series, manifests: byId };
-}
-
-export function classifyRangeRef(ref: string, flag: string): RefKind {
-  if (ref === 'latest') {
-    return 'latest';
-  }
-  if (ref === 'previous') {
-    return 'previous';
-  }
-  if (isCalendarDay(ref)) {
-    return 'date';
-  }
-  if (isValidRunId(ref)) {
-    return 'run';
-  }
-  throw new UsageError(
-    `Invalid ${flag} reference: ${JSON.stringify(ref)}. Use latest, previous, a run id, or YYYY-MM-DD.`,
-  );
 }
 
 export interface ResolvedRefs {
@@ -404,7 +386,7 @@ export function buildDashboardRows(
 ): DashboardRow[] {
   return items.map((item) => {
     const parsed = parseSubject(item.subject);
-    const observations = data.series.get(subjectKey(parsed)) ?? [];
+    const observations = data.series.get(subjectKeyOf(item.subject)) ?? [];
     const resolved = resolveObservations(observations, refs);
     const metrics: DashboardRow['metrics'] = {};
 

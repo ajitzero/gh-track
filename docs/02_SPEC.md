@@ -83,7 +83,7 @@ gh-track runs show <run-id>
 gh-track runs paths <run-id>
 ```
 
-- `ls` defaults to the 20 most recent runs, newest first. `--limit` must be a positive integer.
+- `ls` defaults to the 20 most recent runs, newest first. `--limit` must be a positive integer and is valid only for `ls`.
 - `show` prints the manifest summary; with `--format json`, the complete manifest object.
 - `paths` prints the absolute run directory, one line. With `--format json`, `{"path":"..."}`.
 - Unknown run id exits `1` with `run_not_found`.
@@ -149,7 +149,7 @@ gh-track export [options]
 - `jsonl` emits one history row per line.
 - `csv` emits a header row: `date,kind,subject,stars,forks,followers`, where `kind` is `repo` or `user`, and unused cells are empty.
 - Rows are sorted by date, then `kind`, then subject. JSON and JSONL rows use the same fields as the CSV columns, omitting metrics that do not apply: repository rows have `stars` and `forks`, account rows have `followers`.
-- Malformed `--from`/`--to` values exit `2` with `usage`.
+- Malformed `--from`/`--to` values, or a `--from` later than `--to`, exit `2` with `usage`.
 - Exporting with no matching history exits `1` with `no_history`.
 
 ### 2.7 `help`
@@ -158,7 +158,7 @@ gh-track export [options]
 gh-track help [command...]
 ```
 
-Equivalent to `--help` at that level. `gh-track help watch add` and `gh-track watch add --help` render the same page.
+Equivalent to `--help` at that level. `gh-track help watch add` and `gh-track watch add --help` render the same page. An unknown path (`gh-track help bogus` or `gh-track bogus --help`) exits `2` with the same unknown-command error and usage.
 
 ### 2.8 `dashboard`
 
@@ -300,7 +300,7 @@ Validation:
 | Duplicate canonical subject | Deduplicate, warn on stderr, keep the union of resources |
 | `[tracking]` or `[views]` references a subject not in `[[subjects]]` | `config_invalid` |
 | Tracking metrics empty or invalid for the subject kind | `config_invalid` |
-| View name is not `[a-z0-9][a-z0-9_-]*` or has no items | `config_invalid` |
+| View name is not `[a-z0-9][a-z0-9_-]*` (no length limit) or has no items | `config_invalid` |
 | View `to` is `previous`, or a range value is not a valid reference | `config_invalid` |
 | Duplicate tracking/view item for one subject | Deduplicate metrics with a warning |
 
@@ -572,7 +572,7 @@ With `--format json`, errors are emitted to **stderr** as one object, and stdout
 }
 ```
 
-Codes: `usage`, `config_invalid`, `config_missing`, `empty_watchlist`, `invalid_subject`, `unknown_subject`, `unknown_view`, `no_selection`, `run_not_found`, `not_enough_runs`, `invalid_range`, `no_history`, `rate_limited`, `network`, `http_error`, `io_error`, `locked`, `interrupted`, `internal`.
+Codes: `usage`, `config_invalid`, `config_missing`, `empty_watchlist`, `invalid_subject`, `unknown_subject`, `unknown_view`, `no_selection`, `run_not_found`, `not_enough_runs`, `invalid_range`, `no_history`, `rate_limited`, `network`, `refused_url`, `http_error`, `io_error`, `locked`, `interrupted`, `internal`.
 
 ### 5.12 Compacted-day marker — `state/compacted.json`
 
@@ -660,7 +660,7 @@ Codes: `usage`, `config_invalid`, `config_missing`, `empty_watchlist`, `invalid_
 | stdout | The command's result only: tables, JSON, paths, help |
 | stderr | Progress, warnings, verbose diagnostics, errors |
 
-- `--format json` output is one document plus a trailing newline. No ANSI, spinners, or prompts.
+- `--format json` output is one document plus a trailing newline on stdout. No ANSI, spinners, or prompts. Warnings, progress, and errors still go to stderr.
 - Table output may use color only under the conditions in §1.
 - Exit codes: `0` success, `1` runtime failure, `2` usage/config error, `3` partial fetch, `130` interrupted.
 - A diff with no changes exits `0` and reports empty change lists.
@@ -728,9 +728,10 @@ Examples:
 
 - `User-Agent: gh-track/<version>` and `Accept: application/vnd.github+json` on every request.
 - `X-GitHub-Api-Version: 2022-11-28`.
-- Timeout per request from config; timeout is a retryable network error.
+- Timeout per request from config, covering both headers and the response body; timeout is a retryable network error.
 - Pagination follows `Link: rel="next"` when present, otherwise stops on a short page. A hard cap of 1000 pages prevents runaway loops.
-- Conditional requests send `If-None-Match` from `state/etags.json`.
+- Every request must target the configured API origin. A `Link` URL or redirect on another origin is refused, and the token is only ever attached to same-origin requests. A refused URL is recorded as a subject error and is not queued for resume.
+- Conditional requests send `If-None-Match` from `state/etags.json`. If a `304` cannot be resolved because its source run was pruned or removed, the validator is dropped and the request is retried unconditionally once, within the request cap.
 - Retries: `5xx` and network errors, up to `max_retries`, exponential backoff with jitter starting at 500 ms. `403`/`429` honor `Retry-After`; primary-limit exhaustion is not retried in the same run.
 - `404` is recorded as a subject error and the run continues.
 - Response bodies must parse as JSON; otherwise the request fails and the run becomes `partial`.

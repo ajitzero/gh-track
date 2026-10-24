@@ -20,7 +20,8 @@ import {
   resolveDiffRange,
   type DiffPoint,
 } from '../diff/resolve.js';
-import { CliError, UsageError } from '../errors.js';
+import { unexpectedArgument } from '../cli-args.js';
+import { CliError } from '../errors.js';
 import { renderTable } from '../output/table.js';
 import { parseSubject, type ParsedSubject } from '../subjects.js';
 import type {
@@ -186,9 +187,7 @@ function renderDiff(result: DiffResult): string {
 
 export async function runDiff(context: CommandContext): Promise<CommandResult> {
   if (context.positionals.length > 0) {
-    throw new UsageError(
-      `Unexpected argument ${JSON.stringify(context.positionals[0])}. Use: gh-track diff`,
-    );
+    throw unexpectedArgument(context.positionals[0], 'gh-track diff');
   }
 
   const filters = context.options.getAll('subject').map((value) => parseSubject(value));

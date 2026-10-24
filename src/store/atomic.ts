@@ -4,10 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, open, rename, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { ioError } from '../errors.js';
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
+import { errorMessage } from '../guards.js';
 
 export async function writeFileAtomic(
   filePath: string,

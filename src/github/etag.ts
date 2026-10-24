@@ -1,6 +1,7 @@
 /** ETag cache shape and 304 resolution. Filesystem access is injected. */
 
 import { httpError } from '../errors.js';
+import { isRecord } from '../guards.js';
 
 export interface EtagEntry {
   etag: string;
@@ -21,10 +22,6 @@ export interface EtagObservation {
   checkedAt: string;
   sourceRun?: string | null | undefined;
   sourcePath?: string | null | undefined;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function parseEntry(value: unknown): EtagEntry | null {

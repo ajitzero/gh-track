@@ -4,6 +4,7 @@ import { readFile, unlink } from 'node:fs/promises';
 import { open } from 'node:fs/promises';
 import path from 'node:path';
 import { ioError, locked } from '../errors.js';
+import { errorMessage } from '../guards.js';
 import { ensureDir, locksDir } from './paths.js';
 
 export interface LockInfo {
@@ -87,7 +88,7 @@ export async function acquireLock(
       };
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = errorMessage(error);
         throw ioError(`Failed to create lock ${file}: ${message}`, { path: file });
       }
       const raw = await readFile(file, 'utf8').catch(() => null);

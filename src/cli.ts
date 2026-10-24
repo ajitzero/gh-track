@@ -4,7 +4,7 @@
 import { realpathSync } from 'node:fs';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { renderHelpCommand } from './commands/help.js';
+import { renderHelpCommand, unknownCommandError } from './commands/help.js';
 import { runCompact } from './commands/compact.js';
 import { runDashboard } from './commands/dashboard.js';
 import { runDiff } from './commands/diff.js';
@@ -84,7 +84,6 @@ const OPTION_SPECS: readonly OptionSpec[] = [
   { name: 'view', flags: ['--view'], value: 'required' },
   { name: 'layout', flags: ['--layout'], value: 'required' },
   { name: 'metrics', flags: ['--metrics'], value: 'required' },
-  { name: 'resources', flags: ['--resources'], value: 'required' },
   { name: 'item', flags: ['--item'], value: 'required', repeatable: true },
 ];
 
@@ -136,6 +135,20 @@ const COMMAND_OPTIONS: Readonly<Record<string, ReadonlySet<string>>> = {
 };
 
 const KNOWN_COMMANDS = new Set(Object.keys(COMMAND_OPTIONS));
+
+type CommandRunner = (context: CommandContext) => Promise<CommandResult>;
+
+/** Single dispatch table; `help` is handled before the table is consulted. */
+const COMMAND_RUNNERS: Readonly<Record<string, CommandRunner>> = {
+  fetch: runFetch,
+  watch: runWatch,
+  runs: runRuns,
+  compact: runCompact,
+  export: runExport,
+  diff: runDiff,
+  dashboard: runDashboard,
+  track: runTrack,
+};
 
 class ParsedOptionBag implements OptionBag {
   private readonly values: Map<string, string[]>;
@@ -495,7 +508,7 @@ export async function run(
       const path = helpPath(argv);
       const rendered = renderHelp(path);
       if (rendered === null) {
-        throw new UsageError(`Unknown command: ${path.join(' ')}`, { showUsage: true });
+        throw unknownCommandError(path);
       }
       io.stdout(rendered);
       return 0;
@@ -512,7 +525,7 @@ export async function run(
     const rest = parsed.positionals.slice(1);
 
     if (command !== undefined && !KNOWN_COMMANDS.has(command)) {
-      throw new UsageError(`Unknown command: ${command}`, { showUsage: true });
+      throw unknownCommandError([command]);
     }
 
     validateOptions(command, options);
@@ -528,63 +541,15 @@ export async function run(
       return 0;
     }
 
-    if (command === 'watch') {
-      const context = buildContext(io, options, rest, format, runOptions.signal);
-      const result = await runWatch(context);
-      emit(result, format, io);
-      return result.exitCode ?? 0;
+    const runner = command === undefined ? undefined : COMMAND_RUNNERS[command];
+    if (runner === undefined) {
+      throw new CliError('internal', `Unhandled command: ${command ?? ''}`);
     }
 
-    if (command === 'fetch') {
-      const context = buildContext(io, options, rest, format, runOptions.signal);
-      const result = await runFetch(context);
-      emit(result, format, io);
-      return result.exitCode ?? 0;
-    }
-
-    if (command === 'runs') {
-      const context = buildContext(io, options, rest, format, runOptions.signal);
-      const result = await runRuns(context);
-      emit(result, format, io);
-      return result.exitCode ?? 0;
-    }
-
-    if (command === 'compact') {
-      const context = buildContext(io, options, rest, format, runOptions.signal);
-      const result = await runCompact(context);
-      emit(result, format, io);
-      return result.exitCode ?? 0;
-    }
-
-    if (command === 'export') {
-      const context = buildContext(io, options, rest, format, runOptions.signal);
-      const result = await runExport(context);
-      emit(result, format, io);
-      return result.exitCode ?? 0;
-    }
-
-    if (command === 'diff') {
-      const context = buildContext(io, options, rest, format, runOptions.signal);
-      const result = await runDiff(context);
-      emit(result, format, io);
-      return result.exitCode ?? 0;
-    }
-
-    if (command === 'dashboard') {
-      const context = buildContext(io, options, rest, format, runOptions.signal);
-      const result = await runDashboard(context);
-      emit(result, format, io);
-      return result.exitCode ?? 0;
-    }
-
-    if (command === 'track') {
-      const context = buildContext(io, options, rest, format, runOptions.signal);
-      const result = await runTrack(context);
-      emit(result, format, io);
-      return result.exitCode ?? 0;
-    }
-
-    throw new CliError('internal', `Unhandled command: ${command}`);
+    const context = buildContext(io, options, rest, format, runOptions.signal);
+    const result = await runner(context);
+    emit(result, format, io);
+    return result.exitCode ?? 0;
   } catch (error) {
     const cliError = toCliError(error);
     renderError(cliError, format, verbose, io);

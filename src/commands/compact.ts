@@ -1,22 +1,12 @@
 /** `gh-track compact`: roll old raw runs into daily history and prune them. */
 
+import { positiveIntegerOption, unexpectedArgument } from '../cli-args.js';
 import { defaultDefaults, loadConfig } from '../config.js';
-import { UsageError } from '../errors.js';
 import { renderTable } from '../output/table.js';
 import { runCompaction } from '../store/compact.js';
 import { acquireLock } from '../store/lock.js';
 import type { CommandContext, CommandResult, CompactionResult } from '../types.js';
 
-function parseKeepDays(raw: string | undefined): number | undefined {
-  if (raw === undefined) {
-    return undefined;
-  }
-  const value = Number(raw);
-  if (!Number.isInteger(value) || value < 1) {
-    throw new UsageError('--keep-days must be a positive integer.');
-  }
-  return value;
-}
 
 function renderSummary(result: CompactionResult): string {
   const verb = result.dryRun ? 'Would compact' : 'Compacted';
@@ -37,10 +27,10 @@ function renderSummary(result: CompactionResult): string {
 
 export async function runCompact(context: CommandContext): Promise<CommandResult> {
   if (context.positionals.length > 0) {
-    throw new UsageError(`Unexpected argument ${JSON.stringify(context.positionals[0])}. Use: gh-track compact`);
+    throw unexpectedArgument(context.positionals[0], 'gh-track compact');
   }
 
-  const override = parseKeepDays(context.options.get('keep-days'));
+  const override = positiveIntegerOption(context.options.get('keep-days'), '--keep-days');
   const loaded = await loadConfig(context.paths.configPath, { required: false });
   const keepDays =
     override ?? loaded?.config.defaults.rawRetentionDays ?? defaultDefaults().rawRetentionDays;
