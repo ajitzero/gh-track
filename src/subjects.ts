@@ -36,8 +36,47 @@ export function canonicalRepoSubject(repo: string): string {
   return `repo:${repo}`;
 }
 
+const GITHUB_URL_PREFIX = /^(?:https?:\/\/)?(?:www\.)?github\.com(?=\/|$)/i;
+
 /**
- * Accepts `user:<login>`, `repo:<owner>/<name>`, or a bare value.
+ * Recognizes a GitHub profile or repository URL and returns its canonical
+ * subject. A profile has one path segment; a repository uses the first two, so
+ * subpages, trailing slashes, query strings, and `.git` suffixes also resolve.
+ * Returns null when the input is not a GitHub URL, letting callers fall back to
+ * the bare and canonical forms.
+ */
+export function parseGitHubUrl(input: string): ParsedSubject | null {
+  const match = GITHUB_URL_PREFIX.exec(input);
+  if (match === null) {
+    return null;
+  }
+
+  let path = input.slice(match[0].length);
+  const suffix = path.search(/[?#]/);
+  if (suffix >= 0) {
+    path = path.slice(0, suffix);
+  }
+  const segments = path.split('/').filter((segment) => segment.length > 0);
+  const first = segments[0];
+  if (first === undefined) {
+    return null;
+  }
+
+  const second = segments[1];
+  if (second === undefined) {
+    return isValidLogin(first)
+      ? { type: 'user', account: first, subject: canonicalUserSubject(first) }
+      : null;
+  }
+
+  const repo = `${first}/${second.replace(/\.git$/i, '')}`;
+  return isValidRepoFullName(repo)
+    ? { type: 'repo', repo, subject: canonicalRepoSubject(repo) }
+    : null;
+}
+
+/**
+ * Accepts a GitHub URL, `user:<login>`, `repo:<owner>/<name>`, or a bare value.
  * A bare value containing a slash is a repository; otherwise it is a user.
  */
 export function parseSubject(input: string): ParsedSubject {
@@ -47,6 +86,11 @@ export function parseSubject(input: string): ParsedSubject {
     WHITESPACE_PATTERN.test(input)
   ) {
     throw invalidSubject(input);
+  }
+
+  const url = parseGitHubUrl(input);
+  if (url !== null) {
+    return url;
   }
 
   if (input.startsWith('user:')) {
@@ -80,6 +124,14 @@ export function parseSubject(input: string): ParsedSubject {
 
 /** Parses the value supplied to `watch add user|repo`. */
 export function parseExplicitSubject(type: SubjectType, value: string): ParsedSubject {
+  const url = parseGitHubUrl(value);
+  if (url !== null) {
+    if (url.type !== type) {
+      throw invalidSubject(value);
+    }
+    return url;
+  }
+
   if (type === 'user') {
     if (value.includes(':') || !isValidLogin(value)) {
       throw invalidSubject(value);

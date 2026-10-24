@@ -195,7 +195,36 @@ test('watch add rejects invalid subjects', async (t) => {
   assert.match(result.stderr, /invalid_subject/);
 });
 
-test('watch add without arguments exits 2 and shows the exact invocation', async () => {
+test('watch add accepts GitHub profile and repository URLs', async (t) => {
+  const dir = await tempDir(t);
+  const configPath = path.join(dir, 'config.toml');
+
+  const user = await invoke([
+    'watch', 'add', 'user', 'https://github.com/octocat', '--config', configPath,
+  ]);
+  assert.equal(user.code, 0, user.stderr);
+  assert.match(user.stdout, /Added user:octocat/);
+
+  const repo = await invoke([
+    'watch', 'add', 'repo', 'https://github.com/torvalds/linux', '--config', configPath,
+  ]);
+  assert.equal(repo.code, 0, repo.stderr);
+  assert.match(repo.stdout, /Added repo:torvalds\/linux/);
+
+  const { config } = parseConfig(await readFile(configPath, 'utf8'));
+  assert.deepEqual(
+    config.subjects.map((subject) => subject.subject),
+    ['user:octocat', 'repo:torvalds/linux'],
+  );
+
+  const mismatch = await invoke([
+    'watch', 'add', 'user', 'https://github.com/torvalds/linux', '--config', configPath,
+  ]);
+  assert.equal(mismatch.code, 2);
+  assert.match(mismatch.stderr, /invalid_subject/);
+});
+
+test('watch add without arguments exits 2 and shows the exact invocation', async (t) => {
   const result = await invoke(['watch', 'add']);
   assert.equal(result.code, 2);
   assert.match(result.stderr, /gh-track watch add user <login>/);

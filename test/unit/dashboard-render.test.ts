@@ -63,8 +63,7 @@ test('compact rendering uses blue repos, purple accounts, and delta colors', () 
   assert.doesNotMatch(plain, /@octocat/);
   assert.doesNotMatch(plain, /octocat\/hello-world/);
   assert.match(plain, /octocat\s+followers\s+1,204~\s+\(0\)/);
-  assert.match(plain, /\n  hello-world\s+stars\s+1,204 {2}\(\+24\)/);
-  assert.match(plain, /\n\s+forks\s+4\s+\(−1\)/);
+  assert.match(plain, /\n  hello-world\s+stars\s+1,204 {2}\(\+24\)\s+forks\s+4\s+\(−1\)/);
   assert.ok(plain.indexOf('\noctocat') < plain.indexOf('hello-world'));
 });
 
@@ -80,6 +79,18 @@ test('columns rendering groups repositories and accounts', () => {
   assert.match(plain, /STARS/);
   assert.match(plain, /FORKS/);
   assert.match(plain, /FOLLOWERS/);
+});
+
+test('interactive rendering marks only the highlighted subject without changing data', () => {
+  const text = renderDashboard(RESULT, 'compact', createColors(false), {
+    interactive: true,
+    highlightedSubject: 'repo:octocat/hello-world',
+  });
+  const plain = text.replace(/\u001b\[[0-9;]*m/g, '');
+
+  assert.match(plain, /›   hello-world/);
+  assert.match(plain, /  octocat\s+followers/);
+  assert.match(plain, /  never\/fetched/);
 });
 
 test('no-color rendering has no ANSI and keeps the compacted marker', () => {

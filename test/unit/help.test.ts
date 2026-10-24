@@ -35,6 +35,7 @@ test('dashboard help lists add and no removed setup flag', () => {
   assert.ok(text !== null);
   assert.match(text, /Subcommands:/);
   assert.match(text, /\badd\b {2,}add subjects to the dashboard/);
+  assert.match(text, /--no-interactive/);
   assert.doesNotMatch(text, /--setup/);
 });
 

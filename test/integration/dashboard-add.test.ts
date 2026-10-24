@@ -190,6 +190,66 @@ test('bare subject forms add users and repositories', async (t) => {
   ]);
 });
 
+test('add accepts GitHub profile and repository URLs', async (t) => {
+  const w = await workspace(t);
+
+  const user = await invoke(args(w, 'dashboard', 'add', 'user', 'https://github.com/octocat'));
+  assert.equal(user.code, 0, user.stderr);
+  const repo = await invoke(
+    args(w, 'dashboard', 'add', 'repo', 'https://github.com/torvalds/linux', '--metrics', 'stars'),
+  );
+  assert.equal(repo.code, 0, repo.stderr);
+  const bare = await invoke(
+    args(w, 'dashboard', 'add', 'https://github.com/octocat/hello-world'),
+  );
+  assert.equal(bare.code, 0, bare.stderr);
+
+  const config = await configOf(w);
+  assert.deepEqual(config.subjects.map((subject) => subject.subject), [
+    'user:octocat',
+    'repo:torvalds/linux',
+    'repo:octocat/hello-world',
+  ]);
+  assert.deepEqual(config.tracking, [
+    { subject: 'user:octocat', metrics: ['followers'] },
+    { subject: 'repo:torvalds/linux', metrics: ['stars'] },
+    { subject: 'repo:octocat/hello-world', metrics: ['stars', 'forks'] },
+  ]);
+});
+
+test('add repo accepts a profile URL and browses its repositories', async (t) => {
+  const w = await workspace(t);
+  const requested: string[] = [];
+
+  const result = await invoke(
+    args(w, 'dashboard', 'add', 'repo', 'https://github.com/octocat'),
+    {
+      ...tty(),
+      fetchImpl: async (input) => {
+        requested.push(input);
+        return jsonResponse([
+          { full_name: 'octocat/hello-world', fork: false, archived: false, stargazers_count: 10 },
+        ]);
+      },
+      prompts: {
+        ...inertPrompts,
+        selectRepos: async (login) => {
+          assert.equal(login, 'octocat');
+          return ['octocat/hello-world'];
+        },
+        selectMetrics: async (_subject, _available, initial) => [...initial],
+      },
+    },
+  );
+
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(requested[0] ?? '', /\/users\/octocat\/repos/);
+  assert.deepEqual(
+    (await configOf(w)).subjects.map((subject) => subject.subject),
+    ['repo:octocat/hello-world'],
+  );
+});
+
 test('re-adding a tracked subject preserves metrics unless --metrics is given', async (t) => {
   const w = await workspace(t, CONFIG_WITH_SELECTION);
 

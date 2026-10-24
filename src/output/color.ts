@@ -31,5 +31,6 @@ export function createColors(enabled: boolean): Colors {
     cyan: wrap('36'),
     blue: wrap('94'),
     magenta: wrap('95'),
+    white: wrap('97'),
   };
 }

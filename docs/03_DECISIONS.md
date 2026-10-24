@@ -34,6 +34,8 @@ Decisions made during the initial design interview on 2026-10-19. Each entry rec
 | D028 | Compact metric widths track actual values |
 | D029 | Relative date refs for `--from` / `--to` |
 | D030 | Dashboard is the default command |
+| D031 | Compact dashboard puts all metrics of a subject on one line |
+| D032 | Dashboard supports an interactive TTY list |
 
 ## D001 — Local files only
 
@@ -383,6 +385,28 @@ Decisions made during the initial design interview on 2026-10-19. Each entry rec
 
 **Consequence.** The common path is one word shorter, while scripted calls can keep naming `dashboard` explicitly. An unconfigured install now exits `2` with `config_missing` instead of printing help, matching every other command that needs the watchlist.
 
+## D031 — Compact dashboard puts all metrics of a subject on one line
+
+**Context.** The compact layout rendered one line per selected metric, so a repository tracking stars and forks occupied two lines and `NAME`/`SINCE` were blank on the continuation. Short lists wasted vertical space and the two values of one subject were harder to compare at a glance.
+
+**Decision.** Each subject renders once, with all of its selected metrics in one `METRICS` cell in the fixed order `stars`, `forks`, `followers`, separated by two spaces. Each metric keeps its `label count delta` shape, and the shared count and delta field widths from D028 still align numbers across rows and across metrics. Rows with no numeric values still render a single `—`, and the `~` compacted marker stays attached to its count.
+
+**Rejected.** Label-column alignment (`stars`/`forks` in their own columns inside the cell), because it adds a second width regime for a two-metric case; per-subject metric ordering from the selection, because the fixed order keeps rows scannable; keeping one line per metric for subjects with more than two metrics, because the compact layout only has three possible metrics and `followers` never shares a subject with the repository metrics.
+
+**Consequence.** A tracked repository is one row instead of two, and `SINCE` lines up with every value. This amends D023 §4's "one line per selected metric"; column widths, nesting, colors, and the `columns` layout and JSON output are unchanged.
+
+## D032 — Dashboard supports an interactive TTY list
+
+**Context.** The dashboard's static table was useful for scripts and pipes but offered no way to navigate, search, copy a subject URL, or refresh without leaving the command. The prior D023 implementation explicitly deferred keybindings and a full-screen interface.
+
+**Decision.** On an interactive table TTY (the existing prompt gate, excluding `--yes`), the dashboard uses an alternate-screen list with keyboard navigation, live search, clipboard copy, inline add, and in-process full-watchlist refresh. Arrows and `j`/`k` move; `g`/`G` and Home/End jump. Search is case-insensitive and preserves compact account group headers. `c` copies a canonical GitHub URL. `a` accepts a login, `owner/name`, or canonical subject, adds it to `[[subjects]]` and `[tracking]` without replacing an existing resource or metric choice, fetches only that subject, and rebuilds the table around the new row. `r` calls the existing fetch command, refreshes observations, and retains selection and filter; failures remain in the TUI. `q` in navigation mode, Escape with no active filter, or Ctrl-C quits and restores terminal state; Ctrl-C exits 130 and aborts a running fetch. The footer orders hints as refresh, movement, search, copy, add, quit; keys render white and labels dim grey.
+
+Static output remains the default for JSON, non-TTY invocations, `--yes`, and `--no-interactive`; the latter also skips first-run setup prompts. Clipboard support has no dependency: native platform utilities are tried before OSC 52. Refresh follows normal fetch locking and error behavior.
+
+**Rejected.** A subprocess for refresh (duplicates CLI startup and complicates terminal ownership); always-on TUI (would break scripts and scrollback use); clipboard dependency (unnecessary for a short URL); clearing the tracked account header when only a child repository matches (breaks the displayed group relationship).
+
+**Consequence.** Interactive users can inspect, add, and refresh from one screen, while machine-readable and non-interactive consumers retain the static contract. The dashboard is no longer strictly read-only when the user invokes refresh or add.
+
 ## Plan history
 
 Active plans are owned by the coding harness and are never committed to this repository. This section is the durable record of what was planned, what shipped, and what remains. Statuses: `done`, `partial`, `not started`, `superseded`, `abandoned`.
@@ -392,6 +416,7 @@ Active plans are owned by the coding harness and are never committed to this rep
 | v1 — core CLI (M1–M6) | 2026-10-19 → 2026-10-20 | done | `watch`, `fetch` with resume, `runs`, `diff`, `compact`, `export`; atomic immutable runs; JSON purity; offline test suite | M7 interactive first-run setup |
 | Dashboard (M8) | 2026-10-20 | done | `dashboard` and `track`; per-subject observations; `[tracking]` and `[views]`; compact/columns layouts; clack picker | None |
 | Dashboard add (M8.1) | 2026-10-20 | done | `dashboard add`; composite watch+track; public-repository browsing and multi-select; removed `--setup` | None |
+| Interactive dashboard (M8.2) | 2026-10-24 | done | TTY navigation, live search, clipboard copy, in-process fetch refresh; static/JSON output preserved | None |
 
 The retired `docs/plans/` files remain in git history at commit `3deedbb` (`feat: implement M8 dashboard and tracking`). This section replaces the folder as the place to answer "what has been done, and what is left?"
 

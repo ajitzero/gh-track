@@ -36,7 +36,7 @@ const FETCH: HelpNode = {
   summary: 'fetch and snapshot watched subjects',
   usage: ['gh-track fetch [subject...] [options]'],
   arguments: [
-    { name: 'subject', summary: 'user:<login>, repo:<owner>/<name>, or a bare value' },
+    { name: 'subject', summary: 'user:<login>, repo:<owner>/<name>, bare value, or GitHub URL' },
   ],
   options: [
     { flags: '--dry-run', summary: 'Print the request plan without spending quota' },
@@ -50,6 +50,7 @@ const FETCH: HelpNode = {
     'gh-track fetch',
     'gh-track fetch user:octocat',
     'gh-track fetch torvalds/linux --dry-run',
+    'gh-track fetch https://github.com/torvalds/linux',
   ],
 };
 
@@ -62,7 +63,7 @@ const WATCH_ADD: HelpNode = {
   ],
   arguments: [
     { name: 'type', summary: 'user or repo' },
-    { name: 'value', summary: 'login for user; owner/name for repo' },
+    { name: 'value', summary: 'login or profile URL for user; owner/name or repository URL for repo' },
   ],
   options: [
     {
@@ -87,7 +88,7 @@ const WATCH_RM: HelpNode = {
   name: 'rm',
   summary: 'remove a subject from the watchlist',
   usage: ['gh-track watch rm <subject> [--yes]'],
-  arguments: [{ name: 'subject', summary: 'any accepted subject form' }],
+  arguments: [{ name: 'subject', summary: 'any accepted subject form, including a GitHub URL' }],
   examples: ['gh-track watch rm user:octocat --yes'],
 };
 
@@ -136,7 +137,7 @@ const DIFF: HelpNode = {
       summary: 'Start point: latest, previous, run id, YYYY-MM-DD, or -1y',
     },
     { flags: '--to <ref>', summary: 'End point: latest, run id, YYYY-MM-DD, or -1y' },
-    { flags: '--subject <s>', summary: 'Repeatable; restrict to one or more subjects' },
+    { flags: '--subject <s>', summary: 'Repeatable; restrict to one or more subjects (or a URL)' },
   ],
   examples: [
     'gh-track diff',
@@ -161,7 +162,7 @@ const EXPORT: HelpNode = {
   summary: 'export compacted history',
   usage: ['gh-track export [--format json|jsonl|csv] [options]'],
   options: [
-    { flags: '--subject <s>', summary: 'Repeatable; restrict to one or more subjects' },
+    { flags: '--subject <s>', summary: 'Repeatable; restrict to one or more subjects (or a URL)' },
     { flags: '--from <date|offset>', summary: 'Inclusive UTC start day (YYYY-MM-DD or -1y)' },
     { flags: '--to <date|offset>', summary: 'Inclusive UTC end day (YYYY-MM-DD or -1y)' },
   ],
@@ -184,7 +185,7 @@ const DASHBOARD_ADD: HelpNode = {
     'gh-track dashboard add <subject> [--metrics <list>]',
   ],
   arguments: [
-    { name: 'subject', summary: 'any accepted subject form (bare login or owner/name)' },
+    { name: 'subject', summary: 'any accepted subject form (bare login, owner/name, or GitHub URL)' },
   ],
   options: [
     {
@@ -213,8 +214,9 @@ const DASHBOARD: HelpNode = {
     { flags: '--view <name>', summary: 'Render a saved view' },
     { flags: '--from <ref>', summary: 'Baseline: previous observation, run id, day, or -1y' },
     { flags: '--to <ref>', summary: 'Current point: latest, run id, day, or -1y' },
-    { flags: '--subject <s>', summary: 'Repeatable; override the selected subjects' },
+    { flags: '--subject <s>', summary: 'Repeatable; override the selected subjects (or a URL)' },
     { flags: '--layout <fmt>', summary: 'compact (default) or columns' },
+    { flags: '--no-interactive', summary: 'Print a static table even in a TTY' },
   ],
   examples: [
     'gh-track',
@@ -249,7 +251,7 @@ const TRACK_RM: HelpNode = {
   name: 'rm',
   summary: 'remove a subject from the dashboard selection',
   usage: ['gh-track track rm <subject>'],
-  arguments: [{ name: 'subject', summary: 'any accepted subject form' }],
+  arguments: [{ name: 'subject', summary: 'any accepted subject form, including a GitHub URL' }],
 };
 
 const TRACK_LS: HelpNode = {

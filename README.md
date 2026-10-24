@@ -32,7 +32,12 @@ gh-track diff --from -1y --to latest
 ```bash
 gh-track fetch user:octocat
 gh-track fetch torvalds/linux --dry-run
+gh-track fetch https://github.com/torvalds/linux
 ```
+
+Everywhere a subject is accepted, a GitHub profile or repository URL works too:
+`https://github.com/octocat` is a user, and
+`https://github.com/octocat/hello-world` is a repository.
 
 The first run creates the data directory. The default locations are:
 

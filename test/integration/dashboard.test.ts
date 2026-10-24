@@ -6,7 +6,13 @@ import test, { type TestContext } from 'node:test';
 import { run, type CliIO } from '../../src/cli.js';
 import { parseConfig } from '../../src/config.js';
 import { interrupted } from '../../src/errors.js';
-import type { DashboardResult, PromptApi, TrackListResult } from '../../src/types.js';
+import type {
+  DashboardKeypress,
+  DashboardResult,
+  DashboardTerminal,
+  PromptApi,
+  TrackListResult,
+} from '../../src/types.js';
 import { repoPayload, seedRun, type SeedRequest } from '../helpers/seed.js';
 
 interface Capture {
@@ -73,6 +79,14 @@ metrics = ["followers"]
 [[views."users-only".items]]
 subject = "user:octocat"
 metrics = ["followers"]
+`;
+
+const FIRST_RUN_CONFIG = `schema_version = 1
+
+[[subjects]]
+type = "user"
+account = "octocat"
+resources = ["followers"]
 `;
 
 const inertPrompts: PromptApi = {
@@ -194,8 +208,7 @@ test('compact dashboard resolves each subject independently', async (t) => {
   assert.equal(result.code, 0, result.stderr);
   assert.equal(result.stderr, '');
 
-  assert.match(result.stdout, /\n  hello-world\s+stars\s+120\s+\(\+20\)/);
-  assert.match(result.stdout, /\n\s+forks\s+4\s+\(\+1\)/);
+  assert.match(result.stdout, /\n  hello-world\s+stars\s+120\s+\(\+20\)\s+forks\s+4\s+\(\+1\)/);
   assert.match(result.stdout, /history\/only\s+stars\s+50~/);
   assert.match(result.stdout, /never\/fetched\s+—\s+—/);
   assert.match(result.stdout, /\noctocat\s+followers\s+3\s+\(\+1\)/);
@@ -220,28 +233,268 @@ test('bare invocation renders the dashboard with dashboard options', async (t) =
   assert.match(withOptions.stdout, /gh-track dashboard — my-repos/);
 });
 
+test('--no-interactive keeps the static table on a TTY', async (t) => {
+  const w = await workspace(t);
+  await seedWorkspace(w.dataDir);
+  let entered = false;
+  const terminal: DashboardTerminal = {
+    rows: 24,
+    enter: () => { entered = true; },
+    leave: () => undefined,
+    write: () => undefined,
+    onKeypress: () => () => undefined,
+    onResize: () => () => undefined,
+    copy: async () => true,
+  };
+
+  const result = await invoke(args(w, 'dashboard', '--no-interactive'), {
+    stdinIsTTY: true,
+    stdoutIsTTY: true,
+    dashboardTerminal: terminal,
+  });
+
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(entered, false);
+  assert.match(result.stdout, /gh-track dashboard/);
+});
+
+test('--no-interactive skips first-run setup without changing tracking', async (t) => {
+  const w = await workspace(t, FIRST_RUN_CONFIG);
+  let promptCalled = false;
+  const terminal: DashboardTerminal = {
+    rows: 24,
+    enter: () => assert.fail('static mode must not enter the terminal'),
+    leave: () => undefined,
+    write: () => undefined,
+    onKeypress: () => () => undefined,
+    onResize: () => () => undefined,
+    copy: async () => true,
+  };
+  const prompts: PromptApi = {
+    ...inertPrompts,
+    selectSubjects: async () => {
+      promptCalled = true;
+      return null;
+    },
+  };
+
+  const result = await invoke(args(w, 'dashboard', '--no-interactive'), {
+    stdinIsTTY: true,
+    stdoutIsTTY: true,
+    dashboardTerminal: terminal,
+    prompts,
+  });
+
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(promptCalled, false);
+  assert.match(result.stdout, /octocat/);
+  assert.equal((await configOf(w)).tracking.length, 0);
+});
+
+test('interactive dashboard restores the terminal and emits no table after quit', async (t) => {
+  const w = await workspace(t);
+  await seedWorkspace(w.dataDir);
+  let entered = 0;
+  let left = 0;
+  let output = '';
+  const terminal: DashboardTerminal = {
+    rows: 24,
+    enter: () => { entered += 1; },
+    leave: () => { left += 1; },
+    write: (text) => { output += text; },
+    onKeypress: (listener: (key: DashboardKeypress) => void) => {
+      listener({ name: 'q', sequence: 'q', ctrl: false });
+      return () => undefined;
+    },
+    onResize: () => () => undefined,
+    copy: async () => true,
+  };
+
+  const result = await invoke(args(w, 'dashboard'), {
+    stdinIsTTY: true,
+    stdoutIsTTY: true,
+    dashboardTerminal: terminal,
+  });
+
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stdout, '');
+  assert.equal(entered, 1);
+  assert.equal(left, 1);
+  const plain = output.replace(/\u001b\[[0-9;]*m/g, '');
+  assert.match(plain, /r refresh · ↑↓\/j k move · \/ search · c copy · a add · q quit/);
+  assert.match(output, /\u001b\[97mr\u001b\[0m\u001b\[2m refresh\u001b\[0m/);
+  assert.match(plain, /hello-world/);
+});
+
+test('r runs a full fetch from the interactive dashboard', async (t) => {
+  const w = await workspace(t);
+  await seedWorkspace(w.dataDir);
+  let left = 0;
+  const requested: string[] = [];
+  const terminal: DashboardTerminal = {
+    rows: 24,
+    enter: () => undefined,
+    leave: () => { left += 1; },
+    write: () => undefined,
+    onKeypress: (listener) => {
+      listener({ name: 'r', sequence: 'r', ctrl: false });
+      listener({ name: 'q', sequence: 'q', ctrl: false });
+      return () => undefined;
+    },
+    onResize: () => () => undefined,
+    copy: async () => true,
+  };
+
+  const result = await invoke(args(w, 'dashboard'), {
+    stdinIsTTY: true,
+    stdoutIsTTY: true,
+    dashboardTerminal: terminal,
+    fetchImpl: async (input) => {
+      requested.push(input);
+      const url = new URL(input);
+      let payload: unknown = [];
+      if (url.pathname.startsWith('/repos/')) {
+        const fullName = url.pathname.slice('/repos/'.length);
+        payload = repoPayload(1, fullName, 150, 8);
+      }
+      return new Response(JSON.stringify(payload), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    },
+  });
+
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stdout, '');
+  assert.equal(left, 1);
+  assert.ok(requested.some((url) => new URL(url).pathname === '/users/octocat/followers'));
+  assert.ok(requested.some((url) => new URL(url).pathname === '/repos/octocat/hello-world'));
+});
+
+test('a adds a subject, fetches only it, and refreshes the dashboard', async (t) => {
+  const w = await workspace(t);
+  await seedWorkspace(w.dataDir);
+  const requested: string[] = [];
+  let output = '';
+  const terminal: DashboardTerminal = {
+    rows: 24,
+    enter: () => undefined,
+    leave: () => undefined,
+    write: (text) => { output += text; },
+    onKeypress: (listener) => {
+      listener({ name: 'a', sequence: 'a', ctrl: false });
+      for (const character of 'testing-user') {
+        listener({ name: character, sequence: character, ctrl: false });
+      }
+      listener({ name: 'return', sequence: '\r', ctrl: false });
+      listener({ name: 'q', sequence: 'q', ctrl: false });
+      return () => undefined;
+    },
+    onResize: () => () => undefined,
+    copy: async () => true,
+  };
+
+  const result = await invoke(args(w, 'dashboard'), {
+    stdinIsTTY: true,
+    stdoutIsTTY: true,
+    dashboardTerminal: terminal,
+    fetchImpl: async (input) => {
+      requested.push(input);
+      const url = new URL(input);
+      const payload = url.pathname.endsWith('/followers')
+        ? [{ login: 'one', id: 1 }, { login: 'two', id: 2 }]
+        : [repoPayload(9, 'testing-user/demo', 5, 1)];
+      return new Response(JSON.stringify(payload), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    },
+  });
+
+  const plain = output.replace(/\u001b\[[0-9;]*m/g, '');
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stdout, '');
+  assert.ok(requested.length > 0);
+  assert.ok(
+    requested.every((url) => new URL(url).pathname.startsWith('/users/testing-user/')),
+  );
+  assert.ok(plain.includes('add: testing-user'));
+  assert.ok(plain.includes('Added user:testing-user'));
+  assert.ok(plain.includes('testing-user'));
+
+  const saved = await configOf(w);
+  assert.ok(saved.subjects.some((subject) => subject.subject === 'user:testing-user'));
+  assert.ok(saved.tracking.some((entry) => entry.subject === 'user:testing-user'));
+});
+
+test('a accepts a repository URL in the interactive add prompt', async (t) => {
+  const w = await workspace(t);
+  await seedWorkspace(w.dataDir);
+  const requested: string[] = [];
+  let output = '';
+  const terminal: DashboardTerminal = {
+    rows: 24,
+    enter: () => undefined,
+    leave: () => undefined,
+    write: (text) => { output += text; },
+    onKeypress: (listener) => {
+      listener({ name: 'a', sequence: 'a', ctrl: false });
+      for (const character of 'https://github.com/testing-user/demo') {
+        listener({ name: character, sequence: character, ctrl: false });
+      }
+      listener({ name: 'return', sequence: '\r', ctrl: false });
+      listener({ name: 'q', sequence: 'q', ctrl: false });
+      return () => undefined;
+    },
+    onResize: () => () => undefined,
+    copy: async () => true,
+  };
+
+  const result = await invoke(args(w, 'dashboard'), {
+    stdinIsTTY: true,
+    stdoutIsTTY: true,
+    dashboardTerminal: terminal,
+    fetchImpl: async (input) => {
+      requested.push(input);
+      return new Response(
+        JSON.stringify(repoPayload(9, 'testing-user/demo', 7, 2)),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+    },
+  });
+
+  const plain = output.replace(/\u001b\[[0-9;]*m/g, '');
+  assert.equal(result.code, 0, result.stderr);
+  assert.deepEqual(
+    requested.map((url) => new URL(url).pathname),
+    ['/repos/testing-user/demo'],
+  );
+  assert.ok(plain.includes('Added repo:testing-user/demo'));
+
+  const saved = await configOf(w);
+  assert.ok(saved.subjects.some((subject) => subject.subject === 'repo:testing-user/demo'));
+  assert.ok(saved.tracking.some((entry) => entry.subject === 'repo:testing-user/demo'));
+});
+
 test('--from and --to bound each subject and mark compacted baselines', async (t) => {
   const w = await workspace(t);
   await seedWorkspace(w.dataDir);
 
   const fromHistory = await invoke(args(w, 'dashboard', '--from', '2026-09-01'));
   assert.equal(fromHistory.code, 0, fromHistory.stderr);
-  assert.match(fromHistory.stdout, /stars\s+120\s+\(\+40\)\s+2026-09-01~/);
-  assert.match(fromHistory.stdout, /\n\s+forks\s+4\s+\(\+2\)/);
+  assert.match(fromHistory.stdout, /stars\s+120\s+\(\+40\)\s+forks\s+4\s+\(\+2\)\s+2026-09-01~/);
   assert.match(fromHistory.stdout, /\noctocat\s+followers\s+3\s+\(\+2\)\s+2026-09-01~/);
   assert.match(fromHistory.stdout, /history\/only\s+stars\s+50~/);
 
   const early = await invoke(args(w, 'dashboard', '--to', '2026-09-15'));
   assert.equal(early.code, 0, early.stderr);
-  assert.match(early.stdout, /\n  hello-world\s+stars\s+80~\s+—/);
-  assert.match(early.stdout, /\n\s+forks\s+2~/);
+  assert.match(early.stdout, /\n  hello-world\s+stars\s+80~\s+forks\s+2~/);
   assert.match(early.stdout, /history\/only\s+stars\s+50~/);
   assert.match(early.stdout, /\noctocat\s+followers\s+1~/);
 
   const runBound = await invoke(args(w, 'dashboard', '--to', A));
   assert.equal(runBound.code, 0, runBound.stderr);
-  assert.match(runBound.stdout, /stars\s+100\s+\(\+20\)\s+2026-09-01~/);
-  assert.match(runBound.stdout, /\n\s+forks\s+3\s+\(\+1\)/);
+  assert.match(runBound.stdout, /stars\s+100\s+\(\+20\)\s+forks\s+3\s+\(\+1\)\s+2026-09-01~/);
 });
 
 test('a relative --from clamps to each subject’s oldest observation', async (t) => {
@@ -250,8 +503,7 @@ test('a relative --from clamps to each subject’s oldest observation', async (t
 
   const result = await invoke(args(w, 'dashboard', '--from', '-100y'));
   assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stdout, /stars\s+120\s+\(\+40\)\s+2026-09-01~/);
-  assert.match(result.stdout, /\n\s+forks\s+4\s+\(\+2\)/);
+  assert.match(result.stdout, /stars\s+120\s+\(\+40\)\s+forks\s+4\s+\(\+2\)\s+2026-09-01~/);
   assert.match(result.stdout, /\noctocat\s+followers\s+3\s+\(\+2\)\s+2026-09-01~/);
   assert.match(result.stdout, /history\/only\s+stars\s+50~/);
 });
@@ -262,16 +514,14 @@ test('--from latest produces zero deltas', async (t) => {
 
   const result = await invoke(args(w, 'dashboard', '--from', 'latest'));
   assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stdout, /stars\s+120\s+\(0\)/);
-  assert.match(result.stdout, /\n\s+forks\s+4\s+\(0\)/);
+  assert.match(result.stdout, /stars\s+120\s+\(0\)\s+forks\s+4\s+\(0\)/);
   assert.match(result.stdout, /\noctocat\s+followers\s+3\s+\(0\)/);
 
   const bounded = await invoke(
     args(w, 'dashboard', '--from', 'latest', '--to', '2026-09-15'),
   );
   assert.equal(bounded.code, 0, bounded.stderr);
-  assert.match(bounded.stdout, /stars\s+80~\s+\(0\)/);
-  assert.match(bounded.stdout, /\n\s+forks\s+2~\s+\(0\)/);
+  assert.match(bounded.stdout, /stars\s+80~\s+\(0\)\s+forks\s+2~\s+\(0\)/);
   assert.match(bounded.stdout, /\noctocat\s+followers\s+1~\s+\(0\)/);
 });
 

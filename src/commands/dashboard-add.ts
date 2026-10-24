@@ -12,6 +12,7 @@ import { defaultMetricsFor, parseMetricList } from '../metrics.js';
 import { USER_RESOURCES, parseResources } from '../resources.js';
 import {
   parseExplicitSubject,
+  parseGitHubUrl,
   parseSubject,
   subjectKey,
   subjectKeyOf,
@@ -217,6 +218,14 @@ async function promptRepo(
     return null;
   }
   const raw = (input ?? '').trim();
+  const url = parseGitHubUrl(raw);
+  if (url !== null) {
+    if (url.type === 'user') {
+      return browseRepos(context, config, url.account, metricsOverride, warnings);
+    }
+    const metrics = await askRepoMetrics(context, config, url.subject, metricsOverride);
+    return metrics === null ? null : [{ parsed: url, metrics }];
+  }
   if (!raw.includes('/')) {
     return browseRepos(context, config, raw, metricsOverride, warnings);
   }
@@ -298,6 +307,19 @@ async function collect(
         'gh-track dashboard add repo <owner/name>',
       );
       return promptRepo(context, config, metricsOverride, warnings);
+    }
+
+    const url = parseGitHubUrl(second);
+    if (url !== null) {
+      if (url.type === 'repo') {
+        return explicitRepo(config, url, metricsOverride);
+      }
+      requirePrompt(
+        context,
+        'gh-track dashboard add repo <owner>',
+        'gh-track dashboard add repo <owner/name>',
+      );
+      return browseRepos(context, config, url.account, metricsOverride, warnings);
     }
 
     if (second.includes('/')) {

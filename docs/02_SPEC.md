@@ -46,7 +46,7 @@ gh-track fetch [subject...] [options]
   --token <token>           Use this token for the Authorization header
 ```
 
-Subject arguments accept `user:<login>`, `repo:<owner>/<name>`, or a bare value. A bare value containing `/` is a repository; otherwise it is a user. Duplicate subjects are deduplicated with a warning.
+Subject arguments accept `user:<login>`, `repo:<owner>/<name>`, a bare value, or a GitHub URL. A bare value containing `/` is a repository; otherwise it is a user. A URL resolves by its first path segment: `https://github.com/<login>` is a user, and `https://github.com/<owner>/<name>` (or any deeper repository page) is a repository. Duplicate subjects are deduplicated with a warning.
 
 Behavior:
 
@@ -183,6 +183,7 @@ gh-track [options]
   --to <ref>               Current bound (default: latest)
   --subject <s>            Repeatable; override the item set with configured subjects
   --layout <fmt>           compact (default) or columns
+  --no-interactive         Print a static table even in a TTY
 ```
 
 - `dashboard` is the default command: a bare `gh-track` is equivalent to `gh-track dashboard`.
@@ -191,8 +192,15 @@ gh-track [options]
 - A date or offset `--from` older than a subject's data snaps to that subject's oldest observation. A date or offset `--to` older than a subject's data leaves the row with `—`.
 - Each subject resolves its own observations. Raw runs win over compacted history for the same day.
 - A subject with no observations is included with `—`.
+- On an interactive TTY with table output and without `--yes` or `--no-interactive`, the dashboard opens an alternate-screen list. `--no-interactive`, JSON output, and non-TTY output keep the static renderer; `--no-interactive` also skips first-run setup prompts.
+- In interactive mode, `↑`/`↓` and `j`/`k` move the highlight; `g`/`G` and Home/End jump to the first/last item. Movement clamps at either end. `/` starts a live, case-insensitive substring search. Enter keeps the filter; Escape clears it, and Escape with no filter or `q` in navigation mode quits. Ctrl-C quits with exit code 130 and aborts an in-flight fetch. While entering a query, arrow keys move the highlight and all printable characters (including `j` and `k`) are searchable.
+- Compact search matches visible account/repository names; full `owner/name` repository names also match. A tracked account remains visible when one of its nested repositories matches; matching the account shows its whole group. Columns layout filters rows independently.
+- `c` copies the highlighted user's profile URL or repository URL to the clipboard. It tries the platform clipboard utility first and falls back to OSC 52. `r` runs the full `fetch` command against the watchlist, then refreshes dashboard observations without changing the selected subjects, range, filter, or highlighted subject. Fetch errors and partial-run status stay visible in the dashboard.
+- `a` opens an inline add prompt. A bare login, `owner/name`, canonical `user:` / `repo:` subject, or GitHub profile/repository URL is accepted on Enter; the subject is added to the watchlist and default selection, fetched on its own, and the table is rebuilt with the new row highlighted. Escape cancels. Invalid input keeps the prompt open with the error. Existing subjects keep their stored resources and metrics.
+- The interactive footer hints are ordered refresh, movement, search, copy, add, then quit. Each key renders white and its label dim grey; `NO_COLOR` disables that styling. Quitting restores the terminal and leaves no dashboard output in the regular scrollback; use `--no-interactive` to print a static table instead.
+- In the compact layout, every selected metric of a subject shares one line, in the fixed order `stars`, `forks`, `followers`, separated by two spaces. `NAME` and `SINCE` appear once per subject.
 - In the compact layout, a selected repository whose owner is also a selected account is nested under that account: the group sits at the earliest selection position of any member, the account renders first, and its repositories follow in selection order, indented two spaces with the `owner/` prefix removed. Owner matching is case-insensitive. Repositories without a selected owner keep their full name and position. The columns layout and `--format json` rows are unchanged.
-- In the compact layout, the `METRICS` count and delta fields are sized to the widest formatted value and delta in the list; there is no fixed minimum. The count field stays at least one character so `—` fits, the `~` marker slot is reserved only when a compacted value is present, and values widen rather than truncate. The columns layout and `--format json` are unaffected.
+- In the compact layout, each metric's count and delta fields are sized to the widest formatted value and delta in the list; there is no fixed minimum. The count field stays at least one character so `—` fits, the `~` marker slot is reserved only when a compacted value is present, and values widen rather than truncate. The columns layout and `--format json` are unaffected.
 - `--from previous` selects each row's observation immediately before its `to` observation.
 - `--from latest` uses the same observation as `to`, so deltas are zero.
 - A run-id reference must name a complete run on disk, matching `diff`.
@@ -201,7 +209,7 @@ gh-track [options]
 - `--subject` replaces the item set with the named configured subjects. Their metrics come from the active view, then `[tracking]`, then defaults. An unconfigured subject exits `2` with `unknown_subject`.
 - An empty item set exits `2` with `no_selection`. An empty watchlist exits `2` with `empty_watchlist`.
 - `--view` names a missing view exits `2` with `unknown_view`.
-- `dashboard` takes no lock.
+- The dashboard display takes no lock. Interactive `r` uses the normal fetch lock and fetch behavior.
 
 #### 2.8.1 `dashboard add`
 
@@ -250,10 +258,11 @@ gh-track track view rm <name>
 
 | Canonical | Accepted in `fetch`, `diff --subject`, `dashboard add`, `watch rm` |
 |---|---|
-| `user:octocat` | `user:octocat`, `octocat` |
-| `repo:torvalds/linux` | `repo:torvalds/linux`, `torvalds/linux` |
+| `user:octocat` | `user:octocat`, `octocat`, `https://github.com/octocat` |
+| `repo:torvalds/linux` | `repo:torvalds/linux`, `torvalds/linux`, `https://github.com/torvalds/linux` |
 
-- `watch add` requires the explicit subtype (`user` or `repo`).
+- A GitHub URL may omit the scheme or use `http://` / `https://`, with or without `www.`. Trailing slashes, query strings, fragments, `.git` suffixes, and deeper repository paths are ignored.
+- `watch add` requires the explicit subtype (`user` or `repo`); a URL must resolve to that subtype.
 - Logins are case-insensitive; store the casing returned by the API.
 - Repository names come from `full_name`; normalize to that casing for storage and display.
 - Empty strings, whitespace, and values with more than one `/` exit `2` with `invalid_subject`.

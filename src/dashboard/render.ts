@@ -49,16 +49,32 @@ function displayName(row: DashboardRow): string {
   return row.subject.slice(row.subject.indexOf(':') + 1);
 }
 
+export interface DashboardRenderOptions {
+  /** Add a visible cursor marker before each name in interactive mode. */
+  interactive?: boolean;
+  highlightedSubject?: string | undefined;
+  emptyMessage?: string | undefined;
+}
+
 function nameCell(
   row: DashboardRow,
   colors: Colors,
   label: string = displayName(row),
   nested = false,
+  options: DashboardRenderOptions = {},
 ): TableCell {
   const paint = row.kind === 'repo'
     ? (text: string) => colors.bold(colors.blue(text))
     : (text: string) => colors.bold(colors.magenta(text));
-  return richCell([{ text: nested ? `  ${label}` : label, paint }]);
+  const name = nested ? `  ${label}` : label;
+  if (!options.interactive) {
+    return richCell([{ text: name, paint }]);
+  }
+  const selected = options.highlightedSubject === row.subject;
+  return richCell([
+    { text: selected ? '› ' : '  ', ...(selected ? { paint: colors.cyan } : {}) },
+    { text: name, paint },
+  ]);
 }
 
 function hasMetric(row: DashboardRow, metric: Metric): boolean {
@@ -135,18 +151,18 @@ function nullMetricSegments(colors: Colors, widths: CompactWidths): CellSegment[
   ];
 }
 
-function metricLineCell(
+function metricLineSegments(
   label: string,
   value: DashboardMetricValue,
   colors: Colors,
   compactedValue: boolean,
   widths: CompactWidths,
-): TableCell {
+): CellSegment[] {
   if (value.value === null) {
-    return richCell([
+    return [
       { text: `${label} `, paint: colors.dim },
       ...nullMetricSegments(colors, widths),
-    ]);
+    ];
   }
 
   const count = formatCount(value.value);
@@ -170,14 +186,18 @@ function metricLineCell(
     );
   }
 
-  return richCell(segments);
+  return segments;
 }
 
 function nullMetricsCell(colors: Colors, widths: CompactWidths): TableCell {
   return richCell(nullMetricSegments(colors, widths));
 }
 
-function compactRows(result: DashboardResult, colors: Colors): TableCell[][] {
+function compactRows(
+  result: DashboardResult,
+  colors: Colors,
+  options: DashboardRenderOptions,
+): TableCell[][] {
   const widths = compactWidths(result.rows);
   const rows: TableCell[][] = [];
 
@@ -191,24 +211,32 @@ function compactRows(result: DashboardResult, colors: Colors): TableCell[][] {
 
     if (metrics.length === 0 || !anyValue) {
       rows.push([
-        nameCell(row, colors, display.label, display.nested),
+        nameCell(row, colors, display.label, display.nested, options),
         nullMetricsCell(colors, widths),
         sinceCell(row, colors),
       ]);
       continue;
     }
 
-    metrics.forEach((metric, index) => {
+    const segments: CellSegment[] = [];
+    for (const metric of metrics) {
       const value = metricValue(row, metric);
       if (value === undefined) {
-        return;
+        continue;
       }
-      rows.push([
-        index === 0 ? nameCell(row, colors, display.label, display.nested) : '',
-        metricLineCell(METRIC_LABELS[metric], value, colors, compacted(row), widths),
-        index === 0 ? sinceCell(row, colors) : '',
-      ]);
-    });
+      if (segments.length > 0) {
+        segments.push({ text: '  ' });
+      }
+      segments.push(
+        ...metricLineSegments(METRIC_LABELS[metric], value, colors, compacted(row), widths),
+      );
+    }
+
+    rows.push([
+      nameCell(row, colors, display.label, display.nested, options),
+      richCell(segments),
+      sinceCell(row, colors),
+    ]);
   }
 
   return rows;
@@ -236,7 +264,13 @@ function sinceCell(row: DashboardRow, colors: Colors): TableCell {
   return richCell(segments);
 }
 
-function section(title: string, rows: readonly DashboardRow[], metrics: readonly Metric[], colors: Colors): string {
+function section(
+  title: string,
+  rows: readonly DashboardRow[],
+  metrics: readonly Metric[],
+  colors: Colors,
+  options: DashboardRenderOptions,
+): string {
   const heading = title === 'Repositories'
     ? colors.bold(colors.blue(title))
     : colors.bold(colors.magenta(title));
@@ -246,7 +280,7 @@ function section(title: string, rows: readonly DashboardRow[], metrics: readonly
     'SINCE',
   ];
   const body: TableCell[][] = rows.map((row) => [
-    nameCell(row, colors),
+    nameCell(row, colors, displayName(row), false, options),
     ...metrics.map((metric) => columnCell(row, metric, colors)),
     sinceCell(row, colors),
   ]);
@@ -257,23 +291,31 @@ function unionMetrics(rows: readonly DashboardRow[]): Metric[] {
   return METRIC_ORDER.filter((metric) => rows.some((row) => hasMetric(row, metric)));
 }
 
-function renderCompact(result: DashboardResult, colors: Colors): string {
-  return renderTable(['NAME', 'METRICS', 'SINCE'], compactRows(result, colors), {
+function renderCompact(
+  result: DashboardResult,
+  colors: Colors,
+  options: DashboardRenderOptions,
+): string {
+  return renderTable(['NAME', 'METRICS', 'SINCE'], compactRows(result, colors, options), {
     align: ['left', 'right', 'left'],
     headerAlign: ['left', 'left', 'left'],
   });
 }
 
-function renderColumns(result: DashboardResult, colors: Colors): string {
+function renderColumns(
+  result: DashboardResult,
+  colors: Colors,
+  options: DashboardRenderOptions,
+): string {
   const repos = result.rows.filter((row) => row.kind === 'repo');
   const users = result.rows.filter((row) => row.kind === 'user');
   const sections: string[] = [];
 
   if (repos.length > 0) {
-    sections.push(section('Repositories', repos, unionMetrics(repos), colors));
+    sections.push(section('Repositories', repos, unionMetrics(repos), colors, options));
   }
   if (users.length > 0) {
-    sections.push(section('Accounts', users, unionMetrics(users), colors));
+    sections.push(section('Accounts', users, unionMetrics(users), colors, options));
   }
 
   return sections.join('\n\n');
@@ -283,17 +325,22 @@ export function renderDashboard(
   result: DashboardResult,
   layout: DashboardLayout,
   colors: Colors,
+  options: DashboardRenderOptions = {},
 ): string {
   const label = result.view === undefined ? 'gh-track dashboard' : `gh-track dashboard — ${result.view}`;
   const range = `(from ${result.range.from} to ${result.range.to})`;
   const lines = [colors.dim(`${label} ${range}`), ''];
 
   if (result.rows.length === 0) {
-    lines.push(colors.dim('No observations.'));
+    lines.push(colors.dim(options.emptyMessage ?? 'No observations.'));
     return `${lines.join('\n')}\n`;
   }
 
-  lines.push(layout === 'columns' ? renderColumns(result, colors) : renderCompact(result, colors));
+  lines.push(
+    layout === 'columns'
+      ? renderColumns(result, colors, options)
+      : renderCompact(result, colors, options),
+  );
 
   if (result.rows.some((row) => compacted(row) || row.from?.finishedAt === null)) {
     lines.push('', colors.dim('~ compacted history'));

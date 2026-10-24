@@ -1,4 +1,4 @@
-Post-v1. A read-only, per-entity value view with a clack setup picker. Not a full-screen TUI and not interactive after rendering.
+Post-v1. A per-entity value view with a clack setup picker and an interactive TTY list. Static and JSON rendering remain available for scripts and pipes.
 
 ## Goal
 
@@ -13,7 +13,7 @@ Because the dashboard exposes only those three metrics, every row is comparable 
 
 ## Decisions
 
-Recorded as [D023](03_DECISIONS.md).
+Recorded as [D023](03_DECISIONS.md) and [D032](03_DECISIONS.md).
 
 | Question | Decision |
 |---|---|
@@ -27,12 +27,13 @@ Recorded as [D023](03_DECISIONS.md).
 | Baseline | A `SINCE` column in both layouts |
 | Totals | Never (D009) |
 | Setup | clack picker when no selection exists; `dashboard add` for incremental setup |
+| Interaction | Alternate-screen TTY list; static table for JSON, non-TTY, `--yes`, and `--no-interactive` |
 
 ## Commands
 
 ```
 gh-track dashboard [--view <name>] [--from <ref>] [--to <ref>]
-                   [--subject <s>]... [--layout compact|columns]
+                   [--subject <s>]... [--layout compact|columns] [--no-interactive]
 gh-track [same dashboard options]          # dashboard is the default command
 gh-track dashboard add [user <login> | repo <owner/name> | repo <owner> | <subject>]
 gh-track track edit
@@ -43,7 +44,8 @@ gh-track track view save <name> [--item ...] [--layout ...] [--from ...] [--to .
 gh-track track view rm <name>
 ```
 
-- `dashboard` is read-only. It writes only when the first-run picker runs.
+- The dashboard writes only when the first-run picker runs, interactive `r` refreshes via `fetch`, or interactive `a` adds a subject and fetches it.
+- Interactive mode uses the alternate screen and restores the terminal on exit. `--no-interactive` forces the static table and skips first-run setup prompts. JSON and non-TTY invocations are always static.
 - `dashboard add` composes watch and tracking: it appends missing subjects to `[[subjects]]` and sets their `[tracking]` entry. It is additive and never touches `[views]`.
 - `dashboard add repo <owner>` and the interactive repository path list the owner's public repositories and allow a multi-select, with a per-repository metrics prompt. `--metrics` and `--resources` make the explicit forms non-interactive.
 - `--view` selects a full snapshot. `--subject` overrides the item set with configured subjects; their metrics come from the view, then `[tracking]`, then defaults.
@@ -51,6 +53,18 @@ gh-track track view rm <name>
 - `track edit` writes `[tracking]`; `track set` is its non-interactive equivalent.
 - `track view save` writes a named view. Without `--item` it runs the picker.
 - `track ls` lists the default selection and every view.
+
+## Interactive list
+
+On a TTY with table output and without `--yes`, the dashboard opens an alternate-screen list. The selected item is marked with `›`; the view scrolls to keep it visible. Keyboard hints appear in this order, separated by middots: `r refresh · ↑↓/j k move · / search · c copy · a add · q quit`. Each shortcut key renders white and its label renders dim grey; `NO_COLOR` drops the styling.
+
+- `↑`/`↓` and `j`/`k` move one item; movement clamps at the ends. `g`/`G` and Home/End jump to the first/last item.
+- `/` starts a fresh live substring filter. Enter keeps the filter; Escape clears it. In navigation mode Escape clears an active filter or quits if there is none. `q` quits in navigation mode; Ctrl-C always quits with exit code 130 and aborts an in-flight fetch.
+- Search is case-insensitive. Compact mode searches displayed names, also accepting a full `owner/name`; a matching child repository keeps its tracked account header visible, while a matching account shows its complete group. Columns mode filters each row independently. While entering a query, printable `j`/`k` characters are treated as search text; arrow keys still move the highlight.
+- `c` copies `https://github.com/<login>` or `https://github.com/<owner>/<repo>` for the selected account or repository. It tries `pbcopy`, `clip`, `wl-copy`, `xclip`, or `xsel` as appropriate, then falls back to OSC 52; success/failure is shown in the status line.
+- `a` opens an inline add prompt on the status line. Typing accepts a bare login, `owner/name`, a canonical `user:` / `repo:` subject, or a GitHub profile/repository URL; Enter adds it to the watchlist and default selection, fetches only that subject, and refreshes the table with the new row highlighted. Escape cancels. An invalid value keeps the prompt open with the error; failures during the scoped fetch still leave the added row visible with `—` values. Existing subjects keep their stored resources and metric selection.
+- `r` runs the regular `fetch` command for the entire watchlist in-process. It honors the fetch lock, API behavior, and automatic compaction. The displayed rows are rebuilt afterward while preserving the current subject, range, search, and selection. Errors and partial-run status are shown without closing the dashboard; keyboard input is ignored while refresh is running. Ctrl-C aborts an in-flight fetch and restores the terminal.
+- Quitting restores raw mode, cursor, line wrapping, and the prior screen; no static table is printed afterward. Use `--no-interactive` when the table should remain in scrollback.
 
 ## Setup picker
 
@@ -137,13 +151,11 @@ Default `compact`:
 ```
 gh-track dashboard — my-repos (from 2026-09-01 to latest)
 
-NAME           METRICS                 SINCE
-octocat        followers 1,204~  (+9)  2026-09-01
-  hello-world      stars   132  (+12)  2026-10-17
-                   forks     4   (+1)
-  spoon-knife      stars    48   (−2)  2026-10-17
-                   forks     1    (0)
-never/fetched                —         —
+NAME           METRICS                                 SINCE
+octocat                        followers 1,204~  (+9)  2026-09-01
+  hello-world  stars   132  (+12)  forks     4   (+1)  2026-10-17
+  spoon-knife  stars    48   (−2)  forks     1    (0)  2026-10-17
+never/fetched                                —         —
 
 ~ compacted history
 ```
@@ -160,10 +172,10 @@ NAME     FOLLOWERS    SINCE
 octocat  1,204~ (+9)  2026-09-01
 ```
 
-- The compact layout gives each selected metric its own line. `NAME` and `SINCE` appear only on the first line; continuation lines leave both cells blank.
+- The compact layout renders every selected metric of a subject on one line, in the fixed order `stars`, `forks`, `followers`, separated by two spaces. `NAME` and `SINCE` appear once per subject.
 - In `compact`, a repository whose owner is also a selected account is nested under that account. The group sits at the earliest selection position of any member; the account renders first, then its repositories in selection order, each indented two spaces with the `owner/` prefix removed. Owner matching is case-insensitive. Repositories without a selected owner keep their full name and their place in the selection.
 - `columns` keeps its separate Repositories and Accounts sections and always renders full names, since a repository there cannot sit directly under its account. JSON rows keep selection order and full `subject` values in both layouts.
-- Compact metric values are right-aligned within the `METRICS` column; the header stays at the column's left edge. Labels (`stars`, `forks`, `followers`) take the variable width, while the count and delta fields are exactly as wide as the largest formatted value or delta in the list. The count field is at least one character so `—` still fits, and the delta field collapses to zero when no row has a baseline. Values widen their fields instead of truncating.
+- Compact metric values are right-aligned within the `METRICS` column; the header stays at the column's left edge. Each metric keeps a variable-width label (`stars`, `forks`, `followers`) followed by count and delta fields that are exactly as wide as the largest formatted value or delta in the list. The count field is at least one character so `—` still fits, and the delta field collapses to zero when no row has a baseline. Values widen their fields instead of truncating.
 - When any displayed value is compacted, the `~` marker has its own one-character slot after the count, so compacted and raw values keep the same count and delta alignment. A list with no compacted values does not reserve the slot.
 - A value without a baseline leaves the delta slot blank; a subject with no observation at all renders one `—` in the metrics block and `—` in `SINCE`.
 - Repository names and section headers are bold light blue (`1` + `94`); accounts are bold purple (`1` + `95`). Names are not prefixed with `@` in either layout; color carries the kind.
@@ -204,7 +216,7 @@ A never-fetched row carries `source: null`, `from: null`, `to: null`, and `{valu
 
 ## Non-goals
 
-- Full-screen TUI, alternate screen, or keybindings.
+- Advanced TUI features beyond navigation, live search, copy, add, and refresh (for example, configurable keymaps or multi-select actions).
 - Web UI, server, scheduling, alerts, or notifications.
 - Totals and rollups (D009).
 - Metrics beyond stars, forks, and followers.

@@ -52,6 +52,64 @@ test('rejects invalid subject values', () => {
   }
 });
 
+test('parses GitHub profile and repository URLs', () => {
+  for (const value of [
+    'https://github.com/octocat',
+    'https://github.com/octocat/',
+    'http://www.github.com/octocat?tab=repositories',
+    'github.com/octocat',
+  ]) {
+    assert.deepEqual(parseSubject(value), {
+      type: 'user',
+      account: 'octocat',
+      subject: 'user:octocat',
+    }, value);
+  }
+
+  for (const [value, repo] of [
+    ['https://github.com/torvalds/linux', 'torvalds/linux'],
+    ['https://github.com/torvalds/linux/', 'torvalds/linux'],
+    ['https://github.com/torvalds/linux.git', 'torvalds/linux'],
+    ['https://github.com/torvalds/linux/tree/master', 'torvalds/linux'],
+    ['https://github.com/torvalds/linux?tab=readme', 'torvalds/linux'],
+    ['github.com/torvalds/linux', 'torvalds/linux'],
+  ] as const) {
+    assert.deepEqual(parseSubject(value), {
+      type: 'repo',
+      repo,
+      subject: `repo:${repo}`,
+    }, value);
+  }
+
+  assert.deepEqual(parseExplicitSubject('user', 'https://github.com/OctoCat'), {
+    type: 'user',
+    account: 'OctoCat',
+    subject: 'user:OctoCat',
+  });
+  assert.deepEqual(parseExplicitSubject('repo', 'https://github.com/a/b.git'), {
+    type: 'repo',
+    repo: 'a/b',
+    subject: 'repo:a/b',
+  });
+});
+
+test('rejects malformed and mismatched GitHub URLs', () => {
+  for (const value of [
+    'https://github.com',
+    'https://github.com/',
+    'https://github.com/-bad',
+    'https://gitlab.com/a/b',
+  ]) {
+    assert.throws(() => parseSubject(value), (error: unknown) => {
+      assert.equal((error as { code?: string }).code, 'invalid_subject');
+      return true;
+    }, `expected ${JSON.stringify(value)} to be invalid`);
+  }
+
+  assert.throws(() => parseExplicitSubject('user', 'https://github.com/a/b'));
+  assert.throws(() => parseExplicitSubject('repo', 'https://github.com/octocat'));
+});
+
 test('parseExplicitSubject enforces the requested subtype', () => {
   assert.deepEqual(parseExplicitSubject('user', 'octocat'), {
     type: 'user',

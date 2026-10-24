@@ -2,7 +2,12 @@
 
 import { confirm, isCancel, multiselect, select, text } from '@clack/prompts';
 import { interrupted } from '../errors.js';
-import { isValidLogin, isValidRepoFullName, parseExplicitSubject } from '../subjects.js';
+import {
+  isValidLogin,
+  isValidRepoFullName,
+  parseExplicitSubject,
+  parseGitHubUrl,
+} from '../subjects.js';
 import type {
   DashboardLayout,
   Metric,
@@ -37,9 +42,9 @@ async function askAddType(): Promise<SubjectType | null> {
 
 async function askUserLogin(): Promise<string | null> {
   const value = await text({
-    message: 'GitHub login',
+    message: 'GitHub login or profile URL',
     placeholder: 'octocat',
-    validate: (input) => (isValidLogin(input ?? '') ? undefined : 'Enter a valid GitHub login'),
+    validate: (input) => validateValue('user', input ?? ''),
   });
   if (isCancel(value)) {
     throw interrupted();
@@ -49,11 +54,14 @@ async function askUserLogin(): Promise<string | null> {
 
 async function askRepoInput(): Promise<string | null> {
   const value = await text({
-    message: 'Repository (owner/name) or owner to browse',
+    message: 'Repository URL, owner/name, or owner to browse',
     placeholder: 'torvalds/linux or octocat',
     validate: (input) => {
       const raw = (input ?? '').trim();
       if (raw.length === 0) {
+        return undefined;
+      }
+      if (parseGitHubUrl(raw) !== null) {
         return undefined;
       }
       if (raw.includes('/')) {
@@ -69,7 +77,7 @@ async function askRepoInput(): Promise<string | null> {
 }
 
 async function askRepoName(
-  message = 'Repository (owner/name)',
+  message = 'Repository (owner/name) or URL',
 ): Promise<string | null> {
   const value = await text({
     message,
@@ -78,6 +86,10 @@ async function askRepoName(
       const raw = (input ?? '').trim();
       if (raw.length === 0) {
         return undefined;
+      }
+      const url = parseGitHubUrl(raw);
+      if (url !== null) {
+        return url.type === 'repo' ? undefined : 'Enter a repository URL or owner/name';
       }
       return isValidRepoFullName(raw) ? undefined : 'Use owner/name with exactly one slash';
     },
@@ -120,8 +132,10 @@ async function askWatchAdd(): Promise<WatchAddAnswer | null> {
   }
 
   const value = await text({
-    message: type === 'user' ? 'GitHub login' : 'Repository (owner/name)',
-    placeholder: type === 'user' ? 'octocat' : 'torvalds/linux',
+    message: type === 'user' ? 'GitHub login or profile URL' : 'Repository (owner/name) or URL',
+    placeholder: type === 'user'
+      ? 'octocat or https://github.com/octocat'
+      : 'torvalds/linux or https://github.com/torvalds/linux',
     validate: (input) => validateValue(type, input ?? ''),
   });
   if (isCancel(value)) {

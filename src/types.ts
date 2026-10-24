@@ -104,6 +104,23 @@ export interface DashboardResult {
   rows: DashboardRow[];
 }
 
+export interface DashboardKeypress {
+  name: string;
+  sequence: string;
+  ctrl: boolean;
+}
+
+/** Small terminal boundary so interactive behavior can be tested without a TTY. */
+export interface DashboardTerminal {
+  readonly rows: number;
+  enter(): void;
+  leave(): void;
+  write(text: string): void;
+  onKeypress(listener: (key: DashboardKeypress) => void): () => void;
+  onResize(listener: () => void): () => void;
+  copy(text: string): Promise<boolean>;
+}
+
 /** `track ls --format json` document (§5.15). */
 export interface TrackListResult {
   tracking: TrackingEntry[];
@@ -389,6 +406,7 @@ export interface Colors {
   cyan(text: string): string;
   blue(text: string): string;
   magenta(text: string): string;
+  white(text: string): string;
 }
 
 export interface CommandContext {
@@ -402,6 +420,8 @@ export interface CommandContext {
   verbose: boolean;
   canPrompt: boolean;
   prompts: PromptApi;
+  /** Present only for the real process IO adapter or interactive tests. */
+  dashboardTerminal?: DashboardTerminal | undefined;
   /** Environment used to resolve token_env and platform-specific defaults. */
   env: NodeJS.ProcessEnv;
   /** Aborted by SIGINT so long-running commands can stop gracefully. */
@@ -422,4 +442,6 @@ export interface CommandResult {
   warnings: string[];
   /** Process exit code for this command. Defaults to 0. */
   exitCode?: number | undefined;
+  /** Suppress table output after a command has rendered its own TTY UI. */
+  suppressTableOutput?: boolean | undefined;
 }

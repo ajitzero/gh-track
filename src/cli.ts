@@ -17,6 +17,7 @@ import { RELATIVE_VALUE_PATTERN } from './date.js';
 import { CliError, UsageError, toCliError } from './errors.js';
 import { renderHelp } from './help.js';
 import { createColors, shouldUseColor } from './output/color.js';
+import { createProcessDashboardTerminal } from './dashboard/terminal.js';
 import { renderJson } from './output/json.js';
 import { createPrompts } from './prompts/index.js';
 import { canPrompt } from './prompts/gate.js';
@@ -27,6 +28,7 @@ import type {
   OutputFormat,
   OptionBag,
   PromptApi,
+  DashboardTerminal,
 } from './types.js';
 import { VERSION } from './version.js';
 
@@ -41,6 +43,7 @@ export interface CliIO {
   platform: NodeJS.Platform;
   home: string;
   prompts: PromptApi;
+  dashboardTerminal?: DashboardTerminal | undefined;
   /** Injectable HTTP implementation, used by tests. */
   fetchImpl?: ((input: string, init?: RequestInit) => Promise<Response>) | undefined;
   /** Injectable retry delay, used by tests. */
@@ -90,6 +93,7 @@ const OPTION_SPECS: readonly OptionSpec[] = [
   { name: 'layout', flags: ['--layout'], value: 'required' },
   { name: 'metrics', flags: ['--metrics'], value: 'required' },
   { name: 'item', flags: ['--item'], value: 'required', repeatable: true },
+  { name: 'no-interactive', flags: ['--no-interactive'], value: 'none' },
 ];
 
 /** Flags that used to exist; keep their removal errors actionable. */
@@ -134,7 +138,7 @@ const COMMAND_OPTIONS: Readonly<Record<string, ReadonlySet<string>>> = {
   diff: new Set(['from', 'to', 'subject']),
   compact: new Set(['dry-run', 'keep-days']),
   export: new Set(['subject', 'from', 'to']),
-  dashboard: new Set(['view', 'layout', 'from', 'to', 'subject', 'metrics', 'resources', 'token']),
+  dashboard: new Set(['view', 'layout', 'from', 'to', 'subject', 'metrics', 'resources', 'token', 'no-interactive']),
   track: new Set(['item', 'layout', 'from', 'to']),
   help: new Set(),
 };
@@ -459,6 +463,7 @@ function buildContext(
       yes,
     }),
     prompts: io.prompts,
+    ...(io.dashboardTerminal === undefined ? {} : { dashboardTerminal: io.dashboardTerminal }),
     env: io.env,
     signal: runOptions.signal,
     ...(runOptions.now === undefined ? {} : { now: runOptions.now }),
@@ -473,6 +478,9 @@ function emit(result: CommandResult, format: OutputFormat, io: CliIO): void {
   }
   if (format === 'json') {
     io.stdout(renderJson(result.json));
+    return;
+  }
+  if (result.suppressTableOutput === true) {
     return;
   }
   io.stdout(result.text.endsWith('\n') ? result.text : `${result.text}\n`);
@@ -578,6 +586,7 @@ function createProcessIO(): CliIO {
     platform: process.platform,
     home: os.homedir(),
     prompts: createPrompts(),
+    dashboardTerminal: createProcessDashboardTerminal(),
   };
 }
 
