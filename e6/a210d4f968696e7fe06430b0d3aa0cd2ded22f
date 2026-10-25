@@ -1,0 +1,14 @@
+LICENSE
+  h_1e9f70f2591550 1-21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e6a210d4f968696e7fe06430b0d3aa0cd2ded22f",
+  "prompts": {},
+  "humans": {
+    "h_1e9f70f2591550": {
+      "author": "Ajit Panigrahi <ajitzero@gmail.com>"
+    }
+  }
+}
