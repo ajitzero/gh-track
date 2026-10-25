@@ -1,0 +1,32 @@
+README.md
+  h_1e9f70f2591550 131
+docs/01_ARCHITECTURE.md
+  h_1e9f70f2591550 280
+docs/02_SPEC.md
+  h_1e9f70f2591550 764
+docs/03_DECISIONS.md
+  h_1e9f70f2591550 42,446-455
+src/cli.ts
+  h_1e9f70f2591550 24,478-483,485,488,494-495,498-504,513,517,525,536,579,583,638-639
+src/github/client.ts
+  h_1e9f70f2591550 5,142-146,148,218-222,326-330
+src/redact.ts
+  h_1e9f70f2591550 1-55
+test/integration/cli.test.ts
+  h_1e9f70f2591550 66-93
+test/unit/github-client.test.ts
+  h_1e9f70f2591550 155-171
+test/unit/redact.test.ts
+  h_1e9f70f2591550 1-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "01afb0448e4eac640ceedbf218bbe12a52acd04f",
+  "prompts": {},
+  "humans": {
+    "h_1e9f70f2591550": {
+      "author": "Ajit Panigrahi <ajitzero@gmail.com>"
+    }
+  }
+}
