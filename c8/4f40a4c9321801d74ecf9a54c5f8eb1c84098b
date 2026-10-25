@@ -1,0 +1,20 @@
+docs/02_SPEC.md
+  h_1e9f70f2591550 759
+docs/03_DECISIONS.md
+  h_1e9f70f2591550 41,435-444
+src/github/client.ts
+  h_1e9f70f2591550 12-16,64-75,165-166,192,194-195,206,213-215,222-224,228-245,264,268,273,282,286-288,296-298,312,319-321,330-332
+test/unit/github-client.test.ts
+  h_1e9f70f2591550 224,227-235,239-260
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c84f40a4c9321801d74ecf9a54c5f8eb1c84098b",
+  "prompts": {},
+  "humans": {
+    "h_1e9f70f2591550": {
+      "author": "Ajit Panigrahi <ajitzero@gmail.com>"
+    }
+  }
+}
