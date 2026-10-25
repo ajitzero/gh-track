@@ -1,0 +1,60 @@
+test/integration/dashboard-add.test.ts
+  h_1e9f70f2591550 2,165-166
+  h_1e9f70f2591550 150-164
+src/dashboard/observations.ts
+  h_1e9f70f2591550 247-248,251-252
+  h_1e9f70f2591550 10,25-36,141,246,249-250
+src/store/etagCache.ts
+  h_1e9f70f2591550 1-82
+src/commands/watch.ts
+  h_1e9f70f2591550 4,12,80,223-225,227
+  h_1e9f70f2591550 11,81-83,87-88
+src/commands/dashboard.ts
+  h_1e9f70f2591550 4,23,28-29,81,175-176,222,258,290-311
+  h_1e9f70f2591550 30,56-57,65,70,249-255
+test/integration/dashboard.test.ts
+  h_1e9f70f2591550 343,505-639
+  h_1e9f70f2591550 640-689
+AGENT.md
+  h_1e9f70f2591550 9
+test/unit/etag-cache.test.ts
+  h_1e9f70f2591550 1-64
+docs/04_DASHBOARD.md
+  h_1e9f70f2591550 47,59,65-66,221
+  h_1e9f70f2591550 95
+docs/02_SPEC.md
+  h_1e9f70f2591550 199-201,389
+  h_1e9f70f2591550 660,683-697
+docs/03_DECISIONS.md
+  h_1e9f70f2591550 471-485,505-512
+  h_1e9f70f2591550 486-500
+src/config-edit.ts
+  h_1e9f70f2591550 3,37-93
+test/unit/dashboard-interactive.test.ts
+  h_1e9f70f2591550 307-386,400,403
+src/dashboard/interactive.ts
+  h_1e9f70f2591550 24-28,46-47,68,131,440-463
+docs/01_ARCHITECTURE.md
+  h_1e9f70f2591550 114-115,175-176
+src/commands/dashboard-add.ts
+  h_1e9f70f2591550 14,438-441
+src/store/state.ts
+  h_1e9f70f2591550 13-14
+src/store/trackedSince.ts
+  h_1e9f70f2591550 1-66
+test/integration/cli.test.ts
+  h_1e9f70f2591550 2,185-208
+test/unit/tracked-since.test.ts
+  h_1e9f70f2591550 1-93
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a40786d4a2b9ba83d12efec4592330bc50466c16",
+  "prompts": {},
+  "humans": {
+    "h_1e9f70f2591550": {
+      "author": "Ajit Panigrahi <ajitzero@gmail.com>"
+    }
+  }
+}
