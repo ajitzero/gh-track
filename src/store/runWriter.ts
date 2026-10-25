@@ -9,6 +9,7 @@ import type { Manifest } from '../types.js';
 import { writeFileAtomic } from './atomic.js';
 import { writeManifest } from './manifest.js';
 import { ensureDir, runsDir, runDir, tempRunDir } from './paths.js';
+import { safeRelativePath } from './runs.js';
 
 const SAFE_SEGMENT = /[^A-Za-z0-9._-]/g;
 
@@ -74,14 +75,13 @@ async function makeWriter(
     directory,
     fresh,
     async writePayload(relativePath: string, payload: unknown): Promise<string> {
-      await writeFileAtomic(
-        path.join(directory, relativePath),
-        `${JSON.stringify(payload, null, 2)}\n`,
-      );
+      const target = safeRelativePath(relativePath, 'write');
+      await writeFileAtomic(path.join(directory, target), `${JSON.stringify(payload, null, 2)}\n`);
       return relativePath;
     },
     async readPayload(relativePath: string): Promise<unknown> {
-      const text = await readFile(path.join(directory, relativePath), 'utf8');
+      const target = safeRelativePath(relativePath, 'read');
+      const text = await readFile(path.join(directory, target), 'utf8');
       return JSON.parse(text) as unknown;
     },
     async writeManifest(manifest: Manifest): Promise<void> {

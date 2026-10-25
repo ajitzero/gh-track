@@ -40,6 +40,7 @@ Decisions made during the initial design interview on 2026-10-19. Each entry rec
 | D034 | oxlint and oxfmt for linting and formatting                                             |
 | D035 | Follow GitHub redirects manually, and only on the API origin                            |
 | D036 | Redact the token from every output path                                                 |
+| D037 | Confine run payload reads and writes to the run directory                               |
 
 ## D001 — Local files only
 
@@ -452,6 +453,16 @@ Static output remains the default for JSON, non-TTY invocations, `--yes`, and `-
 **Rejected.** Redacting at one boundary only (a warning and a thrown error take different paths); removing `--token` (it is the only way to pass a token without touching the environment); scanning and redacting every environment value (slow and hides unrelated values).
 
 **Consequence.** The documented promise is now enforced at both the client and the CLI boundary. A test asserts that a known token never appears on stdout or stderr, even when a thrown network error contains it.
+
+## D037 — Confine run payload reads and writes
+
+**Context.** `readRunPayload()` rejected absolute paths and `..` segments, but `RunWriter.writePayload()` joined the caller's relative path and trusted it. Every current caller builds paths through `safeSegment()`, so this was not reachable from GitHub data, but a later caller could write outside the run directory.
+
+**Decision.** One exported guard, `safeRelativePath()`, normalizes the path and rejects an empty path, an absolute path, or a `..` prefix. Reads and writes both call it; only the error verb differs. Callers still own path construction, so the guard is a backstop rather than a path builder.
+
+**Rejected.** Re-implementing the check in each store module (two rules that can drift); validating only writes (a symlinked or malformed layout could still be read).
+
+**Consequence.** A write can no longer escape the run directory even if a caller passes a hostile relative path. The rule lives beside the payload reader that already enforced it.
 
 ## Plan history
 

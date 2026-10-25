@@ -44,6 +44,16 @@ test('payload path helpers use the documented layout', () => {
   assert.equal(standaloneRepoPath('torvalds/linux'), 'repos/torvalds__linux.json');
 });
 
+test('payload paths cannot escape the run directory', async (t) => {
+  const dataDir = await tempDir(t);
+  const writer = await createRunWriter(dataDir, ID);
+
+  for (const relativePath of ['../escape.json', '/etc/passwd', '']) {
+    await assert.rejects(writer.writePayload(relativePath, {}), /Refusing to write outside/);
+    await assert.rejects(writer.readPayload(relativePath), /Refusing to read outside/);
+  }
+});
+
 test('a fresh writer writes into .tmp-<id> and promotes atomically', async (t) => {
   const dataDir = await tempDir(t);
   const writer = await createRunWriter(dataDir, ID);

@@ -336,7 +336,7 @@ A missing config file is allowed for `fetch <subject>`, `runs`, `help`, and `--v
 
 ## 5. Data schemas
 
-All paths inside a run are relative to the run directory. All timestamps are ISO-8601 UTC with milliseconds.
+All paths inside a run are relative to the run directory. Reads and writes refuse an absolute path or any path whose normalized form leaves the run directory. All timestamps are ISO-8601 UTC with milliseconds.
 
 ### 5.1 Manifest — `manifest.json`
 

@@ -10,8 +10,11 @@ import type { LastRunSummary, Manifest } from '../types.js';
 import { readManifest } from './manifest.js';
 import { isValidRunId, runDir, runsDir } from './paths.js';
 
-/** Rejects absolute paths and any `..` segment so a read stays inside the run. */
-function safeRelativePath(relativePath: string): string {
+/**
+ * Rejects absolute paths and any `..` segment so a read or write stays inside
+ * the run directory.
+ */
+export function safeRelativePath(relativePath: string, action: 'read' | 'write' = 'read'): string {
   const normalized = path.normalize(relativePath);
   if (
     relativePath.length === 0 ||
@@ -19,7 +22,7 @@ function safeRelativePath(relativePath: string): string {
     normalized === '..' ||
     normalized.startsWith(`..${path.sep}`)
   ) {
-    throw ioError(`Refusing to read outside the run directory: ${relativePath}`, {
+    throw ioError(`Refusing to ${action} outside the run directory: ${relativePath}`, {
       path: relativePath,
     });
   }
