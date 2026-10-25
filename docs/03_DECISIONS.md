@@ -490,6 +490,7 @@ Not started or deliberately deferred. Each item links to its decision where one 
 - **Scheduling helpers.** No cron, daemon, or `--if-due` in v1.
 - **Multi-machine sync.** Out of scope; local-first files only (D001).
 - **Same-second run suffix.** Same-second runs currently error; add a suffix only if it ever matters (D002).
+- **7.2 — stale-lock reclamation race.** Two processes reclaiming a dead `locks/fetch.lock` can collide on the second `wx` create; the loser reports `locked` with a synthetic pid `0`. Recheck the lock contents before surfacing a pid, or retry the create, and cover the race with a test (D019 §6).
 
 The former open question about compaction width is resolved by [D023](#d023--dashboard-narrow-metrics-per-subject-observations-full-snapshot-views): the history schema stays narrow.
 
