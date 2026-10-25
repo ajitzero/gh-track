@@ -56,7 +56,7 @@ gh-track track view rm <name>
 
 ## Interactive list
 
-On a TTY with table output and without `--yes`, the dashboard opens an alternate-screen list. The selected item is marked with `›`; the view scrolls to keep it visible. Keyboard hints appear in this order, separated by middots: `r refresh · ↑↓/j k move · / search · c copy · a add · d delete · q quit`. Each shortcut key renders white and its label renders dim grey; `NO_COLOR` drops the styling.
+On a TTY with table output and without `--yes`, the dashboard opens an alternate-screen list. The selected item is marked with `›`; the view scrolls to keep it visible. The footer shows keyboard hints, separated by middots and ordered alphabetically by key, and swaps with the input mode: navigation reads `/ search · a add · c copy · d delete · ↑↓/j k move · q quit · r refresh`; search mode reads `enter keep · esc clear · type filter · ↑↓ move`; add mode reads `enter add · esc cancel · type a user, repo, or URL · ↑↓ move`. Each shortcut key renders white and its label renders dim grey; `NO_COLOR` drops the styling.
 
 - `↑`/`↓` and `j`/`k` move one item; movement clamps at the ends. `g`/`G` and Home/End jump to the first/last item.
 - `/` starts a fresh live substring filter. Enter keeps the filter; Escape clears it. In navigation mode Escape clears an active filter or quits if there is none. `q` quits in navigation mode; Ctrl-C always quits with exit code 130 and aborts an in-flight fetch.

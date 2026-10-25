@@ -340,7 +340,7 @@ test('interactive dashboard restores the terminal and emits no table after quit'
   assert.equal(entered, 1);
   assert.equal(left, 1);
   const plain = output.replace(/\u001b\[[0-9;]*m/g, '');
-  assert.match(plain, /r refresh · ↑↓\/j k move · \/ search · c copy · a add · d delete · q quit/);
+  assert.match(plain, /\/ search · a add · c copy · d delete · ↑↓\/j k move · q quit · r refresh/);
   assert.match(output, /\u001b\[97mr\u001b\[0m\u001b\[2m refresh\u001b\[0m/);
   assert.match(plain, /hello-world/);
 });

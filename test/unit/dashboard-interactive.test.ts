@@ -400,7 +400,7 @@ test('footer renders shortcut keys white and labels dim', async () => {
   assert.match(frame, /\u001b\[97md\u001b\[0m\u001b\[2m delete\u001b\[0m/);
   assert.match(frame, /\u001b\[97mq\u001b\[0m\u001b\[2m quit\u001b\[0m/);
   const plain = frame.replace(/\u001b\[[0-9;]*m/g, '');
-  assert.match(plain, /r refresh · ↑↓\/j k move · \/ search · c copy · a add · d delete · q quit/);
+  assert.match(plain, /\/ search · a add · c copy · d delete · ↑↓\/j k move · q quit · r refresh/);
 });
 
 test('GitHub URLs distinguish account and repository rows', () => {

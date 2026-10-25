@@ -60,27 +60,27 @@ interface Hint {
 }
 
 const MAIN_HINTS: readonly Hint[] = [
-  { key: 'r', label: 'refresh' },
-  { key: '↑↓/j k', label: 'move' },
   { key: '/', label: 'search' },
-  { key: 'c', label: 'copy' },
   { key: 'a', label: 'add' },
+  { key: 'c', label: 'copy' },
   { key: 'd', label: 'delete' },
+  { key: '↑↓/j k', label: 'move' },
   { key: 'q', label: 'quit' },
+  { key: 'r', label: 'refresh' },
 ];
 
 const SEARCH_HINTS: readonly Hint[] = [
-  { key: 'type', label: 'filter' },
-  { key: '↑↓', label: 'move' },
   { key: 'enter', label: 'keep' },
   { key: 'esc', label: 'clear' },
+  { key: 'type', label: 'filter' },
+  { key: '↑↓', label: 'move' },
 ];
 
 const ADD_HINTS: readonly Hint[] = [
-  { key: 'type', label: 'a user, repo, or URL' },
-  { key: '↑↓', label: 'move' },
   { key: 'enter', label: 'add' },
   { key: 'esc', label: 'cancel' },
+  { key: 'type', label: 'a user, repo, or URL' },
+  { key: '↑↓', label: 'move' },
 ];
 
 function hintLine(colors: Colors, hints: readonly Hint[]): string {

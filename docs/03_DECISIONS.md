@@ -410,7 +410,7 @@ Decisions made during the initial design interview on 2026-10-19. Each entry rec
 
 **Context.** The dashboard's static table was useful for scripts and pipes but offered no way to navigate, search, copy a subject URL, or refresh without leaving the command. The prior D023 implementation explicitly deferred keybindings and a full-screen interface.
 
-**Decision.** On an interactive table TTY (the existing prompt gate, excluding `--yes`), the dashboard uses an alternate-screen list with keyboard navigation, live search, clipboard copy, inline add, and in-process full-watchlist refresh. Arrows and `j`/`k` move; `g`/`G` and Home/End jump. Search is case-insensitive and preserves compact account group headers. `c` copies a canonical GitHub URL. `a` accepts a login, `owner/name`, or canonical subject, adds it to `[[subjects]]` and `[tracking]` without replacing an existing resource or metric choice, fetches only that subject, and rebuilds the table around the new row. `r` calls the existing fetch command, refreshes observations, and retains selection and filter; failures remain in the TUI. `q` in navigation mode, Escape with no active filter, or Ctrl-C quits and restores terminal state; Ctrl-C exits 130 and aborts a running fetch. The footer orders hints as refresh, movement, search, copy, add, quit; keys render white and labels dim grey.
+**Decision.** On an interactive table TTY (the existing prompt gate, excluding `--yes`), the dashboard uses an alternate-screen list with keyboard navigation, live search, clipboard copy, inline add, and in-process full-watchlist refresh. Arrows and `j`/`k` move; `g`/`G` and Home/End jump. Search is case-insensitive and preserves compact account group headers. `c` copies a canonical GitHub URL. `a` accepts a login, `owner/name`, or canonical subject, adds it to `[[subjects]]` and `[tracking]` without replacing an existing resource or metric choice, fetches only that subject, and rebuilds the table around the new row. `r` calls the existing fetch command, refreshes observations, and retains selection and filter; failures remain in the TUI. `q` in navigation mode, Escape with no active filter, or Ctrl-C quits and restores terminal state; Ctrl-C exits 130 and aborts a running fetch. The footer orders hints alphabetically by key (D040); keys render white and labels dim grey.
 
 Static output remains the default for JSON, non-TTY invocations, `--yes`, and `--no-interactive`; the latter also skips first-run setup prompts. Clipboard support has no dependency: native platform utilities are tried before OSC 52. Refresh follows normal fetch locking and error behavior.
 
@@ -477,7 +477,7 @@ Static output remains the default for JSON, non-TTY invocations, `--yes`, and `-
 1. **Full removal, no confirmation.** `d` deletes the highlighted subject with `watch rm` semantics: it removes the subject from `[[subjects]]`, `[tracking]`, and every saved view; a view whose last item is removed is dropped. The command reports the removal in the status line and emits the existing selection/view warnings on stderr. The config and ETag writes take the fetch lock so they cannot race a fetch.
 2. **Subject-scoped cache cleanup.** Only the deleted subject's entries leave `state/etags.json`. Repository matching compares the exact `repos/<owner>/<name>` path segments, so sibling repositories such as `owner/repo-extra` and `other/repo` keep their validators. Account matching covers `/users/<login>/followers` and `/users/<login>/repos`, never the `/repos/...` entries of repositories owned by that account. Runs and compacted history are data, not cache, and are kept.
 3. **Immediate display update.** The controller drops the deleted row from the current result before the next frame. Grouping is display-only, so deleting an account re-renders its still-tracked repositories as top-level `owner/name` rows without the two-space indentation.
-4. **Footer order.** Hints read refresh, movement, search, copy, add, delete, quit.
+4. **Footer order.** `d delete` slots into the alphabetical footer order (D040).
 
 **Rejected.** Removing only from `[tracking]` (`track rm` semantics) because the row is labeled delete and the subject should stop being fetched; a confirmation prompt for every keystroke; deleting raw runs or history because they remain valid evidence; prefix or owner-based cache matching because it would clear unrelated repositories; leaving stale validators that could only be discarded by a later 304 failure.
 
@@ -497,6 +497,16 @@ Static output remains the default for JSON, non-TTY invocations, `--yes`, and `-
 **Rejected.** Deleting runs or history on delete (data loss and breaks shared runs); a session-only reset (the stale delta returns on the next launch); a delete-time marker (a delayed re-add can include pre-delete compacted days); a per-session "fetching" placeholder alone (it hides the symptom without fixing the baseline); a new config field (schema and serialization churn for a fact that is derived from data history); recording a run id after the fetch (the inline add would briefly show the stale delta and a failed fetch would leave no marker).
 
 **Consequence.** Deleting and re-adding a subject now behaves like tracking it for the first time. Historical data remains available to `diff` and `export`, but the dashboard deliberately hides it before the add instant. Losing `state/tracked-since.json` is safe: the next add recreates a marker, while existing subjects simply show their full history again.
+
+## D040 — Footer hints sort alphabetically by key
+
+**Context.** The interactive footer listed hints in the order features shipped: refresh, movement, search, copy, add, delete, quit (D032, D038). That sequence encoded history rather than a rule a reader could predict, and the three hint sets — navigation, search, add — each ended up with a different arrangement.
+
+**Decision.** Every hint set is ordered alphabetically by the hint's key, with `/` first and bare arrows last. Navigation reads `/ search`, `a add`, `c copy`, `d delete`, `↑↓/j k move`, `q quit`, `r refresh`; the movement entry sorts by its `j`/`k` letters, so it sits between `d` and `q`. Search and add mode both read `enter`, `esc`, `type`, then `↑↓`. Keys stay white, labels dim, separated by a dim middot.
+
+**Rejected.** Keeping feature order (the status quo, unpredictable to users); grouping mutating actions last (breaks the alphabetical rule); keeping `q quit` last by convention (contradicts a pure key sort).
+
+**Consequence.** The footer order is now derivable from the keys themselves, so a new binding slots in without re-deciding a grouping. This supersedes the ordering clauses in D032 and D038 §4. Behavior, the three-row footer budget, and styling are unchanged.
 
 ## Plan history
 
