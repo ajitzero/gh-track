@@ -18,7 +18,7 @@ Decisions made during the initial design interview on 2026-10-19. Each entry rec
 | D012 | `--format json` is a strict machine contract with stable exit codes                     |
 | D013 | Hand-rolled command registry for help                                                   |
 | D014 | No gzip in v1                                                                           |
-| D015 | Docs are an Obsidian vault with relative links and a `type` field                       |
+| D015 | Docs are an Obsidian vault with relative links; `.obsidian/` stays tracked              |
 | D016 | Test runner uses quoted globs, not a directory argument                                 |
 | D017 | Interactive first-run setup for a missing watchlist                                     |
 | D018 | Dry-run baseline, explicit-subject resources, and cache persistence                     |
@@ -161,6 +161,8 @@ Decisions made during the initial design interview on 2026-10-19. Each entry rec
 **Decision.** `docs/` is the vault root. Documents use relative Markdown links (which also render on GitHub), frontmatter with `title`, `type` (`core` or `plan`), `status`, and `updated`. No tags. `.obsidian/` is tracked. `docs/plans/00_PLAN.md` is folder metadata; plans start at `01_`.
 
 **Amended 2026-10-20.** The `docs/plans/` layout and the `plan` type are superseded by [D024](#d024--flat-docs-and-harness-owned-plans). The Obsidian and relative-link rules still apply. Frontmatter and H1 headings were removed from all docs on 2026-10-20; see D024.
+
+**Amended 2026-10-25.** `docs/.obsidian/` remains tracked as local vault configuration. It is not gitignored, and no public-release cleanup removes it. `oxfmt` ignores that directory for formatting only; git tracking is unchanged.
 
 **Rejected.** Wikilinks (do not render on GitHub); tags (optional in Obsidian, and the user preferred a `type` field); ignoring `.obsidian/` (the user wants vault settings tracked).
 
@@ -430,7 +432,7 @@ Static output remains the default for JSON, non-TTY invocations, `--yes`, and `-
 
 **Context.** The codebase had no automated formatting or static checks. Style was maintained by hand, and `tsc` only catches type errors.
 
-**Decision.** Use `oxlint` for linting and `oxfmt` for formatting, both as dev dependencies. `oxlint` enforces the `correctness` category as errors with the TypeScript, unicorn, oxc, import, node, and promise plugins, a Node environment, and `follow-back.js` ignored. `no-control-regex` is off for `test/**` and `src/dashboard/interactive.ts`, which intentionally match ANSI control sequences. `oxfmt` uses 100 columns and single quotes, leaves `package.json` key order alone, formats TypeScript, JSON, and Markdown, and ignores `docs/.obsidian/` and the legacy `follow-back.js`. Scripts are `lint`, `lint:fix`, `format`, and `format:check`. The tree was formatted once so `format:check` passes.
+**Decision.** Use `oxlint` for linting and `oxfmt` for formatting, both as dev dependencies. `oxlint` enforces the `correctness` category as errors with the TypeScript, unicorn, oxc, import, node, and promise plugins, a Node environment, and `follow-back.js` ignored. `no-control-regex` is off for `test/**` and `src/dashboard/interactive.ts`, which intentionally match ANSI control sequences. `oxfmt` uses 100 columns and single quotes, leaves `package.json` key order alone, formats TypeScript, JSON, and Markdown, and ignores `docs/.obsidian/` and the legacy `follow-back.js` for formatting only; both stay tracked in git. Scripts are `lint`, `lint:fix`, `format`, and `format:check`. The tree was formatted once so `format:check` passes.
 
 **Rejected.** ESLint plus Prettier (two toolchains and plugin configuration for a small TypeScript CLI); Biome (also a single binary, but the project gains nothing over the oxc tools); leaving formatting unenforced (the existing style already matched the chosen options, so the one-time diff is mechanical).
 

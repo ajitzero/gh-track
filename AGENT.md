@@ -86,7 +86,7 @@ test/                  node:test fixtures, no live network
 
 ## Docs rules
 
-- Everything under `docs/` is an Obsidian vault. Use relative Markdown links (they render on GitHub too); do not use wikilinks.
+- Everything under `docs/` is an Obsidian vault. Use relative Markdown links (they render on GitHub too); do not use wikilinks. `docs/.obsidian/` is tracked vault configuration: do not gitignore or delete it.
 - No YAML frontmatter or H1 heading. The filename carries the title and git history carries dates. Do not add tags.
 - Docs are numbered. Take the next free number and never renumber an existing doc.
 - Do not create plan or scratch Markdown files in the repo. Active plans belong to the harness: OpenCode uses `~/.opencode/plan`; use the equivalent directory for Claude, Hermes, or any other agent. If a harness insists on a project-local plan directory, ignore it in `.gitignore` instead of committing it.
