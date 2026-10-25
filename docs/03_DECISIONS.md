@@ -62,7 +62,9 @@ Decisions made during the initial design interview on 2026-10-19. Each entry rec
 
 **Decision.** Author in TypeScript. Bun installs dependencies and runs source during development. `tsc` compiles to `dist/`. The published binary runs on Node >= 20. No `bun:*` imports anywhere in `src/` or `test/`.
 
-**Rejected.** npm (slower; the user chose Bun); TypeScript with Node type stripping only (narrower Node compatibility); Bun-only APIs such as `bun:sqlite` (would make `npx` unusable); plain JavaScript (weaker models for manifests and diffs).
+**Rejected.** npm (slower; the user chose Bun); TypeScript with Node type stripping only (narrower Node compatibility); Bun-only APIs such as `bun:sqlite` (would tie the built CLI to the development runtime); plain JavaScript (weaker models for manifests and diffs).
+
+**Amended 2026-10-25.** The package is not published to a registry and stays `"private": true`. The supported install is clone, `bun install`, `bun run build`, and `bun link`. Bun remains the development runtime only.
 
 **Consequence.** One build step. Tests compile to `dist-test/` and run under `node --test`, so the test path exercises the same runtime as users get.
 

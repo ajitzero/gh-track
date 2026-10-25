@@ -269,7 +269,7 @@ Every command supports `--format table` (human) and most support `--format json`
 ## Stack and boundaries
 
 - TypeScript, ESM, compiled by `tsc` to `dist/`, executed by Node >= 20.
-- Bun is the package manager and dev runner. Source must not import `bun:*`; Node built-ins and global `fetch` only. This keeps `npx gh-track` and `bunx gh-track` equivalent.
+- Bun is the package manager and dev runner, not the runtime. Source must not import `bun:*`; Node built-ins and global `fetch` only. The package is not published: the supported install is clone, `bun install`, `bun run build`, and `bun link`.
 - Runtime dependencies: `@clack/prompts` and `smol-toml`. Dev dependencies: `typescript` and `@types/node`.
 - No database, no ORM, no HTTP client library, no test framework beyond `node:test`.
 - Tests use injected fake `fetch` implementations and recorded fixtures. No test hits the live API.

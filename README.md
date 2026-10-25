@@ -8,6 +8,8 @@ Track public GitHub metadata with an offline history.
 
 Requires [Bun](https://bun.sh/) for development and Node.js >= 20 to run the built CLI.
 
+`gh-track` is not published to a package registry. Clone the repository, build it, and link the local binary; there is no registry install.
+
 ```bash
 bun install
 bun run build
