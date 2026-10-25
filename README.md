@@ -162,6 +162,12 @@ Compacted days retain repository stars and forks plus account follower counts. R
 
 Run ids are ISO-8601 UTC timestamps. Raw API payloads live under each run; see the [Architecture](docs/01_ARCHITECTURE.md) for the full tree.
 
+## Scope and contracts
+
+[00_GOAL.md](docs/00_GOAL.md) lists the non-goals: no scheduler or daemon, no required authentication, no private-repository or traffic data, no starred-list tracking, and no totals or rollups. [02_SPEC.md](docs/02_SPEC.md) is the contract for commands, config, and JSON output; this README does not duplicate it.
+
+Released under the [MIT License](LICENSE).
+
 ## Development
 
 ```bash
