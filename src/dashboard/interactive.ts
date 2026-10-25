@@ -319,7 +319,7 @@ export async function runInteractiveDashboard(
             } else {
               busy = true;
               busyAction = 'add';
-              status = `Adding ${target}…`;
+              status = `Adding ${target}`;
               draw();
               try {
                 const added = await options.addSubject(target, (partial, subject) => {
@@ -327,7 +327,7 @@ export async function runInteractiveDashboard(
                   mode = 'none';
                   input = '';
                   query = '';
-                  status = `Added ${subject}. Fetching…`;
+                  status = `Added ${subject}. Fetching`;
                   clampSelection(subject);
                   draw();
                 });
@@ -391,7 +391,7 @@ export async function runInteractiveDashboard(
       } else if (key.name === 'r') {
         busy = true;
         busyAction = 'refresh';
-        status = 'Fetching…';
+        status = 'Fetching';
         draw();
         const previousSubject = selected()?.subject;
         try {
@@ -417,7 +417,7 @@ export async function runInteractiveDashboard(
         } else {
           busy = true;
           busyAction = 'copy';
-          status = 'Copying…';
+          status = 'Copying';
           draw();
           try {
             const copied = await terminal.copy(githubUrlForRow(item));

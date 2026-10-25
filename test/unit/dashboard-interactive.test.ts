@@ -230,7 +230,7 @@ test('a collects a subject, adds it, and highlights the new row', async () => {
   assert.ok(terminal.output.some((text) => text.includes('add: new-user')));
   assert.ok(
     terminal.output.some(
-      (text) => text.includes('Added user:new-user. Fetching…') && text.includes('› new-user'),
+      (text) => text.includes('Added user:new-user. Fetching') && text.includes('› new-user'),
     ),
   );
   assert.ok(terminal.output.some((text) => text.includes('Added user:new-user. Run complete.')));
