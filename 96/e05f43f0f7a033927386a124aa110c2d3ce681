@@ -1,0 +1,24 @@
+docs/02_SPEC.md
+  h_1e9f70f2591550 201
+docs/03_DECISIONS.md
+  h_1e9f70f2591550 413,480,501-510
+docs/04_DASHBOARD.md
+  h_1e9f70f2591550 59
+src/dashboard/interactive.ts
+  h_1e9f70f2591550 65,67,69,75-76,82-83
+test/integration/dashboard.test.ts
+  h_1e9f70f2591550 343
+test/unit/dashboard-interactive.test.ts
+  h_1e9f70f2591550 403
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "96e05f43f0f7a033927386a124aa110c2d3ce681",
+  "prompts": {},
+  "humans": {
+    "h_1e9f70f2591550": {
+      "author": "Ajit Panigrahi <ajitzero@gmail.com>"
+    }
+  }
+}
