@@ -12,8 +12,10 @@ Requires [Bun](https://bun.sh/) for development and Node.js >= 20 to run the bui
 bun install
 bun run build
 
+# One-time only: Make the command available locally
+bun link
+
 # Optional: watch an account and one repository
-alias gh-track="node \"$PWD/dist/cli.js\""
 gh-track watch add user octocat
 gh-track watch add repo torvalds/linux
 
@@ -113,7 +115,6 @@ schema_version = 1
 
 [defaults]
 raw_retention_days = 30
-token_env = "GH_TOKEN"
 request_timeout_ms = 30000
 max_retries = 3
 
