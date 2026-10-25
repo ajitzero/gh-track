@@ -152,6 +152,23 @@ test('malformed JSON throws http_error', async () => {
   await assert.rejects(client.get(URL), expectCliError('http_error'));
 });
 
+test('a token in a thrown error is redacted', async () => {
+  const client = new GitHubClient({
+    token: 'secret-token',
+    maxRetries: 0,
+    fetchImpl: async () => {
+      throw new Error('socket closed while sending Bearer secret-token');
+    },
+  });
+
+  await assert.rejects(client.get(URL), (error: unknown) => {
+    const message = (error as Error).message;
+    assert.doesNotMatch(message, /secret-token/);
+    assert.match(message, /\[redacted\]/);
+    return (error as CliError).code === 'network';
+  });
+});
+
 test('network errors retry then throw network', async () => {
   const sleeps: number[] = [];
   let calls = 0;

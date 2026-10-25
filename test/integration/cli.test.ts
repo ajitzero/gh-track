@@ -63,6 +63,34 @@ async function tempDir(t: TestContext, prefix = 'gh-track-cli-'): Promise<string
   return dir;
 }
 
+test('a token never reaches stdout or stderr', async (t) => {
+  const dir = await tempDir(t);
+  const result = await invoke(
+    [
+      'fetch',
+      'user:octocat',
+      '--format',
+      'json',
+      '--token',
+      'secret-token',
+      '--config',
+      path.join(dir, 'config.toml'),
+      '--data-dir',
+      path.join(dir, 'data'),
+    ],
+    {
+      fetchImpl: async () => {
+        throw new Error('connection dropped while sending secret-token');
+      },
+      sleepImpl: async () => undefined,
+    },
+  );
+
+  assert.equal(result.code, 3);
+  assert.doesNotMatch(result.stdout, /secret-token/);
+  assert.doesNotMatch(result.stderr, /secret-token/);
+});
+
 test('root, command, and leaf help exit 0 on stdout', async () => {
   for (const argv of [
     ['--help'],

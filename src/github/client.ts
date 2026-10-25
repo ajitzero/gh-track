@@ -2,6 +2,7 @@
 
 import { httpError, interrupted, networkError, rateLimited, refusedUrl } from '../errors.js';
 import { errorMessage } from '../guards.js';
+import { redactSecrets } from '../redact.js';
 import { parseRateLimitHeaders, type RateLimitHeaders } from './rateLimit.js';
 
 export const GITHUB_API_BASE = 'https://api.github.com';
@@ -138,8 +139,13 @@ export class GitHubClient {
     return headers;
   }
 
+  /** Diagnostic and error text never carries the token. */
+  private redact(text: string): string {
+    return this.token === undefined ? text : redactSecrets(text, [this.token]);
+  }
+
   private diagnostic(message: string): void {
-    this.onDiagnostic?.(message);
+    this.onDiagnostic?.(this.redact(message));
   }
 
   private async backoff(attempt: number, retryAfterSeconds: number | null): Promise<void> {
@@ -209,9 +215,11 @@ export class GitHubClient {
           continue;
         }
         throw networkError(
-          timedOut
-            ? `Request timed out after ${this.timeoutMs} ms: ${currentUrl}`
-            : `Network error for ${currentUrl}: ${errorMessage(error)}`,
+          this.redact(
+            timedOut
+              ? `Request timed out after ${this.timeoutMs} ms: ${currentUrl}`
+              : `Network error for ${currentUrl}: ${errorMessage(error)}`,
+          ),
           { url: currentUrl },
         );
       }
@@ -315,9 +323,11 @@ export class GitHubClient {
             continue;
           }
           throw networkError(
-            timedOut
-              ? `Request timed out after ${this.timeoutMs} ms: ${currentUrl}`
-              : `Network error for ${currentUrl}: ${errorMessage(error)}`,
+            this.redact(
+              timedOut
+                ? `Request timed out after ${this.timeoutMs} ms: ${currentUrl}`
+                : `Network error for ${currentUrl}: ${errorMessage(error)}`,
+            ),
             { url: currentUrl },
           );
         }

@@ -39,6 +39,7 @@ Decisions made during the initial design interview on 2026-10-19. Each entry rec
 | D033 | Past offsets drop the minus prefix                                                      |
 | D034 | oxlint and oxfmt for linting and formatting                                             |
 | D035 | Follow GitHub redirects manually, and only on the API origin                            |
+| D036 | Redact the token from every output path                                                 |
 
 ## D001 — Local files only
 
@@ -441,6 +442,16 @@ Static output remains the default for JSON, non-TTY invocations, `--yes`, and `-
 **Rejected.** Trusting the runtime to strip `Authorization` (true today, not a property this code owns); refusing every redirect (breaks renamed repositories, which GitHub answers with a same-origin redirect).
 
 **Consequence.** The token is never sent to a URL that has not been checked. Off-origin redirects remain permanent subject errors and are not queued for resume.
+
+## D036 — Redact the token from every output path
+
+**Context.** The spec promised that verbose output and errors redact the token, but no code did. Nothing logged headers, so the claim held only by accident. A thrown fetch error can embed the request headers, and a command can return a warning that quotes an error carrying the token.
+
+**Decision.** `src/redact.ts` owns the rule. The GitHub client replaces its token in diagnostics and network errors. The CLI replaces an explicit `--token` value, `--token=<value>`, and `GH_TOKEN` in warnings, stdout, table output, JSON documents, JSON error documents, and verbose stack traces. The token is never written to disk. `--token` remains supported and is documented as visible in shell history and process lists; `defaults.token_env` is the safer input.
+
+**Rejected.** Redacting at one boundary only (a warning and a thrown error take different paths); removing `--token` (it is the only way to pass a token without touching the environment); scanning and redacting every environment value (slow and hides unrelated values).
+
+**Consequence.** The documented promise is now enforced at both the client and the CLI boundary. A test asserts that a known token never appears on stdout or stderr, even when a thrown network error contains it.
 
 ## Plan history
 

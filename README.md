@@ -128,7 +128,7 @@ type = "repo"
 repo = "torvalds/linux"
 ```
 
-A token is optional. Pass `--token <token>` or set the environment variable named by `defaults.token_env`; tokens are never written to disk.
+A token is optional. Pass `--token <token>` or set the environment variable named by `defaults.token_env`; tokens are never written to disk and are redacted from output. `--token` is visible in shell history and process listings, so prefer the environment variable.
 
 ## JSON output
 

@@ -761,7 +761,7 @@ Examples:
 - Retries: `5xx` and network errors, up to `max_retries`, exponential backoff with jitter starting at 500 ms. `403`/`429` honor `Retry-After`; primary-limit exhaustion is not retried in the same run.
 - `404` is recorded as a subject error and the run continues.
 - Response bodies must parse as JSON; otherwise the request fails and the run becomes `partial`.
-- Tokens are never logged. `--verbose` redacts the `Authorization` header.
+- Tokens are never written to disk. Diagnostics, warnings, error messages, and `--verbose` stack traces replace every occurrence of the token with `[redacted]`. `--token` is visible in shell history and process listings; `defaults.token_env` is the safer input.
 
 ## 10. Retention and compaction rules
 

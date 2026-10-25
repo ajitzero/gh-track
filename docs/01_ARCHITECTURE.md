@@ -277,7 +277,7 @@ Every command supports `--format table` (human) and most support `--format json`
 ## Security and privacy
 
 - Public data only in v1. A supplied token is used solely in the `Authorization` header and is never written to disk or logs.
-- The token is redacted from verbose output and error messages.
+- The token is redacted from verbose output, warnings, and error messages. `--token` is visible in shell history and process lists; the environment variable named by `defaults.token_env` is the safer input.
 - Data directories are created with mode `0700`; config files with `0600` once they can contain a token (they cannot in v1, but the mode is future-proof).
 - No shell execution, no dynamic `eval`, and all URLs are built with `encodeURIComponent`.
 - Nothing under the data directory is ever committed to the repository.

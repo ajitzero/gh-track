@@ -21,6 +21,7 @@ import { createColors, shouldUseColor } from './output/color.js';
 import { renderJson } from './output/json.js';
 import { canPrompt } from './prompts/gate.js';
 import { createPrompts } from './prompts/index.js';
+import { invocationSecrets, redactSecrets } from './redact.js';
 import { resolvePaths, type PathOverrides } from './store/paths.js';
 import type {
   CommandContext,
@@ -474,21 +475,33 @@ function buildContext(
   };
 }
 
-function emit(result: CommandResult, format: OutputFormat, io: CliIO): void {
+function emit(
+  result: CommandResult,
+  format: OutputFormat,
+  io: CliIO,
+  secrets: readonly string[],
+): void {
   for (const warning of result.warnings) {
-    io.stderr(`${warning}\n`);
+    io.stderr(`${redactSecrets(warning, secrets)}\n`);
   }
   if (format === 'json') {
-    io.stdout(renderJson(result.json));
+    io.stdout(redactSecrets(renderJson(result.json), secrets));
     return;
   }
   if (result.suppressTableOutput === true) {
     return;
   }
-  io.stdout(result.text.endsWith('\n') ? result.text : `${result.text}\n`);
+  const text = result.text.endsWith('\n') ? result.text : `${result.text}\n`;
+  io.stdout(redactSecrets(text, secrets));
 }
 
-function renderError(error: CliError, format: OutputFormat, verbose: boolean, io: CliIO): void {
+function renderError(
+  error: CliError,
+  format: OutputFormat,
+  verbose: boolean,
+  io: CliIO,
+  secrets: readonly string[],
+): void {
   if (format === 'json') {
     const body: Record<string, unknown> = {
       code: error.code,
@@ -497,11 +510,11 @@ function renderError(error: CliError, format: OutputFormat, verbose: boolean, io
     if (error.details !== undefined) {
       body.details = error.details;
     }
-    io.stderr(renderJson({ error: body }));
+    io.stderr(redactSecrets(renderJson({ error: body }), secrets));
     return;
   }
 
-  io.stderr(`gh-track: ${error.code}: ${error.message}\n`);
+  io.stderr(redactSecrets(`gh-track: ${error.code}: ${error.message}\n`, secrets));
   if (error instanceof UsageError && error.showUsage) {
     const help = renderHelp([]);
     if (help !== null) {
@@ -509,7 +522,7 @@ function renderError(error: CliError, format: OutputFormat, verbose: boolean, io
     }
   }
   if (verbose && error.stack !== undefined) {
-    io.stderr(`${error.stack}\n`);
+    io.stderr(redactSecrets(`${error.stack}\n`, secrets));
   }
 }
 
@@ -520,6 +533,7 @@ export async function run(
 ): Promise<number> {
   let format = peekFormat(argv);
   const verbose = argv.includes('--verbose');
+  const secrets = invocationSecrets(argv, io.env);
 
   try {
     if (hasHelpFlag(argv)) {
@@ -562,11 +576,11 @@ export async function run(
 
     const context = buildContext(io, options, rest, format, runOptions);
     const result = await runner(context);
-    emit(result, format, io);
+    emit(result, format, io, secrets);
     return result.exitCode ?? 0;
   } catch (error) {
     const cliError = toCliError(error);
-    renderError(cliError, format, verbose, io);
+    renderError(cliError, format, verbose, io, secrets);
     return cliError.exitCode;
   }
 }
@@ -621,7 +635,8 @@ if (isEntryPoint()) {
       process.removeListener('SIGINT', onSigint);
       process.stderr.write('gh-track: internal: unexpected failure\n');
       if (error instanceof Error && error.stack !== undefined) {
-        process.stderr.write(`${error.stack}\n`);
+        const secrets = invocationSecrets(process.argv, process.env);
+        process.stderr.write(`${redactSecrets(error.stack, secrets)}\n`);
       }
       process.exitCode = 1;
     },
