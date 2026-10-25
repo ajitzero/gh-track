@@ -1,0 +1,36 @@
+AGENT.md
+  h_1e9f70f2591550 9
+docs/02_SPEC.md
+  h_1e9f70f2591550 200-201,389
+docs/03_DECISIONS.md
+  h_1e9f70f2591550 471-485,496
+docs/04_DASHBOARD.md
+  h_1e9f70f2591550 47,59,66,220
+src/commands/dashboard.ts
+  h_1e9f70f2591550 4,23,28-29,170-171,217,246,278-299
+src/commands/watch.ts
+  h_1e9f70f2591550 4,11,217-219,221
+src/config-edit.ts
+  h_1e9f70f2591550 3,37-93
+src/dashboard/interactive.ts
+  h_1e9f70f2591550 24-28,46-47,68,131,440-463
+src/store/etagCache.ts
+  h_1e9f70f2591550 1-82
+test/integration/dashboard.test.ts
+  h_1e9f70f2591550 343,505-639
+test/unit/dashboard-interactive.test.ts
+  h_1e9f70f2591550 307-386,400,403
+test/unit/etag-cache.test.ts
+  h_1e9f70f2591550 1-64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6c1c3e55a86d559132ce6ba3871bcfb61459216d",
+  "prompts": {},
+  "humans": {
+    "h_1e9f70f2591550": {
+      "author": "Ajit Panigrahi <ajitzero@gmail.com>"
+    }
+  }
+}
