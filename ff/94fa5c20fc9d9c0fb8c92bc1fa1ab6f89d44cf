@@ -1,0 +1,22 @@
+docs/02_SPEC.md
+  h_1e9f70f2591550 339
+docs/03_DECISIONS.md
+  h_1e9f70f2591550 43,457-466
+src/store/runWriter.ts
+  h_1e9f70f2591550 12,78-79,83-84
+src/store/runs.ts
+  h_1e9f70f2591550 13-17,25
+test/unit/run-writer.test.ts
+  h_1e9f70f2591550 47-56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ff94fa5c20fc9d9c0fb8c92bc1fa1ab6f89d44cf",
+  "prompts": {},
+  "humans": {
+    "h_1e9f70f2591550": {
+      "author": "Ajit Panigrahi <ajitzero@gmail.com>"
+    }
+  }
+}
