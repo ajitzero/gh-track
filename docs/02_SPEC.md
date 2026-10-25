@@ -196,8 +196,9 @@ gh-track [options]
 - In interactive mode, `↑`/`↓` and `j`/`k` move the highlight; `g`/`G` and Home/End jump to the first/last item. Movement clamps at either end. `/` starts a live, case-insensitive substring search. Enter keeps the filter; Escape clears it, and Escape with no filter or `q` in navigation mode quits. Ctrl-C quits with exit code 130 and aborts an in-flight fetch. While entering a query, arrow keys move the highlight and all printable characters (including `j` and `k`) are searchable.
 - Compact search matches visible account/repository names; full `owner/name` repository names also match. A tracked account remains visible when one of its nested repositories matches; matching the account shows its whole group. Columns layout filters rows independently.
 - `c` copies the highlighted user's profile URL or repository URL to the clipboard. It tries the platform clipboard utility first and falls back to OSC 52. `r` runs the full `fetch` command against the watchlist, then refreshes dashboard observations without changing the selected subjects, range, filter, or highlighted subject. Fetch errors and partial-run status stay visible in the dashboard.
-- `a` opens an inline add prompt. A bare login, `owner/name`, canonical `user:` / `repo:` subject, or GitHub profile/repository URL is accepted on Enter; the subject is added to the watchlist and default selection, fetched on its own, and the table is rebuilt with the new row highlighted. Escape cancels. Invalid input keeps the prompt open with the error. Existing subjects keep their stored resources and metrics.
-- The interactive footer hints are ordered refresh, movement, search, copy, add, then quit. Each key renders white and its label dim grey; `NO_COLOR` disables that styling. Quitting restores the terminal and leaves no dashboard output in the regular scrollback; use `--no-interactive` to print a static table instead.
+- `a` opens an inline add prompt. A bare login, `owner/name`, canonical `user:` / `repo:` subject, or GitHub profile/repository URL is accepted on Enter; the subject is added to the watchlist and default selection, fetched on its own, and the table is rebuilt with the new row highlighted. A newly created subject records a tracked-since baseline, so observations from before the add are ignored and the row shows `—` until the scoped fetch lands. Escape cancels. Invalid input keeps the prompt open with the error. Existing subjects keep their stored resources and metrics.
+- `d` removes the highlighted subject from the watchlist, default selection, and every saved view; views left empty are removed. The table updates immediately, so repositories that were nested under a deleted account become top-level rows with their full `owner/name`. The subject's ETag cache entries are deleted and historical runs and compacted history are kept.
+- The interactive footer hints are ordered refresh, movement, search, copy, add, delete, then quit. Each key renders white and its label dim grey; `NO_COLOR` disables that styling. Quitting restores the terminal and leaves no dashboard output in the regular scrollback; use `--no-interactive` to print a static table instead.
 - In the compact layout, every selected metric of a subject shares one line, in the fixed order `stars`, `forks`, `followers`, separated by two spaces. `NAME` and `SINCE` appear once per subject.
 - In the compact layout, a selected repository whose owner is also a selected account is nested under that account: the group sits at the earliest selection position of any member, the account renders first, and its repositories follow in selection order, indented two spaces with the `owner/` prefix removed. Owner matching is case-insensitive. Repositories without a selected owner keep their full name and position. The columns layout and `--format json` rows are unchanged.
 - In the compact layout, each metric's count and delta fields are sized to the widest formatted value and delta in the list; there is no fixed minimum. The count field stays at least one character so `—` fits, the `~` marker slot is reserved only when a compacted value is present, and values widen rather than truncate. The columns layout and `--format json` are unaffected.
@@ -385,7 +386,7 @@ All paths inside a run are relative to the run directory. Reads and writes refus
 }
 ```
 
-The cache is advisory and may be deleted at any time.
+The cache is advisory and may be deleted at any time. Deleting a watched subject removes only its own entries: `/repos/<owner>/<repo>` for a repository (matched by both full path segments, so `owner/repo-extra` and `other/repo` are untouched) and `/users/<login>/followers` plus `/users/<login>/repos` for an account. A deleted account's tracked repositories keep their `/repos/...` entries.
 
 ### 5.3 Rate-limit cache — `state/limits.json`
 
@@ -656,6 +657,7 @@ Codes: `usage`, `config_invalid`, `config_missing`, `empty_watchlist`, `invalid_
 - A compacted observation uses the UTC date as `id` and `null` as `finishedAt`.
 - A never-fetched row has `source: null`, `from: null`, `to: null`, and `{value: null, from: null, delta: null}` for each selected metric.
 - Rows follow the selection order; default selections follow `[[subjects]]` order.
+- A newly added subject has a tracked-since baseline. Observations recorded before that instant are omitted for the subject, so its first post-add fetch has no delta; later fetches compare normally.
 - `--format json` never prompts.
 
 ### 5.15 `track ls --format json`
@@ -677,6 +679,21 @@ Codes: `usage`, `config_invalid`, `config_missing`, `empty_watchlist`, `invalid_
   ]
 }
 ```
+
+### 5.16 Tracked-since state — `state/tracked-since.json`
+
+```json
+{
+  "repo:ajitzero/knives": "2026-10-25T17:09:16.000Z",
+  "user:octocat": "2026-10-20T08:00:00.000Z"
+}
+```
+
+- Keyed by normalized subject identity; values are ISO-8601 instants.
+- Written when a new `[[subjects]]` entry is created by `watch add`, `dashboard add`, or the interactive add prompt. Adding tracking for an existing subject does not rewrite it.
+- The dashboard omits observations from before the marker for that subject. Raw runs compare their finish instant; compacted rows keep every UTC day at or after the marker's day so an add-day baseline survives compaction.
+- Subjects without an entry keep their full history, so existing configs need no migration.
+- If the data directory does not exist yet, there are no stored observations to hide and no marker is written.
 
 ## 6. Streams and exit codes
 

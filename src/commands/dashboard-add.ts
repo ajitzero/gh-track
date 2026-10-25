@@ -11,6 +11,7 @@ import { errorMessage } from '../guards.js';
 import { defaultMetricsFor, parseMetricList } from '../metrics.js';
 import { USER_RESOURCES, parseResources } from '../resources.js';
 import { cancelled, requirePrompt } from '../result.js';
+import { recordTrackedSince } from '../store/trackedSince.js';
 import {
   parseExplicitSubject,
   parseGitHubUrl,
@@ -434,6 +435,10 @@ export async function runDashboardAdd(context: CommandContext): Promise<CommandR
   }
 
   const applied = applyAdds(config, items, resourcesOverride);
+  const newSubjects = applied.added.filter((entry) => entry.watched).map((entry) => entry.subject);
+  if (newSubjects.length > 0) {
+    await recordTrackedSince(context.paths.dataDir, newSubjects, new Date().toISOString());
+  }
   await saveConfig(context.paths.configPath, config);
 
   const result: DashboardAddResult = {

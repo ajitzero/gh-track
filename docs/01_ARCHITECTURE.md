@@ -111,7 +111,8 @@ $XDG_DATA_HOME/gh-track/
 ├── state/
 │   ├── etags.json
 │   ├── limits.json
-│   └── compacted.json
+│   ├── compacted.json
+│   └── tracked-since.json
 ├── runs/
 │   ├── .tmp-2026-10-19T21-30-05Z/     # in progress, never considered a run
 │   └── 2026-10-19T21-30-05Z/
@@ -170,6 +171,8 @@ $XDG_DATA_HOME/gh-track/
 `etags.json` maps a fully qualified URL to `{ etag, lastModified, checkedAt, lastStatus }`. It is rebuilt incrementally and is safe to delete (the next run simply refetches).
 
 `limits.json` records the last observed `{ limit, remaining, resetAt, observedAt }`. It is advisory: it can be stale, so headers on the current response always win.
+
+`tracked-since.json` maps a normalized subject identity to the instant its `[[subjects]]` entry was created. The dashboard hides observations from before that instant, so re-adding a deleted subject begins with a fresh baseline. Subjects without an entry keep their full history. Unlike the ETag and rate-limit caches, this file is meaningful state; deleting it makes re-added subjects fall back to pre-delete history.
 
 ### History
 

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
@@ -180,6 +180,30 @@ test('watch add writes a valid config atomically', async (t) => {
 
   const entries = await readdir(path.dirname(configPath));
   assert.deepEqual(entries, ['config.toml']);
+});
+
+test('watch add records a tracked-since baseline when data exists', async (t) => {
+  const dir = await tempDir(t);
+  const configPath = path.join(dir, 'config.toml');
+  const dataDir = path.join(dir, 'data');
+  await mkdir(dataDir, { recursive: true });
+
+  const result = await invoke([
+    'watch',
+    'add',
+    'repo',
+    'octocat/hello-world',
+    '--config',
+    configPath,
+    '--data-dir',
+    dataDir,
+  ]);
+  assert.equal(result.code, 0, result.stderr);
+
+  const state = JSON.parse(
+    await readFile(path.join(dataDir, 'state/tracked-since.json'), 'utf8'),
+  ) as Record<string, string>;
+  assert.equal(typeof state['repo:octocat/hello-world'], 'string');
 });
 
 test('watch add with --resources restricts and updates', async (t) => {

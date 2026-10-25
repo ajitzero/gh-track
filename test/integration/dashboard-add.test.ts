@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
@@ -145,6 +145,23 @@ test('explicit user add creates a default config', async (t) => {
     },
   ]);
   assert.deepEqual(config.tracking, [{ subject: 'user:octocat', metrics: ['followers'] }]);
+});
+
+test('adding a subject records a tracked-since baseline once', async (t) => {
+  const w = await workspace(t);
+  await mkdir(w.dataDir, { recursive: true });
+
+  await invoke(args(w, 'dashboard', 'add', 'repo', 'octocat/hello-world', '--metrics', 'stars'));
+  const statePath = path.join(w.dataDir, 'state/tracked-since.json');
+  const first = JSON.parse(await readFile(statePath, 'utf8')) as Record<string, string>;
+  const since = first['repo:octocat/hello-world'];
+  assert.equal(typeof since, 'string');
+
+  await invoke(
+    args(w, 'dashboard', 'add', 'repo', 'octocat/hello-world', '--metrics', 'stars,forks'),
+  );
+  const second = JSON.parse(await readFile(statePath, 'utf8')) as Record<string, string>;
+  assert.equal(second['repo:octocat/hello-world'], since);
 });
 
 test('explicit repo add honors --metrics and --resources', async (t) => {

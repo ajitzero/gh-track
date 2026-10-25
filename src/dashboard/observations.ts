@@ -7,6 +7,7 @@ import { UsageError, invalidRange, runNotFound } from '../errors.js';
 import { parseRef, type ParsedRef, type RefKind } from '../refs.js';
 import { readAllHistory } from '../store/history.js';
 import { listManifests } from '../store/runs.js';
+import { readTrackedSince } from '../store/trackedSince.js';
 import { accountOf, parseSubject, repoOf, subjectKeyOf } from '../subjects.js';
 import type {
   DashboardObservation,
@@ -19,6 +20,18 @@ import type {
 
 function observationTime(observation: DashboardObservation): string {
   return observation.finishedAt ?? endOfDay(observation.day);
+}
+
+/**
+ * A subject's tracked-since marker hides history from before it was (re)added.
+ * Raw runs compare their finish instant; compacted rows keep the whole UTC day
+ * so an add-day baseline is retained after compaction.
+ */
+function isAfterTrackedSince(observation: DashboardObservation, since: string): boolean {
+  if (observation.kind === 'raw') {
+    return observationTime(observation) > since;
+  }
+  return observation.day >= since.slice(0, 10);
 }
 
 function compareObservations(left: DashboardObservation, right: DashboardObservation): number {
@@ -125,6 +138,7 @@ export async function buildObservationData(
   const manifests = await listManifests(dataDir);
   const byId = new Map(manifests.map((manifest) => [manifest.id, manifest]));
   const complete = manifests.filter((manifest) => manifest.status === 'complete');
+  const trackedSince = await readTrackedSince(dataDir);
 
   const specs: SubjectSpec[] = subjects.map((subject) => ({
     ...subject,
@@ -229,7 +243,13 @@ export async function buildObservationData(
     }
 
     list.sort(compareObservations);
-    series.set(spec.key, list);
+    const since = trackedSince.get(spec.key);
+    series.set(
+      spec.key,
+      since === undefined
+        ? list
+        : list.filter((observation) => isAfterTrackedSince(observation, since)),
+    );
   }
 
   return { series, manifests: byId };

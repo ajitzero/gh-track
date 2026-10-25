@@ -340,7 +340,7 @@ test('interactive dashboard restores the terminal and emits no table after quit'
   assert.equal(entered, 1);
   assert.equal(left, 1);
   const plain = output.replace(/\u001b\[[0-9;]*m/g, '');
-  assert.match(plain, /r refresh · ↑↓\/j k move · \/ search · c copy · a add · q quit/);
+  assert.match(plain, /r refresh · ↑↓\/j k move · \/ search · c copy · a add · d delete · q quit/);
   assert.match(output, /\u001b\[97mr\u001b\[0m\u001b\[2m refresh\u001b\[0m/);
   assert.match(plain, /hello-world/);
 });
@@ -500,6 +500,191 @@ test('a accepts a repository URL in the interactive add prompt', async (t) => {
   const saved = await configOf(w);
   assert.ok(saved.subjects.some((subject) => subject.subject === 'repo:testing-user/demo'));
   assert.ok(saved.tracking.some((entry) => entry.subject === 'repo:testing-user/demo'));
+});
+
+test('d removes the highlighted repository, its ETags, and view references', async (t) => {
+  const w = await workspace(t);
+  await seedWorkspace(w.dataDir);
+  const target = 'https://api.github.com/repos/octocat/hello-world';
+  const sibling = 'https://api.github.com/repos/octocat/hello-world-extra';
+  const other = 'https://api.github.com/repos/other/tool';
+  const account = 'https://api.github.com/users/octocat/followers?per_page=100&page=1';
+  const entry = { etag: 'x', checkedAt: '2026-10-01T00:00:00Z', lastStatus: 200 };
+  await mkdir(path.join(w.dataDir, 'state'), { recursive: true });
+  await writeFile(
+    path.join(w.dataDir, 'state/etags.json'),
+    JSON.stringify({ [target]: entry, [sibling]: entry, [other]: entry, [account]: entry }),
+  );
+
+  let output = '';
+  const terminal: DashboardTerminal = {
+    rows: 24,
+    enter: () => undefined,
+    leave: () => undefined,
+    write: (text) => {
+      output = text;
+    },
+    onKeypress: (listener) => {
+      listener({ name: 'down', sequence: '\u001b[B', ctrl: false });
+      listener({ name: 'd', sequence: 'd', ctrl: false });
+      listener({ name: 'q', sequence: 'q', ctrl: false });
+      return () => undefined;
+    },
+    onResize: () => () => undefined,
+    copy: async () => true,
+  };
+
+  const result = await invoke(args(w, 'dashboard'), {
+    stdinIsTTY: true,
+    stdoutIsTTY: true,
+    dashboardTerminal: terminal,
+  });
+
+  assert.equal(result.code, 0, result.stderr);
+  const plain = output.replace(/\u001b\[[0-9;]*m/g, '');
+  assert.match(plain, /Removed repo:octocat\/hello-world\./);
+  assert.doesNotMatch(plain, /hello-world\s+stars/);
+
+  const saved = await configOf(w);
+  assert.equal(
+    saved.subjects.some((subject) => subject.subject === 'repo:octocat/hello-world'),
+    false,
+  );
+  assert.equal(
+    saved.tracking.some((entry) => entry.subject === 'repo:octocat/hello-world'),
+    false,
+  );
+  assert.deepEqual(
+    saved.views.find((view) => view.name === 'my-repos')?.items.map((item) => item.subject),
+    ['user:octocat'],
+  );
+
+  const cache = JSON.parse(
+    await readFile(path.join(w.dataDir, 'state/etags.json'), 'utf8'),
+  ) as Record<string, unknown>;
+  assert.equal(target in cache, false);
+  assert.ok(sibling in cache);
+  assert.ok(other in cache);
+  assert.ok(account in cache);
+});
+
+test('d on an account leaves its repositories tracked and un-nested', async (t) => {
+  const w = await workspace(t);
+  await seedWorkspace(w.dataDir);
+  const repoEtag = 'https://api.github.com/repos/octocat/hello-world';
+  const followers = 'https://api.github.com/users/octocat/followers?per_page=100&page=1';
+  const repos = 'https://api.github.com/users/octocat/repos?per_page=100&page=1&sort=updated';
+  const entry = { etag: 'x', checkedAt: '2026-10-01T00:00:00Z', lastStatus: 200 };
+  await mkdir(path.join(w.dataDir, 'state'), { recursive: true });
+  await writeFile(
+    path.join(w.dataDir, 'state/etags.json'),
+    JSON.stringify({ [repoEtag]: entry, [followers]: entry, [repos]: entry }),
+  );
+
+  let output = '';
+  const terminal: DashboardTerminal = {
+    rows: 24,
+    enter: () => undefined,
+    leave: () => undefined,
+    write: (text) => {
+      output = text;
+    },
+    onKeypress: (listener) => {
+      listener({ name: 'd', sequence: 'd', ctrl: false });
+      listener({ name: 'q', sequence: 'q', ctrl: false });
+      return () => undefined;
+    },
+    onResize: () => () => undefined,
+    copy: async () => true,
+  };
+
+  const result = await invoke(args(w, 'dashboard'), {
+    stdinIsTTY: true,
+    stdoutIsTTY: true,
+    dashboardTerminal: terminal,
+  });
+
+  assert.equal(result.code, 0, result.stderr);
+  const plain = output.replace(/\u001b\[[0-9;]*m/g, '');
+  assert.match(plain, /Removed user:octocat\./);
+  assert.match(plain, /› octocat\/hello-world/);
+  assert.doesNotMatch(plain, /  hello-world/);
+  assert.match(result.stderr, /Removed empty dashboard view users-only/);
+
+  const saved = await configOf(w);
+  assert.equal(
+    saved.subjects.some((subject) => subject.subject === 'user:octocat'),
+    false,
+  );
+  assert.equal(
+    saved.tracking.some((entry) => entry.subject === 'user:octocat'),
+    false,
+  );
+  assert.equal(
+    saved.views.some((view) => view.name === 'users-only'),
+    false,
+  );
+  assert.deepEqual(
+    saved.views.find((view) => view.name === 'my-repos')?.items.map((item) => item.subject),
+    ['repo:octocat/hello-world'],
+  );
+
+  const cache = JSON.parse(
+    await readFile(path.join(w.dataDir, 'state/etags.json'), 'utf8'),
+  ) as Record<string, unknown>;
+  assert.equal(followers in cache, false);
+  assert.equal(repos in cache, false);
+  assert.ok(repoEtag in cache);
+});
+
+test('re-adding a deleted repository starts a fresh baseline', async (t) => {
+  const w = await workspace(t);
+  await seedWorkspace(w.dataDir);
+  let output = '';
+  const terminal: DashboardTerminal = {
+    rows: 24,
+    enter: () => undefined,
+    leave: () => undefined,
+    write: (text) => {
+      output = text;
+    },
+    onKeypress: (listener) => {
+      listener({ name: 'down', sequence: '\u001b[B', ctrl: false });
+      listener({ name: 'd', sequence: 'd', ctrl: false });
+      listener({ name: 'a', sequence: 'a', ctrl: false });
+      for (const character of 'https://github.com/octocat/hello-world') {
+        listener({ name: character, sequence: character, ctrl: false });
+      }
+      listener({ name: 'return', sequence: '\r', ctrl: false });
+      listener({ name: 'q', sequence: 'q', ctrl: false });
+      return () => undefined;
+    },
+    onResize: () => () => undefined,
+    copy: async () => true,
+  };
+
+  const result = await invoke(args(w, 'dashboard'), {
+    stdinIsTTY: true,
+    stdoutIsTTY: true,
+    dashboardTerminal: terminal,
+    fetchImpl: async (input) => {
+      const url = new URL(input);
+      const fullName = url.pathname.slice('/repos/'.length);
+      return new Response(JSON.stringify(repoPayload(1, fullName, 150, 8)), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    },
+  });
+
+  assert.equal(result.code, 0, result.stderr);
+  const plain = output.replace(/\u001b\[[0-9;]*m/g, '');
+  assert.match(plain, /hello-world\s+stars\s+150\s+forks\s+8/);
+  assert.doesNotMatch(plain, /stars\s+150\s+\(/);
+
+  const saved = await configOf(w);
+  assert.ok(saved.subjects.some((subject) => subject.subject === 'repo:octocat/hello-world'));
+  assert.ok(saved.tracking.some((entry) => entry.subject === 'repo:octocat/hello-world'));
 });
 
 test('--from and --to bound each subject and mark compacted baselines', async (t) => {

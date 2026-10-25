@@ -468,16 +468,48 @@ Static output remains the default for JSON, non-TTY invocations, `--yes`, and `-
 
 **Consequence.** A write can no longer escape the run directory even if a caller passes a hostile relative path. The rule lives beside the payload reader that already enforced it.
 
+## D038 — Interactive dashboard delete
+
+**Context.** The interactive list could navigate, search, copy, add, and refresh, but removing a subject still required leaving the dashboard and running `watch rm` or `track rm`. That also made it easy to leave an account and its repositories in an inconsistent visible state after one side was removed.
+
+**Decision.**
+
+1. **Full removal, no confirmation.** `d` deletes the highlighted subject with `watch rm` semantics: it removes the subject from `[[subjects]]`, `[tracking]`, and every saved view; a view whose last item is removed is dropped. The command reports the removal in the status line and emits the existing selection/view warnings on stderr. The config and ETag writes take the fetch lock so they cannot race a fetch.
+2. **Subject-scoped cache cleanup.** Only the deleted subject's entries leave `state/etags.json`. Repository matching compares the exact `repos/<owner>/<name>` path segments, so sibling repositories such as `owner/repo-extra` and `other/repo` keep their validators. Account matching covers `/users/<login>/followers` and `/users/<login>/repos`, never the `/repos/...` entries of repositories owned by that account. Runs and compacted history are data, not cache, and are kept.
+3. **Immediate display update.** The controller drops the deleted row from the current result before the next frame. Grouping is display-only, so deleting an account re-renders its still-tracked repositories as top-level `owner/name` rows without the two-space indentation.
+4. **Footer order.** Hints read refresh, movement, search, copy, add, delete, quit.
+
+**Rejected.** Removing only from `[tracking]` (`track rm` semantics) because the row is labeled delete and the subject should stop being fetched; a confirmation prompt for every keystroke; deleting raw runs or history because they remain valid evidence; prefix or owner-based cache matching because it would clear unrelated repositories; leaving stale validators that could only be discarded by a later 304 failure.
+
+**Consequence.** One key removes a subject end to end, while unrelated cache and historical data stay intact. Deleting the last tracked subject still follows the existing "no selection means all configured subjects" rule on the next rebuild; the current frame simply becomes empty.
+
+## D039 — Re-added subjects start from a tracked-since baseline
+
+**Context.** D038 keeps runs and compacted history when a subject is deleted. Re-adding it therefore compared the new fetch against its last pre-delete observation, so a repository that had gained two stars before deletion showed `+2` again after being re-added. The ETag cache was already cleared; the delta came from retained observation history.
+
+**Decision.**
+
+1. **Record the add instant, not the delete instant.** Creating a new `[[subjects]]` entry writes a normalized-subject-keyed timestamp to `state/tracked-since.json`. `watch add`, `dashboard add` (explicit and interactive), and the dashboard's inline `a` all write it. Adding tracking for an existing subject, `track set`, and editing a saved view do not.
+2. **Filter per subject at observation-build time.** Raw observations are kept only when their finish instant is later than the marker. Compacted rows are kept when their UTC day is at or after the marker's day, so an add-day baseline survives compaction. Subjects with no marker keep their full history, so no config migration is needed.
+3. **The first post-add fetch is the baseline.** During the inline add the row initially shows `—` because all older observations are hidden; once the scoped fetch lands it shows the new value with no delta. Later fetches compare against that observation normally.
+4. **The marker outlives deletion.** Re-adding overwrites it; removing the state file makes re-added subjects fall back to full pre-delete history. No runs, history, or views are rewritten.
+
+**Rejected.** Deleting runs or history on delete (data loss and breaks shared runs); a session-only reset (the stale delta returns on the next launch); a delete-time marker (a delayed re-add can include pre-delete compacted days); a per-session "fetching" placeholder alone (it hides the symptom without fixing the baseline); a new config field (schema and serialization churn for a fact that is derived from data history); recording a run id after the fetch (the inline add would briefly show the stale delta and a failed fetch would leave no marker).
+
+**Consequence.** Deleting and re-adding a subject now behaves like tracking it for the first time. Historical data remains available to `diff` and `export`, but the dashboard deliberately hides it before the add instant. Losing `state/tracked-since.json` is safe: the next add recreates a marker, while existing subjects simply show their full history again.
+
 ## Plan history
 
 Active plans are owned by the coding harness and are never committed to this repository. This section is the durable record of what was planned, what shipped, and what remains. Statuses: `done`, `partial`, `not started`, `superseded`, `abandoned`.
 
-| Plan                         | Dates                   | Status | Delivered                                                                                                                 | Not done / carried forward     |
-| ---------------------------- | ----------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
-| v1 — core CLI (M1–M6)        | 2026-10-19 → 2026-10-20 | done   | `watch`, `fetch` with resume, `runs`, `diff`, `compact`, `export`; atomic immutable runs; JSON purity; offline test suite | M7 interactive first-run setup |
-| Dashboard (M8)               | 2026-10-20              | done   | `dashboard` and `track`; per-subject observations; `[tracking]` and `[views]`; compact/columns layouts; clack picker      | None                           |
-| Dashboard add (M8.1)         | 2026-10-20              | done   | `dashboard add`; composite watch+track; public-repository browsing and multi-select; removed `--setup`                    | None                           |
-| Interactive dashboard (M8.2) | 2026-10-24              | done   | TTY navigation, live search, clipboard copy, in-process fetch refresh; static/JSON output preserved                       | None                           |
+| Plan                          | Dates                   | Status | Delivered                                                                                                                 | Not done / carried forward     |
+| ----------------------------- | ----------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| v1 — core CLI (M1–M6)         | 2026-10-19 → 2026-10-20 | done   | `watch`, `fetch` with resume, `runs`, `diff`, `compact`, `export`; atomic immutable runs; JSON purity; offline test suite | M7 interactive first-run setup |
+| Dashboard (M8)                | 2026-10-20              | done   | `dashboard` and `track`; per-subject observations; `[tracking]` and `[views]`; compact/columns layouts; clack picker      | None                           |
+| Dashboard add (M8.1)          | 2026-10-20              | done   | `dashboard add`; composite watch+track; public-repository browsing and multi-select; removed `--setup`                    | None                           |
+| Interactive dashboard (M8.2)  | 2026-10-24              | done   | TTY navigation, live search, clipboard copy, in-process fetch refresh; static/JSON output preserved                       | None                           |
+| Dashboard delete (M8.3)       | 2026-10-25              | done   | `d` deletes the highlighted subject, clears its exact ETag entries, and un-nests the remaining rows                       | None                           |
+| Tracked-since baseline (M8.4) | 2026-10-25              | done   | New subjects record `state/tracked-since.json`; re-adds ignore pre-add observations and do not repeat old deltas          | None                           |
 
 The retired `docs/plans/` files remain in git history at commit `3deedbb` (`feat: implement M8 dashboard and tracking`). This section replaces the folder as the place to answer "what has been done, and what is left?"
 

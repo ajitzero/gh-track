@@ -21,6 +21,11 @@ export interface DashboardRefreshResult {
   addedSubject?: string | undefined;
 }
 
+export interface DashboardDeleteResult {
+  text: string;
+  warnings: string[];
+}
+
 export interface InteractiveDashboardOptions {
   result: DashboardResult;
   layout: DashboardLayout;
@@ -38,6 +43,8 @@ export interface InteractiveDashboardOptions {
     value: string,
     onAdded?: (result: DashboardResult, subject: string) => void,
   ): Promise<DashboardRefreshResult>;
+  /** Removes one subject from the watchlist, selection, views, and caches. */
+  deleteSubject?(subject: string): Promise<DashboardDeleteResult>;
 }
 
 export interface InteractiveDashboardResult {
@@ -58,6 +65,7 @@ const MAIN_HINTS: readonly Hint[] = [
   { key: '/', label: 'search' },
   { key: 'c', label: 'copy' },
   { key: 'a', label: 'add' },
+  { key: 'd', label: 'delete' },
   { key: 'q', label: 'quit' },
 ];
 
@@ -120,7 +128,7 @@ export async function runInteractiveDashboard(
   let mode: InputMode = 'none';
   let status = '';
   let busy = false;
-  let busyAction: 'refresh' | 'copy' | 'add' | null = null;
+  let busyAction: 'refresh' | 'copy' | 'add' | 'delete' | null = null;
   let stopped = options.signal?.aborted === true;
   let exitCode: number | undefined;
   let selectedIndex = 0;
@@ -422,6 +430,30 @@ export async function runInteractiveDashboard(
           try {
             const copied = await terminal.copy(githubUrlForRow(item));
             status = copied ? `Copied ${githubUrlForRow(item)}` : 'Clipboard unavailable.';
+          } catch (error) {
+            status = oneLine(error instanceof Error ? error.message : String(error));
+          } finally {
+            busy = false;
+            busyAction = null;
+          }
+        }
+      } else if (key.name === 'd' && options.deleteSubject !== undefined) {
+        const item = selected();
+        if (item === undefined) {
+          status = 'No item selected.';
+        } else {
+          busy = true;
+          busyAction = 'delete';
+          status = `Removing ${item.subject}`;
+          draw();
+          try {
+            const removed = await options.deleteSubject(item.subject);
+            result = {
+              ...result,
+              rows: result.rows.filter((row) => row.subject !== item.subject),
+            };
+            warnings.push(...removed.warnings);
+            status = oneLine(removed.text) || `Removed ${item.subject}.`;
           } catch (error) {
             status = oneLine(error instanceof Error ? error.message : String(error));
           } finally {

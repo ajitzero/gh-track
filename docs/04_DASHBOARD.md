@@ -44,7 +44,7 @@ gh-track track view save <name> [--item ...] [--layout ...] [--from ...] [--to .
 gh-track track view rm <name>
 ```
 
-- The dashboard writes only when the first-run picker runs, interactive `r` refreshes via `fetch`, or interactive `a` adds a subject and fetches it.
+- The dashboard writes only when the first-run picker runs, interactive `r` refreshes via `fetch`, interactive `a` adds a subject (recording its tracked-since baseline) and fetches it, or interactive `d` deletes a subject and clears its ETag cache entries.
 - Interactive mode uses the alternate screen and restores the terminal on exit. `--no-interactive` forces the static table and skips first-run setup prompts. JSON and non-TTY invocations are always static.
 - `dashboard add` composes watch and tracking: it appends missing subjects to `[[subjects]]` and sets their `[tracking]` entry. It is additive and never touches `[views]`.
 - `dashboard add repo <owner>` and the interactive repository path list the owner's public repositories and allow a multi-select, with a per-repository metrics prompt. `--metrics` and `--resources` make the explicit forms non-interactive.
@@ -56,13 +56,14 @@ gh-track track view rm <name>
 
 ## Interactive list
 
-On a TTY with table output and without `--yes`, the dashboard opens an alternate-screen list. The selected item is marked with `›`; the view scrolls to keep it visible. Keyboard hints appear in this order, separated by middots: `r refresh · ↑↓/j k move · / search · c copy · a add · q quit`. Each shortcut key renders white and its label renders dim grey; `NO_COLOR` drops the styling.
+On a TTY with table output and without `--yes`, the dashboard opens an alternate-screen list. The selected item is marked with `›`; the view scrolls to keep it visible. Keyboard hints appear in this order, separated by middots: `r refresh · ↑↓/j k move · / search · c copy · a add · d delete · q quit`. Each shortcut key renders white and its label renders dim grey; `NO_COLOR` drops the styling.
 
 - `↑`/`↓` and `j`/`k` move one item; movement clamps at the ends. `g`/`G` and Home/End jump to the first/last item.
 - `/` starts a fresh live substring filter. Enter keeps the filter; Escape clears it. In navigation mode Escape clears an active filter or quits if there is none. `q` quits in navigation mode; Ctrl-C always quits with exit code 130 and aborts an in-flight fetch.
 - Search is case-insensitive. Compact mode searches displayed names, also accepting a full `owner/name`; a matching child repository keeps its tracked account header visible, while a matching account shows its complete group. Columns mode filters each row independently. While entering a query, printable `j`/`k` characters are treated as search text; arrow keys still move the highlight.
 - `c` copies `https://github.com/<login>` or `https://github.com/<owner>/<repo>` for the selected account or repository. It tries `pbcopy`, `clip`, `wl-copy`, `xclip`, or `xsel` as appropriate, then falls back to OSC 52; success/failure is shown in the status line.
-- `a` opens an inline add prompt on the status line. Typing accepts a bare login, `owner/name`, a canonical `user:` / `repo:` subject, or a GitHub profile/repository URL; Enter adds it to the watchlist and default selection, fetches only that subject, and refreshes the table with the new row highlighted. Escape cancels. An invalid value keeps the prompt open with the error; failures during the scoped fetch still leave the added row visible with `—` values. Existing subjects keep their stored resources and metric selection.
+- `a` opens an inline add prompt on the status line. Typing accepts a bare login, `owner/name`, a canonical `user:` / `repo:` subject, or a GitHub profile/repository URL; Enter adds it to the watchlist and default selection, fetches only that subject, and refreshes the table with the new row highlighted. A brand-new subject records a tracked-since baseline, so observations from before the add are ignored: the row shows `—` while fetching, then its first post-add value without a delta. Escape cancels. An invalid value keeps the prompt open with the error; failures during the scoped fetch still leave the added row visible with `—` values. Existing subjects keep their stored resources and metric selection.
+- `d` deletes the selected subject. It removes the subject from `[[subjects]]`, `[tracking]`, and every `[views]` item, drops views that become empty, and deletes only that subject's entries from `state/etags.json`; runs and compacted history are kept. The row disappears immediately, so repositories that were nested under a deleted account are re-rendered as top-level `owner/name` rows. Repository cache matching compares both `owner` and `name` path segments, so a sibling repository such as `owner/repo-extra` is never cleared.
 - `r` runs the regular `fetch` command for the entire watchlist in-process. It honors the fetch lock, API behavior, and automatic compaction. The displayed rows are rebuilt afterward while preserving the current subject, range, search, and selection. Errors and partial-run status are shown without closing the dashboard; keyboard input is ignored while refresh is running. Ctrl-C aborts an in-flight fetch and restores the terminal.
 - Quitting restores raw mode, cursor, line wrapping, and the prior screen; no static table is printed afterward. Use `--no-interactive` when the table should remain in scrollback.
 
@@ -91,6 +92,7 @@ Add flow:
 3. Browsing lists the owner's public repositories from `GET /users/{owner}/repos`, paginated and sorted by updated. Forks are marked; already-tracked repositories show their current metrics. The user multi-selects.
 4. For each selected repository, `multiselect` stars/forks, seeded from `--metrics`, the existing `[tracking]` metrics, or both.
 5. Write the config atomically. There is no separate confirmation; cancelling or `Ctrl-C` writes nothing.
+6. New `[[subjects]]` entries record their add instant in `state/tracked-since.json`. The dashboard ignores observations from before it, so deleting and re-adding a subject starts from the new fetch instead of resurfacing old deltas. Existing subjects and tracking-only changes keep their full history.
 
 Repository listing uses `--token` or the env var named by `defaults.token_env`. On `403`, `404`, a network failure, or an empty list, the command warns and asks for `owner/name` manually.
 
@@ -216,7 +218,7 @@ A never-fetched row carries `source: null`, `from: null`, `to: null`, and `{valu
 
 ## Non-goals
 
-- Advanced TUI features beyond navigation, live search, copy, add, and refresh (for example, configurable keymaps or multi-select actions).
+- Advanced TUI features beyond navigation, live search, copy, add, delete, and refresh (for example, configurable keymaps or multi-select actions).
 - Web UI, server, scheduling, alerts, or notifications.
 - Totals and rollups (D009).
 - Metrics beyond stars, forks, and followers.

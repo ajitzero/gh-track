@@ -1,7 +1,7 @@
 /** `gh-track dashboard`: per-subject value view, static or interactive. */
 
 import { unknownSubcommand } from '../cli-args.js';
-import { toConfigSubject } from '../config-edit.js';
+import { removeConfiguredSubject, toConfigSubject } from '../config-edit.js';
 import { loadConfig, saveConfig } from '../config.js';
 import { runInteractiveDashboard } from '../dashboard/interactive.js';
 import {
@@ -20,11 +20,14 @@ import {
   type DashboardSelection,
   type SelectionItem,
 } from '../dashboard/select.js';
-import { emptyWatchlist, UsageError } from '../errors.js';
+import { emptyWatchlist, unknownSubject, UsageError } from '../errors.js';
 import { defaultMetricsFor } from '../metrics.js';
 import { classifyRangeRef, rejectPreviousTo } from '../refs.js';
 import { USER_RESOURCES } from '../resources.js';
 import { cancelled } from '../result.js';
+import { forgetSubjectEtags } from '../store/etagCache.js';
+import { acquireLock } from '../store/lock.js';
+import { recordTrackedSince } from '../store/trackedSince.js';
 import { parseSubject, subjectKey, subjectKeyOf, type ParsedSubject } from '../subjects.js';
 import type {
   CommandContext,
@@ -50,6 +53,8 @@ function fetchOptions(context: CommandContext): OptionBag {
 interface AddedSubject {
   subject: string;
   metrics: Metric[];
+  /** True when a new `[[subjects]]` entry was created. */
+  watched: boolean;
 }
 
 /** Adds one subject without replacing an existing resource or metric choice. */
@@ -57,10 +62,12 @@ function addSubjectToConfig(config: Config, parsed: ParsedSubject): AddedSubject
   const key = subjectKey(parsed);
   const existing = config.subjects.find((subject) => subjectKey(subject) === key);
   let subject: string;
+  let watched = false;
   if (existing === undefined) {
     const entry = toConfigSubject(parsed, parsed.type === 'user' ? USER_RESOURCES : ['repo']);
     config.subjects.push(entry);
     subject = entry.subject;
+    watched = true;
   } else {
     subject = existing.subject;
   }
@@ -71,7 +78,7 @@ function addSubjectToConfig(config: Config, parsed: ParsedSubject): AddedSubject
     config.tracking.push({ subject, metrics });
   }
   config.tracking = sortTracking(config, config.tracking);
-  return { subject, metrics };
+  return { subject, metrics, watched };
 }
 
 function initialItems(config: Config): SelectionItem[] {
@@ -165,6 +172,8 @@ export async function runDashboard(context: CommandContext): Promise<CommandResu
     subjects: context.options.getAll('subject'),
   };
   const selection = resolveSelection(config, selectionOverrides);
+  let activeView = selectionOverrides.view;
+  const currentOverrides = () => ({ ...selectionOverrides, view: activeView });
 
   const buildResult = async (selected: DashboardSelection): Promise<DashboardResult> => {
     const data = await buildObservationData(
@@ -210,7 +219,7 @@ export async function runDashboard(context: CommandContext): Promise<CommandResu
     const resolveFreshSelection = async (warnings: string[]): Promise<DashboardSelection> => {
       const fresh = await loadConfig(context.paths.configPath, { required: true });
       warnings.push(...fresh.warnings);
-      return resolveSelection(fresh.config, selectionOverrides);
+      return resolveSelection(fresh.config, currentOverrides());
     };
 
     const interactive = await runInteractiveDashboard({
@@ -237,9 +246,16 @@ export async function runDashboard(context: CommandContext): Promise<CommandResu
         const parsed = parseSubject(value);
         const current = await loadConfig(context.paths.configPath, { required: true });
         const added = addSubjectToConfig(current.config, parsed);
+        if (added.watched) {
+          await recordTrackedSince(
+            context.paths.dataDir,
+            [added.subject],
+            new Date().toISOString(),
+          );
+        }
         await saveConfig(context.paths.configPath, current.config);
         if (onAdded !== undefined) {
-          const partial = resolveSelection(current.config, selectionOverrides);
+          const partial = resolveSelection(current.config, currentOverrides());
           onAdded(await buildResult(partial), added.subject);
         }
 
@@ -270,6 +286,28 @@ export async function runDashboard(context: CommandContext): Promise<CommandResu
           ...(exitCode === undefined ? {} : { exitCode }),
           addedSubject: added.subject,
         };
+      },
+      deleteSubject: async (subject) => {
+        const lock = await acquireLock(context.paths.dataDir);
+        try {
+          const current = await loadConfig(context.paths.configPath, { required: true });
+          const warnings = [...current.warnings];
+          const removed = removeConfiguredSubject(current.config, subject);
+          if (removed === null) {
+            throw unknownSubject(subject);
+          }
+          await forgetSubjectEtags(context.paths.dataDir, removed.subject);
+          await saveConfig(context.paths.configPath, current.config);
+          if (activeView !== undefined && removed.emptyViews.includes(activeView)) {
+            activeView = undefined;
+          }
+          return {
+            text: `Removed ${removed.subject}.`,
+            warnings: [...warnings, ...removed.warnings],
+          };
+        } finally {
+          await lock.release();
+        }
       },
     });
     return {

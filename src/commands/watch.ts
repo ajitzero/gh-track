@@ -1,14 +1,15 @@
 /** `gh-track watch add|ls|rm`. */
 
 import { missingSubcommand, unexpectedArgument, unknownSubcommand } from '../cli-args.js';
-import { toConfigSubject, upsertSubject } from '../config-edit.js';
+import { removeConfiguredSubject, toConfigSubject, upsertSubject } from '../config-edit.js';
 import { loadConfig, saveConfig, defaultConfig } from '../config.js';
 import { UsageError, unknownSubject } from '../errors.js';
 import { renderTable } from '../output/table.js';
 import { USER_RESOURCES, parseResources } from '../resources.js';
 import { cancelled, requirePrompt } from '../result.js';
 import { summarizeLastRuns } from '../store/runs.js';
-import { parseExplicitSubject, parseSubject, subjectKey, subjectKeyOf } from '../subjects.js';
+import { recordTrackedSince } from '../store/trackedSince.js';
+import { parseExplicitSubject, parseSubject, subjectKey } from '../subjects.js';
 import type {
   CommandContext,
   CommandResult,
@@ -76,9 +77,14 @@ async function addSubject(context: CommandContext, args: string[]): Promise<Comm
   const warnings = loaded === null ? [] : [...loaded.warnings];
 
   const entry = toConfigSubject(parsed, resources);
-  const updated = !upsertSubject(config, entry);
+  const added = upsertSubject(config, entry);
+  if (added) {
+    await recordTrackedSince(context.paths.dataDir, [entry.subject], new Date().toISOString());
+  }
 
   await saveConfig(context.paths.configPath, config);
+
+  const updated = !added;
 
   const action = updated ? 'Updated' : 'Added';
   const json =
@@ -214,28 +220,11 @@ async function removeSubject(context: CommandContext, args: string[]): Promise<C
     }
   }
 
-  config.subjects.splice(index, 1);
-
-  const removedKey = subjectKey(existing);
-  const trackedBefore = config.tracking.length;
-  config.tracking = config.tracking.filter((entry) => subjectKeyOf(entry.subject) !== removedKey);
-  if (config.tracking.length !== trackedBefore) {
-    warnings.push(`Removed ${existing.subject} from the dashboard selection.`);
+  const removed = removeConfiguredSubject(config, existing.subject);
+  if (removed === null) {
+    throw unknownSubject(requested);
   }
-
-  const emptyViews: string[] = [];
-  config.views = config.views.filter((view) => {
-    const items = view.items.filter((entry) => subjectKeyOf(entry.subject) !== removedKey);
-    if (items.length === 0) {
-      emptyViews.push(view.name);
-      return false;
-    }
-    view.items = items;
-    return true;
-  });
-  for (const name of emptyViews) {
-    warnings.push(`Removed empty dashboard view ${name}.`);
-  }
+  warnings.push(...removed.warnings);
 
   await saveConfig(context.paths.configPath, config);
 

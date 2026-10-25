@@ -304,6 +304,86 @@ test('a is a search character while the filter box is open', async () => {
   assert.ok(searchFrames.every((text) => !text.includes('other/tool')));
 });
 
+test('d removes the highlighted row through the callback', async () => {
+  const terminal = new FakeTerminal([key('down'), key('d'), key('q')]);
+  const removed: string[] = [];
+  const completed = await runInteractiveDashboard({
+    result,
+    layout: 'compact',
+    colors: createColors(false),
+    terminal,
+    refresh: async () => ({ result, text: '', warnings: [] }),
+    deleteSubject: async (subject) => {
+      removed.push(subject);
+      return { text: `Removed ${subject}.`, warnings: ['cache cleared'] };
+    },
+  });
+
+  assert.deepEqual(removed, ['repo:other/tool']);
+  assert.deepEqual(completed.warnings, ['cache cleared']);
+  const finalFrame = (terminal.output.at(-1) ?? '').replace(/\u001b\[[0-9;]*m/g, '');
+  assert.ok(finalFrame.includes('Removed repo:other/tool.'));
+  assert.ok(finalFrame.includes('octocat'));
+  assert.ok(!finalFrame.includes('› other/tool'));
+});
+
+test('deleting an account leaves its tracked repositories un-nested', async () => {
+  const nestedRows: DashboardRow[] = [
+    {
+      kind: 'user',
+      subject: 'user:octocat',
+      source: null,
+      from: null,
+      to: null,
+      metrics: { followers: { value: 2, from: null, delta: null } },
+    },
+    {
+      kind: 'repo',
+      subject: 'repo:octocat/demo',
+      source: null,
+      from: null,
+      to: null,
+      metrics: { stars: { value: 5, from: null, delta: null } },
+    },
+  ];
+  const nestedResult: DashboardResult = {
+    layout: 'compact',
+    range: { from: 'previous', to: 'latest' },
+    rows: nestedRows,
+  };
+  const terminal = new FakeTerminal([key('d'), key('q')]);
+  await runInteractiveDashboard({
+    result: nestedResult,
+    layout: 'compact',
+    colors: createColors(false),
+    terminal,
+    refresh: async () => ({ result: nestedResult, text: '', warnings: [] }),
+    deleteSubject: async (subject) => ({ text: `Removed ${subject}.`, warnings: [] }),
+  });
+
+  const finalFrame = (terminal.output.at(-1) ?? '').replace(/\u001b\[[0-9;]*m/g, '');
+  assert.ok(finalFrame.includes('› octocat/demo'));
+  assert.ok(!finalFrame.includes('  demo'));
+});
+
+test('a failed delete keeps the row and shows the error', async () => {
+  const terminal = new FakeTerminal([key('d'), key('q')]);
+  await runInteractiveDashboard({
+    result,
+    layout: 'compact',
+    colors: createColors(false),
+    terminal,
+    refresh: async () => ({ result, text: '', warnings: [] }),
+    deleteSubject: async () => {
+      throw new Error('cannot write config');
+    },
+  });
+
+  const finalFrame = (terminal.output.at(-1) ?? '').replace(/\u001b\[[0-9;]*m/g, '');
+  assert.ok(finalFrame.includes('cannot write config'));
+  assert.ok(finalFrame.includes('› octocat'));
+});
+
 test('footer renders shortcut keys white and labels dim', async () => {
   const terminal = new FakeTerminal([key('q')]);
   await runInteractiveDashboard({
@@ -317,9 +397,10 @@ test('footer renders shortcut keys white and labels dim', async () => {
   const frame = terminal.output[0] ?? '';
   assert.match(frame, /\u001b\[97mr\u001b\[0m\u001b\[2m refresh\u001b\[0m/);
   assert.match(frame, /\u001b\[97ma\u001b\[0m\u001b\[2m add\u001b\[0m/);
+  assert.match(frame, /\u001b\[97md\u001b\[0m\u001b\[2m delete\u001b\[0m/);
   assert.match(frame, /\u001b\[97mq\u001b\[0m\u001b\[2m quit\u001b\[0m/);
   const plain = frame.replace(/\u001b\[[0-9;]*m/g, '');
-  assert.match(plain, /r refresh · ↑↓\/j k move · \/ search · c copy · a add · q quit/);
+  assert.match(plain, /r refresh · ↑↓\/j k move · \/ search · c copy · a add · d delete · q quit/);
 });
 
 test('GitHub URLs distinguish account and repository rows', () => {
