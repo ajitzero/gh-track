@@ -1,0 +1,14 @@
+README.md
+  h_1e9f70f2591550 165-170
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ff244ddfb5f0c182d73853a7b5f2f930d2e1f42d",
+  "prompts": {},
+  "humans": {
+    "h_1e9f70f2591550": {
+      "author": "Ajit Panigrahi <ajitzero@gmail.com>"
+    }
+  }
+}

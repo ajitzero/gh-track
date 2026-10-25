@@ -1,0 +1,18 @@
+README.md
+  h_1e9f70f2591550 12
+docs/01_ARCHITECTURE.md
+  h_1e9f70f2591550 272
+docs/03_DECISIONS.md
+  h_1e9f70f2591550 65-67,493
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6b9df7bcc47c7565d30640222f4c231228da36af",
+  "prompts": {},
+  "humans": {
+    "h_1e9f70f2591550": {
+      "author": "Ajit Panigrahi <ajitzero@gmail.com>"
+    }
+  }
+}
