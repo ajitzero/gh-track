@@ -38,6 +38,7 @@ Decisions made during the initial design interview on 2026-10-19. Each entry rec
 | D032 | Dashboard supports an interactive TTY list                                              |
 | D033 | Past offsets drop the minus prefix                                                      |
 | D034 | oxlint and oxfmt for linting and formatting                                             |
+| D035 | Follow GitHub redirects manually, and only on the API origin                            |
 
 ## D001 — Local files only
 
@@ -430,6 +431,16 @@ Static output remains the default for JSON, non-TTY invocations, `--yes`, and `-
 **Rejected.** ESLint plus Prettier (two toolchains and plugin configuration for a small TypeScript CLI); Biome (also a single binary, but the project gains nothing over the oxc tools); leaving formatting unenforced (the existing style already matched the chosen options, so the one-time diff is mechanical).
 
 **Consequence.** `bun run lint` and `bun run format:check` are the static gates alongside `typecheck` and `test`. `oxfmt` owns layout, so reviewers see semantic diffs. Widening to the `suspicious` or `pedantic` categories later is a config change, not a new tool.
+
+## D035 — Follow GitHub redirects manually
+
+**Context.** The client let `fetch` follow redirects and only rejected a response whose final URL was off-origin. The token was attached before that check. Node usually strips `Authorization` on a cross-origin redirect, but the tool did not enforce it, and the test faked `redirected: true` on the first response.
+
+**Decision.** Requests use `redirect: 'manual'`. A `301`, `302`, `303`, `307`, or `308` is resolved against the URL that returned it. The next hop is requested only after `isApiUrl()` passes, and at most five hops are followed. A missing `Location`, a non-API target, or a longer chain fails the request. The result is still reported against the URL the caller asked for, so ETag keys do not move when GitHub redirects a renamed repository.
+
+**Rejected.** Trusting the runtime to strip `Authorization` (true today, not a property this code owns); refusing every redirect (breaks renamed repositories, which GitHub answers with a same-origin redirect).
+
+**Consequence.** The token is never sent to a URL that has not been checked. Off-origin redirects remain permanent subject errors and are not queued for resume.
 
 ## Plan history
 

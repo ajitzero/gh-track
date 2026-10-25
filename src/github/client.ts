@@ -9,6 +9,11 @@ export const GITHUB_API_BASE = 'https://api.github.com';
 /** Runaway-page guard from spec §9. */
 export const MAX_PAGES = 1000;
 
+/** Same-origin redirect hops followed before a request is treated as failed. */
+export const MAX_REDIRECTS = 5;
+
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+
 const API_VERSION = '2022-11-28';
 const ACCEPT = 'application/vnd.github+json';
 
@@ -54,6 +59,18 @@ function defaultSleep(ms: number): Promise<void> {
 
 function isAborted(signal: AbortSignal | undefined): boolean {
   return signal !== undefined && signal.aborted;
+}
+
+/** Resolves a redirect target against the URL that returned it. */
+function resolveRedirect(current: string, location: string | null): string | null {
+  if (location === null || location.trim().length === 0) {
+    return null;
+  }
+  try {
+    return new URL(location, current).href;
+  } catch {
+    return null;
+  }
 }
 
 export class GitHubClient {
@@ -145,6 +162,8 @@ export class GitHubClient {
       throw refusedUrl(url, this.apiBase);
     }
 
+    let currentUrl = url;
+    let redirects = 0;
     let attempt = 0;
 
     for (;;) {
@@ -170,9 +189,10 @@ export class GitHubClient {
 
       let response: Response;
       try {
-        response = await this.fetchImpl(url, {
+        response = await this.fetchImpl(currentUrl, {
           method: 'GET',
-          headers: this.buildHeaders(url, options.ifNoneMatch),
+          headers: this.buildHeaders(currentUrl, options.ifNoneMatch),
+          redirect: 'manual',
           signal: controller.signal,
         });
       } catch (error) {
@@ -183,29 +203,46 @@ export class GitHubClient {
         const timedOut = controller.signal.aborted;
         if (attempt <= this.maxRetries) {
           this.diagnostic(
-            `retrying ${url} after ${timedOut ? 'timeout' : 'network error'} (attempt ${attempt})`,
+            `retrying ${currentUrl} after ${timedOut ? 'timeout' : 'network error'} (attempt ${attempt})`,
           );
           await this.backoff(attempt, null);
           continue;
         }
         throw networkError(
           timedOut
-            ? `Request timed out after ${this.timeoutMs} ms: ${url}`
-            : `Network error for ${url}: ${errorMessage(error)}`,
-          { url },
+            ? `Request timed out after ${this.timeoutMs} ms: ${currentUrl}`
+            : `Network error for ${currentUrl}: ${errorMessage(error)}`,
+          { url: currentUrl },
         );
       }
 
       // Keep the timeout and SIGINT bridge attached until the body has been
       // read. Headers alone do not make a response complete.
       try {
-        // Follow same-origin redirects (GitHub uses them for renamed
-        // repositories), but never accept a response carried to another origin.
-        if (response.redirected && !this.isApiUrl(response.url)) {
+        // Follow same-origin redirects ourselves. `redirect: 'manual'` means
+        // the token is never attached to a URL that has not passed `isApiUrl`.
+        if (REDIRECT_STATUSES.has(response.status)) {
           if (response.body !== null) {
             await response.body.cancel().catch(() => undefined);
           }
-          throw refusedUrl(response.url, this.apiBase);
+          const next = resolveRedirect(currentUrl, response.headers.get('location'));
+          if (next === null) {
+            throw httpError(
+              response.status,
+              `GitHub redirect for ${currentUrl} had no Location header`,
+              { url: currentUrl },
+            );
+          }
+          if (!this.isApiUrl(next)) {
+            throw refusedUrl(next, this.apiBase);
+          }
+          redirects += 1;
+          if (redirects > MAX_REDIRECTS) {
+            throw httpError(response.status, `Too many redirects for ${url}`, { url });
+          }
+          currentUrl = next;
+          attempt -= 1;
+          continue;
         }
 
         const rateLimit = parseRateLimitHeaders(response.headers);
@@ -224,16 +261,16 @@ export class GitHubClient {
             throw rateLimited(rateLimit.resetAt ?? undefined);
           }
           if (rateLimit.retryAfterSeconds !== null && attempt <= this.maxRetries) {
-            this.diagnostic(`retrying ${url} after HTTP 403 (attempt ${attempt})`);
+            this.diagnostic(`retrying ${currentUrl} after HTTP 403 (attempt ${attempt})`);
             await this.backoff(attempt, rateLimit.retryAfterSeconds);
             continue;
           }
-          throw httpError(403, `GitHub returned HTTP 403 for ${url}`, { url });
+          throw httpError(403, `GitHub returned HTTP 403 for ${currentUrl}`, { url: currentUrl });
         }
 
         if (status === 429) {
           if (attempt <= this.maxRetries) {
-            this.diagnostic(`retrying ${url} after HTTP 429 (attempt ${attempt})`);
+            this.diagnostic(`retrying ${currentUrl} after HTTP 429 (attempt ${attempt})`);
             await this.backoff(attempt, rateLimit.retryAfterSeconds);
             continue;
           }
@@ -242,11 +279,13 @@ export class GitHubClient {
 
         if (status >= 500) {
           if (attempt <= this.maxRetries) {
-            this.diagnostic(`retrying ${url} after HTTP ${status} (attempt ${attempt})`);
+            this.diagnostic(`retrying ${currentUrl} after HTTP ${status} (attempt ${attempt})`);
             await this.backoff(attempt, rateLimit.retryAfterSeconds);
             continue;
           }
-          throw httpError(status, `GitHub returned HTTP ${status} for ${url}`, { url });
+          throw httpError(status, `GitHub returned HTTP ${status} for ${currentUrl}`, {
+            url: currentUrl,
+          });
         }
 
         if (status === 404) {
@@ -254,7 +293,9 @@ export class GitHubClient {
         }
 
         if (status >= 400) {
-          throw httpError(status, `GitHub returned HTTP ${status} for ${url}`, { url });
+          throw httpError(status, `GitHub returned HTTP ${status} for ${currentUrl}`, {
+            url: currentUrl,
+          });
         }
 
         let text: string;
@@ -268,16 +309,16 @@ export class GitHubClient {
           const timedOut = controller.signal.aborted;
           if (attempt <= this.maxRetries) {
             this.diagnostic(
-              `retrying ${url} after ${timedOut ? 'timeout' : 'network error'} while reading the body (attempt ${attempt})`,
+              `retrying ${currentUrl} after ${timedOut ? 'timeout' : 'network error'} while reading the body (attempt ${attempt})`,
             );
             await this.backoff(attempt, null);
             continue;
           }
           throw networkError(
             timedOut
-              ? `Request timed out after ${this.timeoutMs} ms: ${url}`
-              : `Network error for ${url}: ${errorMessage(error)}`,
-            { url },
+              ? `Request timed out after ${this.timeoutMs} ms: ${currentUrl}`
+              : `Network error for ${currentUrl}: ${errorMessage(error)}`,
+            { url: currentUrl },
           );
         }
 
@@ -286,7 +327,9 @@ export class GitHubClient {
           try {
             payload = JSON.parse(text);
           } catch {
-            throw httpError(status, `Malformed JSON response for ${url}`, { url });
+            throw httpError(status, `Malformed JSON response for ${currentUrl}`, {
+              url: currentUrl,
+            });
           }
         }
         return { url, status, etag, lastModified, link, rateLimit, notModified: false, payload };

@@ -756,7 +756,7 @@ Examples:
 - `X-GitHub-Api-Version: 2022-11-28`.
 - Timeout per request from config, covering both headers and the response body; timeout is a retryable network error.
 - Pagination follows `Link: rel="next"` when present, otherwise stops on a short page. A hard cap of 1000 pages prevents runaway loops.
-- Every request must target the configured API origin. A `Link` URL or redirect on another origin is refused, and the token is only ever attached to same-origin requests. A refused URL is recorded as a subject error and is not queued for resume.
+- Every request must target the configured API origin. Redirects are followed manually, at most five hops. A `Location` is resolved against the URL that returned it and checked before the next request; a `Link` URL or redirect on another origin is refused, and the token is only ever attached to a URL that has already passed that check. A refused URL is recorded as a subject error and is not queued for resume.
 - Conditional requests send `If-None-Match` from `state/etags.json`. If a `304` cannot be resolved because its source run was pruned or removed, the validator is dropped and the request is retried unconditionally once, within the request cap.
 - Retries: `5xx` and network errors, up to `max_retries`, exponential backoff with jitter starting at 500 ms. `403`/`429` honor `Retry-After`; primary-limit exhaustion is not retried in the same run.
 - `404` is recorded as a subject error and the run continues.

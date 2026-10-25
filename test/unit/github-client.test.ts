@@ -221,17 +221,43 @@ test('refuses requests outside the configured API origin', async () => {
 });
 
 test('refuses a redirect that lands outside the configured API origin', async () => {
+  const seen: string[] = [];
   const client = new GitHubClient({
     token: 'secret-token',
-    fetchImpl: async () =>
-      ({
-        redirected: true,
-        url: 'https://evil.example/steal',
-        body: null,
-      }) as unknown as Response,
+    fetchImpl: async (url, init) => {
+      seen.push(url);
+      assert.equal(init?.redirect, 'manual');
+      assert.equal(
+        (init?.headers as Record<string, string> | undefined)?.authorization,
+        'Bearer secret-token',
+      );
+      return response(302, null, { location: 'https://evil.example/steal' });
+    },
   });
 
   await assert.rejects(client.get(URL), expectCliError('refused_url'));
+  assert.deepEqual(seen, [URL]);
+});
+
+test('follows a same-origin redirect before reading the body', async () => {
+  const seen: string[] = [];
+  const next = 'https://api.github.com/repositories/1';
+  const client = new GitHubClient({
+    token: 'secret-token',
+    fetchImpl: async (url) => {
+      seen.push(url);
+      if (url === URL) {
+        return response(301, null, { location: '/repositories/1' });
+      }
+      return response(200, JSON.stringify({ id: 1 }));
+    },
+  });
+
+  const result = await client.get(URL);
+  assert.equal(result.status, 200);
+  assert.equal(result.url, URL);
+  assert.deepEqual(result.payload, { id: 1 });
+  assert.deepEqual(seen, [URL, next]);
 });
 
 test('sends the required headers, token, and conditional validator', async () => {
