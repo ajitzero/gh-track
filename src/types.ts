@@ -110,6 +110,15 @@ export interface DashboardKeypress {
   ctrl: boolean;
 }
 
+/** Outcome of asking the OS to open a URL in the default browser. */
+export interface OpenUrlResult {
+  opened: boolean;
+  /** Opener executable that was attempted, such as `xdg-open`. */
+  opener: string;
+  /** True when the opener executable could not be found. */
+  missing: boolean;
+}
+
 /** Small terminal boundary so interactive behavior can be tested without a TTY. */
 export interface DashboardTerminal {
   readonly rows: number;
@@ -119,6 +128,7 @@ export interface DashboardTerminal {
   onKeypress(listener: (key: DashboardKeypress) => void): () => void;
   onResize(listener: () => void): () => void;
   copy(text: string): Promise<boolean>;
+  open(url: string): Promise<OpenUrlResult>;
 }
 
 /** `track ls --format json` document (§5.15). */

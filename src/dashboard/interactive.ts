@@ -64,6 +64,7 @@ const MAIN_HINTS: readonly Hint[] = [
   { key: 'a', label: 'add' },
   { key: 'c', label: 'copy' },
   { key: 'd', label: 'delete' },
+  { key: 'o', label: 'open' },
   { key: '↑↓/j k', label: 'move' },
   { key: 'q', label: 'quit' },
   { key: 'r', label: 'refresh' },
@@ -128,7 +129,7 @@ export async function runInteractiveDashboard(
   let mode: InputMode = 'none';
   let status = '';
   let busy = false;
-  let busyAction: 'refresh' | 'copy' | 'add' | 'delete' | null = null;
+  let busyAction: 'refresh' | 'copy' | 'open' | 'add' | 'delete' | null = null;
   let stopped = options.signal?.aborted === true;
   let exitCode: number | undefined;
   let selectedIndex = 0;
@@ -430,6 +431,34 @@ export async function runInteractiveDashboard(
           try {
             const copied = await terminal.copy(githubUrlForRow(item));
             status = copied ? `Copied ${githubUrlForRow(item)}` : 'Clipboard unavailable.';
+          } catch (error) {
+            status = oneLine(error instanceof Error ? error.message : String(error));
+          } finally {
+            busy = false;
+            busyAction = null;
+          }
+        }
+      } else if (key.name === 'o') {
+        const item = selected();
+        if (item === undefined) {
+          status = 'No item selected.';
+        } else {
+          const url = githubUrlForRow(item);
+          busy = true;
+          busyAction = 'open';
+          status = 'Opening';
+          draw();
+          try {
+            const opened = await terminal.open(url);
+            if (opened.opened) {
+              status = `Opened ${url}`;
+            } else {
+              const copied = await terminal.copy(url);
+              const reason = opened.missing
+                ? `${opened.opener} is not installed.`
+                : `${opened.opener} could not open the URL.`;
+              status = copied ? `${reason} Copied ${url}` : `${reason} Clipboard unavailable.`;
+            }
           } catch (error) {
             status = oneLine(error instanceof Error ? error.message : String(error));
           } finally {

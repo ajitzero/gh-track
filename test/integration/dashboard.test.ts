@@ -258,6 +258,7 @@ test('--no-interactive keeps the static table on a TTY', async (t) => {
     onKeypress: () => () => undefined,
     onResize: () => () => undefined,
     copy: async () => true,
+    open: async () => ({ opened: true, opener: 'xdg-open', missing: false }),
   };
 
   const result = await invoke(args(w, 'dashboard', '--no-interactive'), {
@@ -282,6 +283,7 @@ test('--no-interactive skips first-run setup without changing tracking', async (
     onKeypress: () => () => undefined,
     onResize: () => () => undefined,
     copy: async () => true,
+    open: async () => ({ opened: true, opener: 'xdg-open', missing: false }),
   };
   const prompts: PromptApi = {
     ...inertPrompts,
@@ -327,6 +329,7 @@ test('interactive dashboard restores the terminal and emits no table after quit'
     },
     onResize: () => () => undefined,
     copy: async () => true,
+    open: async () => ({ opened: true, opener: 'xdg-open', missing: false }),
   };
 
   const result = await invoke(args(w, 'dashboard'), {
@@ -340,7 +343,10 @@ test('interactive dashboard restores the terminal and emits no table after quit'
   assert.equal(entered, 1);
   assert.equal(left, 1);
   const plain = output.replace(/\u001b\[[0-9;]*m/g, '');
-  assert.match(plain, /\/ search · a add · c copy · d delete · ↑↓\/j k move · q quit · r refresh/);
+  assert.match(
+    plain,
+    /\/ search · a add · c copy · d delete · o open · ↑↓\/j k move · q quit · r refresh/,
+  );
   assert.match(output, /\u001b\[97mr\u001b\[0m\u001b\[2m refresh\u001b\[0m/);
   assert.match(plain, /hello-world/);
 });
@@ -364,6 +370,7 @@ test('r runs a full fetch from the interactive dashboard', async (t) => {
     },
     onResize: () => () => undefined,
     copy: async () => true,
+    open: async () => ({ opened: true, opener: 'xdg-open', missing: false }),
   };
 
   const result = await invoke(args(w, 'dashboard'), {
@@ -415,6 +422,7 @@ test('a adds a subject, fetches only it, and refreshes the dashboard', async (t)
     },
     onResize: () => () => undefined,
     copy: async () => true,
+    open: async () => ({ opened: true, opener: 'xdg-open', missing: false }),
   };
 
   const result = await invoke(args(w, 'dashboard'), {
@@ -474,6 +482,7 @@ test('a accepts a repository URL in the interactive add prompt', async (t) => {
     },
     onResize: () => () => undefined,
     copy: async () => true,
+    open: async () => ({ opened: true, opener: 'xdg-open', missing: false }),
   };
 
   const result = await invoke(args(w, 'dashboard'), {
@@ -532,6 +541,7 @@ test('d removes the highlighted repository, its ETags, and view references', asy
     },
     onResize: () => () => undefined,
     copy: async () => true,
+    open: async () => ({ opened: true, opener: 'xdg-open', missing: false }),
   };
 
   const result = await invoke(args(w, 'dashboard'), {
@@ -596,6 +606,7 @@ test('d on an account leaves its repositories tracked and un-nested', async (t) 
     },
     onResize: () => () => undefined,
     copy: async () => true,
+    open: async () => ({ opened: true, opener: 'xdg-open', missing: false }),
   };
 
   const result = await invoke(args(w, 'dashboard'), {
@@ -661,6 +672,7 @@ test('re-adding a deleted repository starts a fresh baseline', async (t) => {
     },
     onResize: () => () => undefined,
     copy: async () => true,
+    open: async () => ({ opened: true, opener: 'xdg-open', missing: false }),
   };
 
   const result = await invoke(args(w, 'dashboard'), {

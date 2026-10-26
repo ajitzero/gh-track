@@ -2,13 +2,14 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { githubUrlForRow, runInteractiveDashboard } from '../../src/dashboard/interactive.js';
-import { copyToSystemClipboard } from '../../src/dashboard/terminal.js';
+import { copyToSystemClipboard, openInBrowser } from '../../src/dashboard/terminal.js';
 import { createColors } from '../../src/output/color.js';
 import type {
   DashboardKeypress,
   DashboardResult,
   DashboardRow,
   DashboardTerminal,
+  OpenUrlResult,
 } from '../../src/types.js';
 
 const rows: DashboardRow[] = [
@@ -40,6 +41,8 @@ class FakeTerminal implements DashboardTerminal {
   readonly rows = 10;
   readonly output: string[] = [];
   readonly copied: string[] = [];
+  readonly opened: string[] = [];
+  openResult: OpenUrlResult = { opened: true, opener: 'xdg-open', missing: false };
   entered = 0;
   left = 0;
   private keyListener: ((key: DashboardKeypress) => void) | undefined;
@@ -71,6 +74,10 @@ class FakeTerminal implements DashboardTerminal {
     this.copied.push(text);
     return true;
   }
+  async open(url: string): Promise<OpenUrlResult> {
+    this.opened.push(url);
+    return this.openResult;
+  }
 }
 
 function key(name: string, sequence = name): DashboardKeypress {
@@ -99,6 +106,39 @@ test('arrows and Vim keys navigate, and c copies the selected GitHub URL', async
   assert.ok(terminal.output.some((text) => text.includes('› other/tool')));
   assert.equal(terminal.entered, 1);
   assert.equal(terminal.left, 1);
+});
+
+test('o opens the highlighted GitHub URL in the browser', async () => {
+  const terminal = new FakeTerminal([key('down'), key('o'), key('q')]);
+  await runInteractiveDashboard({
+    result,
+    layout: 'compact',
+    colors: createColors(false),
+    terminal,
+    refresh: async () => ({ result, text: '', warnings: [] }),
+  });
+
+  assert.deepEqual(terminal.opened, ['https://github.com/other/tool']);
+  assert.deepEqual(terminal.copied, []);
+  assert.ok(terminal.output.some((text) => text.includes('Opened https://github.com/other/tool')));
+});
+
+test('a missing opener copies the URL and reports the dependency inline', async () => {
+  const terminal = new FakeTerminal([key('o'), key('q')]);
+  terminal.openResult = { opened: false, opener: 'xdg-open', missing: true };
+  await runInteractiveDashboard({
+    result,
+    layout: 'compact',
+    colors: createColors(false),
+    terminal,
+    refresh: async () => ({ result, text: '', warnings: [] }),
+  });
+
+  assert.deepEqual(terminal.opened, ['https://github.com/octocat']);
+  assert.deepEqual(terminal.copied, ['https://github.com/octocat']);
+  const finalFrame = (terminal.output.at(-1) ?? '').replace(/\u001b\[[0-9;]*m/g, '');
+  assert.ok(finalFrame.includes('xdg-open is not installed.'));
+  assert.ok(finalFrame.includes('Copied https://github.com/octocat'));
 });
 
 test('/ filters as keys are typed and Enter keeps the visible filter', async () => {
@@ -169,6 +209,7 @@ test('Ctrl-C during refresh cancels it, restores the terminal, and returns 130',
     },
     onResize: () => () => undefined,
     copy: async () => true,
+    open: async () => ({ opened: true, opener: 'xdg-open', missing: false }),
   };
 
   const running = runInteractiveDashboard({
@@ -398,14 +439,38 @@ test('footer renders shortcut keys white and labels dim', async () => {
   assert.match(frame, /\u001b\[97mr\u001b\[0m\u001b\[2m refresh\u001b\[0m/);
   assert.match(frame, /\u001b\[97ma\u001b\[0m\u001b\[2m add\u001b\[0m/);
   assert.match(frame, /\u001b\[97md\u001b\[0m\u001b\[2m delete\u001b\[0m/);
+  assert.match(frame, /\u001b\[97mo\u001b\[0m\u001b\[2m open\u001b\[0m/);
   assert.match(frame, /\u001b\[97mq\u001b\[0m\u001b\[2m quit\u001b\[0m/);
   const plain = frame.replace(/\u001b\[[0-9;]*m/g, '');
-  assert.match(plain, /\/ search · a add · c copy · d delete · ↑↓\/j k move · q quit · r refresh/);
+  assert.match(
+    plain,
+    /\/ search · a add · c copy · d delete · o open · ↑↓\/j k move · q quit · r refresh/,
+  );
 });
 
 test('GitHub URLs distinguish account and repository rows', () => {
   assert.equal(githubUrlForRow(rows[0]!), 'https://github.com/octocat');
   assert.equal(githubUrlForRow(rows[1]!), 'https://github.com/other/tool');
+});
+
+test('openInBrowser hands the URL to the platform opener', async () => {
+  const attempts: string[] = [];
+  const opened = await openInBrowser('https://github.com/octocat', 'darwin', async (command) => {
+    attempts.push(`${command.command} ${command.args.join(' ')}`);
+    return { ok: true, missing: false };
+  });
+
+  assert.deepEqual(attempts, ['open https://github.com/octocat']);
+  assert.deepEqual(opened, { opened: true, opener: 'open', missing: false });
+});
+
+test('openInBrowser reports a missing xdg-open', async () => {
+  const opened = await openInBrowser('https://github.com/octocat', 'linux', async () => ({
+    ok: false,
+    missing: true,
+  }));
+
+  assert.deepEqual(opened, { opened: false, opener: 'xdg-open', missing: true });
 });
 
 test('clipboard falls back to an OSC 52 terminal sequence', async () => {

@@ -3,11 +3,18 @@
 import { spawn } from 'node:child_process';
 import { emitKeypressEvents } from 'node:readline';
 
-import type { DashboardKeypress, DashboardTerminal } from '../types.js';
+import type { DashboardKeypress, DashboardTerminal, OpenUrlResult } from '../types.js';
 
 interface ClipboardCommand {
   command: string;
   args: string[];
+}
+
+interface OpenCommand {
+  command: string;
+  args: string[];
+  /** Human-readable name used in status messages. */
+  opener: string;
 }
 
 function clipboardCommands(platform: NodeJS.Platform): ClipboardCommand[] {
@@ -40,6 +47,62 @@ async function tryClipboardCommand(command: ClipboardCommand, text: string): Pro
     child.stdin?.on('error', () => resolve(false));
     child.stdin?.end(text, 'utf8');
   });
+}
+
+function openCommand(platform: NodeJS.Platform, url: string): OpenCommand {
+  if (platform === 'darwin') {
+    return { command: 'open', args: [url], opener: 'open' };
+  }
+  if (platform === 'win32') {
+    return { command: 'cmd', args: ['/c', 'start', '', url], opener: 'start' };
+  }
+  return { command: 'xdg-open', args: [url], opener: 'xdg-open' };
+}
+
+interface LaunchOutcome {
+  ok: boolean;
+  missing: boolean;
+}
+
+async function tryOpenCommand(command: OpenCommand): Promise<LaunchOutcome> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const settle = (outcome: LaunchOutcome): void => {
+      if (!settled) {
+        settled = true;
+        resolve(outcome);
+      }
+    };
+    let child: ReturnType<typeof spawn>;
+    try {
+      child = spawn(command.command, command.args, {
+        stdio: 'ignore',
+        detached: true,
+      });
+    } catch (error) {
+      settle({ ok: false, missing: (error as NodeJS.ErrnoException).code === 'ENOENT' });
+      return;
+    }
+    child.once('error', (error) => {
+      settle({ ok: false, missing: (error as NodeJS.ErrnoException).code === 'ENOENT' });
+    });
+    // Success means the opener launched, not that the browser has closed.
+    child.once('spawn', () => {
+      child.unref();
+      settle({ ok: true, missing: false });
+    });
+  });
+}
+
+/** Hands a URL to the platform opener without waiting for the browser to close. */
+export async function openInBrowser(
+  url: string,
+  platform: NodeJS.Platform = process.platform,
+  runCommand: (command: OpenCommand) => Promise<LaunchOutcome> = tryOpenCommand,
+): Promise<OpenUrlResult> {
+  const command = openCommand(platform, url);
+  const outcome = await runCommand(command);
+  return { opened: outcome.ok, opener: command.opener, missing: outcome.missing };
 }
 
 export function osc52ClipboardSequence(text: string): string {
@@ -127,6 +190,9 @@ export function createProcessDashboardTerminal(): DashboardTerminal {
       return copyToSystemClipboard(text, process.platform, (sequence) => {
         process.stdout.write(sequence);
       });
+    },
+    async open(url) {
+      return openInBrowser(url, process.platform);
     },
   };
 }

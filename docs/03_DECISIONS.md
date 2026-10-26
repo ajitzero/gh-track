@@ -41,6 +41,10 @@ Decisions made during the initial design interview on 2026-10-19. Each entry rec
 | D035 | Follow GitHub redirects manually, and only on the API origin                            |
 | D036 | Redact the token from every output path                                                 |
 | D037 | Confine run payload reads and writes to the run directory                               |
+| D038 | Interactive dashboard delete                                                            |
+| D039 | Re-added subjects start from a tracked-since baseline                                   |
+| D040 | Footer hints sort alphabetically by key                                                 |
+| D041 | `o` opens the highlighted subject in the browser                                        |
 
 ## D001 — Local files only
 
@@ -508,18 +512,29 @@ Static output remains the default for JSON, non-TTY invocations, `--yes`, and `-
 
 **Consequence.** The footer order is now derivable from the keys themselves, so a new binding slots in without re-deciding a grouping. This supersedes the ordering clauses in D032 and D038 §4. Behavior, the three-row footer budget, and styling are unchanged.
 
+## D041 — `o` opens the highlighted subject in the browser
+
+**Context.** `c` copies the canonical GitHub URL, but leaving the dashboard to paste it somewhere is the usual next step. The terminal can delegate that to the platform opener, and Linux desktops may lack `xdg-open`, especially on minimal or containerized systems.
+
+**Decision.** In navigation mode, `o` opens the highlighted account's or repository's GitHub URL with the platform opener: `xdg-open` on Linux, `open` on macOS, and `start` on Windows. The opener is spawned detached with stdio ignored; success means it launched, not that the browser exited. When the opener is missing or fails, the dashboard copies the same URL through the existing `c` path and reports the failure inline in the status line, naming the missing dependency (`xdg-open is not installed. Copied ...`). The footer gains `o open`, sorted between `d delete` and movement (D040). Opening never mutates config or data.
+
+**Rejected.** A hard dependency on `xdg-open` (Linux-only and absent from minimal systems); silently copying with no message (users cannot tell the browser did not open); waiting for the browser process to exit (some openers block until the tab closes); a Node dependency such as `open` (a subprocess already covers it).
+
+**Consequence.** `o` is best-effort: on machines without an opener the URL still reaches the clipboard, and the status line explains why the browser did not open. `c` remains the explicit clipboard action.
+
 ## Plan history
 
 Active plans are owned by the coding harness and are never committed to this repository. This section is the durable record of what was planned, what shipped, and what remains. Statuses: `done`, `partial`, `not started`, `superseded`, `abandoned`.
 
-| Plan                          | Dates                   | Status | Delivered                                                                                                                 | Not done / carried forward     |
-| ----------------------------- | ----------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
-| v1 — core CLI (M1–M6)         | 2026-10-19 → 2026-10-20 | done   | `watch`, `fetch` with resume, `runs`, `diff`, `compact`, `export`; atomic immutable runs; JSON purity; offline test suite | M7 interactive first-run setup |
-| Dashboard (M8)                | 2026-10-20              | done   | `dashboard` and `track`; per-subject observations; `[tracking]` and `[views]`; compact/columns layouts; clack picker      | None                           |
-| Dashboard add (M8.1)          | 2026-10-20              | done   | `dashboard add`; composite watch+track; public-repository browsing and multi-select; removed `--setup`                    | None                           |
-| Interactive dashboard (M8.2)  | 2026-10-24              | done   | TTY navigation, live search, clipboard copy, in-process fetch refresh; static/JSON output preserved                       | None                           |
-| Dashboard delete (M8.3)       | 2026-10-25              | done   | `d` deletes the highlighted subject, clears its exact ETag entries, and un-nests the remaining rows                       | None                           |
-| Tracked-since baseline (M8.4) | 2026-10-25              | done   | New subjects record `state/tracked-since.json`; re-adds ignore pre-add observations and do not repeat old deltas          | None                           |
+| Plan                          | Dates                   | Status | Delivered                                                                                                                    | Not done / carried forward     |
+| ----------------------------- | ----------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| v1 — core CLI (M1–M6)         | 2026-10-19 → 2026-10-20 | done   | `watch`, `fetch` with resume, `runs`, `diff`, `compact`, `export`; atomic immutable runs; JSON purity; offline test suite    | M7 interactive first-run setup |
+| Dashboard (M8)                | 2026-10-20              | done   | `dashboard` and `track`; per-subject observations; `[tracking]` and `[views]`; compact/columns layouts; clack picker         | None                           |
+| Dashboard add (M8.1)          | 2026-10-20              | done   | `dashboard add`; composite watch+track; public-repository browsing and multi-select; removed `--setup`                       | None                           |
+| Interactive dashboard (M8.2)  | 2026-10-24              | done   | TTY navigation, live search, clipboard copy, in-process fetch refresh; static/JSON output preserved                          | None                           |
+| Dashboard delete (M8.3)       | 2026-10-25              | done   | `d` deletes the highlighted subject, clears its exact ETag entries, and un-nests the remaining rows                          | None                           |
+| Tracked-since baseline (M8.4) | 2026-10-25              | done   | New subjects record `state/tracked-since.json`; re-adds ignore pre-add observations and do not repeat old deltas             | None                           |
+| Open in browser (M8.5)        | 2026-10-27              | done   | `o` opens the highlighted account or repository via the platform opener, falling back to clipboard copy with an inline error | None                           |
 
 The retired `docs/plans/` files remain in git history at commit `3deedbb` (`feat: implement M8 dashboard and tracking`). This section replaces the folder as the place to answer "what has been done, and what is left?"
 
