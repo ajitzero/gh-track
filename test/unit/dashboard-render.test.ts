@@ -152,13 +152,67 @@ test('compact widths track the widest available values without a fixed floor', (
   };
   const plain = renderDashboard(result, 'compact', createColors(false));
 
-  // The count field is 3 wide ("132") and the delta field is 5 wide ("(+12)").
-  // No compacted value is present, so there is no reserved `~` slot: the widest
-  // delta sits one separator space after the count.
+  // Counts align per slot: stars against stars, forks against forks/followers.
+  // The stars slot is 3 wide ("132") and the forks slot is 1 wide ("4").
   assert.match(plain, /big\/numbers\s+stars 132 \(\+12\)/);
-  assert.match(plain, /forks {3}4 {2}\(\+1\)/);
+  assert.match(plain, /forks 4 \(\+1\)/);
   assert.match(plain, /small\/values\s+stars {3}9 {3}\(0\)/);
   assert.doesNotMatch(plain, /stars {3}132/);
+});
+
+test('followers share the forks slot and stars-only rows stay aligned', () => {
+  const row = (
+    kind: 'repo' | 'user',
+    subject: string,
+    metrics: Record<string, { value: number; from: number; delta: number }>,
+  ): DashboardResult['rows'][number] => ({
+    kind,
+    subject,
+    source: 'raw',
+    from: { id: '2026-10-01T10-00-00Z', finishedAt: '2026-10-01T10:00:00.000Z' },
+    to: { id: '2026-10-26T10-00-00Z', finishedAt: '2026-10-26T10:00:00.000Z' },
+    metrics,
+  });
+  const result: DashboardResult = {
+    layout: 'compact',
+    range: { from: 'previous', to: 'latest' },
+    rows: [
+      row('repo', 'repo:spartan-ng/spartan', {
+        stars: { value: 2966, from: 2963, delta: 3 },
+        forks: { value: 330, from: 328, delta: 2 },
+      }),
+      row('repo', 'repo:animated/icons', {
+        stars: { value: 15, from: 15, delta: 0 },
+        forks: { value: 1, from: 1, delta: 0 },
+      }),
+      row('repo', 'repo:stars/only', {
+        stars: { value: 9, from: 9, delta: 0 },
+      }),
+      row('user', 'user:ajitzero', {
+        followers: { value: 164, from: 163, delta: 1 },
+      }),
+    ],
+  };
+  const plain = renderDashboard(result, 'compact', createColors(false));
+  const lines = plain.split('\n');
+
+  // The stars slot is driven by 2,966 (5 wide), so a stars-only row stays right-aligned.
+  assert.match(plain, /stars 2,966 \(\+3\)/);
+  assert.match(plain, /stars {5}9 {2}\(0\)/);
+  // The forks slot is driven by 330 (3 wide): 15/1 and 9 keep their own stars padding.
+  assert.match(plain, /stars {4}15 {2}\(0\) {2}forks {3}1 {2}\(0\)/);
+  // Followers use the forks slot for both count and delta, so their right edges match.
+  const followersLine = lines.find((line) => line.includes('followers')) ?? '';
+  const forksLine = lines.find((line) => line.includes('forks 330')) ?? '';
+  assert.match(followersLine, /followers 164 \(\+1\)/);
+  assert.equal(
+    followersLine.indexOf('164') + '164'.length,
+    forksLine.indexOf('330') + '330'.length,
+  );
+  assert.equal(
+    followersLine.indexOf('(+1)') + '(+1)'.length,
+    forksLine.indexOf('(+2)') + '(+2)'.length,
+  );
 });
 
 test('compact widths handle a list with no numeric values', () => {

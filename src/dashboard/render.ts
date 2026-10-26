@@ -18,6 +18,18 @@ const METRIC_LABELS: Readonly<Record<Metric, string>> = {
   followers: 'followers',
 };
 
+/**
+ * Followers share the forks slot. The two never appear on the same row, and both
+ * are the rightmost count on their row, so their count and delta edges line up.
+ */
+type MetricSlot = 'stars' | 'forks';
+const METRIC_SLOTS: Readonly<Record<Metric, MetricSlot>> = {
+  stars: 'stars',
+  forks: 'forks',
+  followers: 'forks',
+};
+const METRIC_SLOT_ORDER: readonly MetricSlot[] = ['stars', 'forks'];
+
 function formatCount(value: number): string {
   const negative = value < 0;
   const digits = Math.abs(value).toString();
@@ -115,8 +127,8 @@ function metricSegments(
 }
 
 interface CompactWidths {
-  count: number;
-  delta: number;
+  count: Record<MetricSlot, number>;
+  delta: Record<MetricSlot, number>;
   /** True when a compacted value is rendered, so the `~` slot must be reserved. */
   marker: boolean;
 }
@@ -125,48 +137,59 @@ function compactMetrics(row: DashboardRow): Metric[] {
   return METRIC_ORDER.filter((metric) => hasMetric(row, metric));
 }
 
-/** Number fields track the widest formatted value in the list, not a fixed minimum. */
+/** Number fields track the widest formatted value per slot, not a fixed minimum. */
 function compactWidths(rows: readonly DashboardRow[]): CompactWidths {
-  let count = 1;
-  let delta = 0;
+  const count: Record<MetricSlot, number> = { stars: 1, forks: 1 };
+  const delta: Record<MetricSlot, number> = { stars: 0, forks: 0 };
   for (const row of rows) {
     for (const metric of compactMetrics(row)) {
       const value = metricValue(row, metric);
       if (value === undefined || value.value === null) {
         continue;
       }
-      count = Math.max(count, formatCount(value.value).length);
+      const slot = METRIC_SLOTS[metric];
+      count[slot] = Math.max(count[slot], formatCount(value.value).length);
       if (value.delta !== null) {
-        delta = Math.max(delta, formatDelta(value.delta).length);
+        delta[slot] = Math.max(delta[slot], formatDelta(value.delta).length);
       }
     }
   }
   return { count, delta, marker: rows.some(compacted) };
 }
 
-function nullMetricSegments(colors: Colors, widths: CompactWidths): CellSegment[] {
+function dashSegments(
+  colors: Colors,
+  countWidth: number,
+  deltaWidth: number,
+  marker: boolean,
+): CellSegment[] {
   return [
-    { text: ' '.repeat(widths.count - 1) },
+    { text: ' '.repeat(countWidth - 1) },
     { text: '—', paint: colors.dim },
-    { text: ' '.repeat((widths.marker ? 1 : 0) + 1 + widths.delta) },
+    { text: ' '.repeat((marker ? 1 : 0) + 1 + deltaWidth) },
   ];
 }
 
 function metricLineSegments(
-  label: string,
+  metric: Metric,
   value: DashboardMetricValue,
   colors: Colors,
   compactedValue: boolean,
   widths: CompactWidths,
 ): CellSegment[] {
+  const label = METRIC_LABELS[metric];
+  const slot = METRIC_SLOTS[metric];
   if (value.value === null) {
-    return [{ text: `${label} `, paint: colors.dim }, ...nullMetricSegments(colors, widths)];
+    return [
+      { text: `${label} `, paint: colors.dim },
+      ...dashSegments(colors, widths.count[slot], widths.delta[slot], widths.marker),
+    ];
   }
 
   const count = formatCount(value.value);
   const segments: CellSegment[] = [
     { text: `${label} `, paint: colors.dim },
-    { text: ' '.repeat(widths.count - count.length) },
+    { text: ' '.repeat(widths.count[slot] - count.length) },
     { text: count, paint: colors.bold },
   ];
   if (widths.marker) {
@@ -175,11 +198,11 @@ function metricLineSegments(
   segments.push({ text: ' ' });
 
   if (value.delta === null) {
-    segments.push({ text: ' '.repeat(widths.delta) });
+    segments.push({ text: ' '.repeat(widths.delta[slot]) });
   } else {
     const delta = formatDelta(value.delta);
     segments.push(
-      { text: ' '.repeat(widths.delta - delta.length) },
+      { text: ' '.repeat(widths.delta[slot] - delta.length) },
       { text: delta, paint: deltaPaint(colors, value.delta) },
     );
   }
@@ -187,8 +210,21 @@ function metricLineSegments(
   return segments;
 }
 
-function nullMetricsCell(colors: Colors, widths: CompactWidths): TableCell {
-  return richCell(nullMetricSegments(colors, widths));
+function nullMetricsCell(
+  colors: Colors,
+  widths: CompactWidths,
+  metrics: readonly Metric[],
+): TableCell {
+  const slots =
+    metrics.length === 0 ? METRIC_SLOT_ORDER : metrics.map((metric) => METRIC_SLOTS[metric]);
+  return richCell(
+    dashSegments(
+      colors,
+      Math.max(...slots.map((slot) => widths.count[slot])),
+      Math.max(...slots.map((slot) => widths.delta[slot])),
+      widths.marker,
+    ),
+  );
 }
 
 function compactRows(
@@ -210,7 +246,7 @@ function compactRows(
     if (metrics.length === 0 || !anyValue) {
       rows.push([
         nameCell(row, colors, display.label, display.nested, options),
-        nullMetricsCell(colors, widths),
+        nullMetricsCell(colors, widths, metrics),
         sinceCell(row, colors),
       ]);
       continue;
@@ -225,9 +261,7 @@ function compactRows(
       if (segments.length > 0) {
         segments.push({ text: '  ' });
       }
-      segments.push(
-        ...metricLineSegments(METRIC_LABELS[metric], value, colors, compacted(row), widths),
-      );
+      segments.push(...metricLineSegments(metric, value, colors, compacted(row), widths));
     }
 
     rows.push([
