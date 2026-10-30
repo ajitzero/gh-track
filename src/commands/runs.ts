@@ -49,6 +49,7 @@ async function listRuns(context: CommandContext, args: readonly string[]): Promi
             String(row.followers),
             String(row.requests),
           ]),
+          { maxWidth: context.outputWidth },
         )}\n`;
 
   return { json: { runs: rows }, text, warnings: [] };

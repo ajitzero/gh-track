@@ -388,8 +388,8 @@ function parseLayout(raw: unknown, location: string): DashboardLayout {
   if (raw === undefined) {
     return 'compact';
   }
-  if (raw !== 'compact' && raw !== 'columns') {
-    fail(`${location} must be "compact" or "columns"`);
+  if (raw !== 'compact' && raw !== 'columns' && raw !== 'narrow') {
+    fail(`${location} must be "compact", "columns", or "narrow"`);
   }
   return raw;
 }

@@ -1228,3 +1228,24 @@ test('dashboard requires a selection and a non-empty watchlist', async (t) => {
   assert.equal(missing.code, 2);
   assert.match(missing.stderr, /config_missing/);
 });
+
+test('--width renders the stacked dashboard inside a phone-sized terminal', async (t) => {
+  const { configPath, dataDir } = await workspace(t);
+  await seedWorkspace(dataDir);
+
+  const { code, stdout } = await invoke([
+    '--config',
+    configPath,
+    '--data-dir',
+    dataDir,
+    '--width',
+    '45',
+    '--no-interactive',
+  ]);
+
+  assert.equal(code, 0);
+  assert.ok(stdout.split('\n').every((line) => line.length <= 45));
+  assert.match(stdout, /\n {4}stars 120 \(\+20\)\n/);
+  assert.match(stdout, /\n {2}followers 3 \(\+1\)\n/);
+  assert.match(stdout, /^ {2}hello-world .*2026-10-01$/m);
+});

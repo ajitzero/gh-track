@@ -1,5 +1,6 @@
 /** Interactive list controller for the dashboard TTY mode. */
 
+import { truncateText } from '../output/table.js';
 import { accountOf, repoOf } from '../subjects.js';
 import type {
   Colors,
@@ -10,7 +11,7 @@ import type {
   DashboardTerminal,
 } from '../types.js';
 import { filterDashboardRows } from './filter.js';
-import { renderDashboard } from './render.js';
+import { renderDashboard, resolveDashboardLayout } from './render.js';
 
 export interface DashboardRefreshResult {
   result: DashboardResult;
@@ -29,6 +30,8 @@ export interface DashboardDeleteResult {
 export interface InteractiveDashboardOptions {
   result: DashboardResult;
   layout: DashboardLayout;
+  /** Explicit width override, such as `--width`; otherwise the terminal reports it. */
+  width?: number | undefined;
   colors: Colors;
   terminal: DashboardTerminal;
   signal?: AbortSignal | undefined;
@@ -86,9 +89,63 @@ const ADD_HINTS: readonly Hint[] = [
 
 function hintLine(colors: Colors, hints: readonly Hint[]): string {
   const separator = colors.dim(' · ');
-  return hints
-    .map((hint) => `${colors.white(hint.key)}${colors.dim(` ${hint.label}`)}`)
-    .join(separator);
+  return hints.map((hint) => hintWord(colors, hint)).join(separator);
+}
+
+function hintWord(colors: Colors, hint: Hint): string {
+  return `${colors.white(hint.key)}${colors.dim(` ${hint.label}`)}`;
+}
+
+function hintWordLength(hint: Hint): number {
+  return hint.key.length + 1 + hint.label.length;
+}
+
+/** Wraps hints into as many lines as the width needs, keeping every binding visible. */
+function hintLines(colors: Colors, hints: readonly Hint[], width: number | undefined): string[] {
+  if (width === undefined) {
+    return [hintLine(colors, hints)];
+  }
+  const lines: string[] = [];
+  let current: Hint[] = [];
+  let length = 0;
+  for (const hint of hints) {
+    const addition = (current.length === 0 ? 0 : 3) + hintWordLength(hint);
+    if (current.length > 0 && length + addition > width) {
+      lines.push(current.map((entry) => hintWord(colors, entry)).join(colors.dim(' · ')));
+      current = [hint];
+      length = hintWordLength(hint);
+      continue;
+    }
+    current.push(hint);
+    length += addition;
+  }
+  if (current.length > 0) {
+    lines.push(current.map((entry) => hintWord(colors, entry)).join(colors.dim(' · ')));
+  }
+  return lines;
+}
+
+/**
+ * Splits the status line at the terminal width. It wraps at spaces when it
+ * can, then hard-breaks an unbroken word such as a URL, because the phone's
+ * long-press selection needs the whole address visible rather than truncated.
+ */
+function wrapStatus(text: string, width: number): string[] {
+  if (text.length === 0) {
+    return [''];
+  }
+  const lines: string[] = [];
+  let remaining = text;
+  while (remaining.length > width) {
+    let cut = remaining.lastIndexOf(' ', width);
+    if (cut <= 0) {
+      cut = width;
+    }
+    lines.push(remaining.slice(0, cut).trimEnd());
+    remaining = remaining.slice(cut).trimStart();
+  }
+  lines.push(remaining);
+  return lines;
 }
 
 export function githubUrlForRow(row: DashboardRow): string {
@@ -137,8 +194,11 @@ export async function runInteractiveDashboard(
   let waiting: ((key: DashboardKeypress | null) => void) | null = null;
 
   const activeQuery = (): string => (mode === 'search' ? input : query);
+  const terminalWidth = (): number | undefined => options.width ?? terminal.cols;
+  const activeLayout = (): DashboardLayout =>
+    resolveDashboardLayout(options.layout, terminalWidth());
   const rows = (): DashboardRow[] =>
-    filterDashboardRows(result.rows, options.layout, activeQuery());
+    filterDashboardRows(result.rows, activeLayout(), activeQuery());
   const selected = (): DashboardRow | undefined => {
     const list = rows();
     return selectedIndex < 0 ? undefined : list[selectedIndex];
@@ -165,16 +225,55 @@ export async function runInteractiveDashboard(
     const highlighted = selected();
     const view: DashboardResult = { ...result, rows: visibleRows };
     const filter = activeQuery();
-    const rendered = renderDashboard(view, options.layout, colors, {
+    const width = terminalWidth();
+    const rendered = renderDashboard(view, activeLayout(), colors, {
       interactive: true,
       highlightedSubject: highlighted?.subject,
+      width,
       ...(filter.length > 0 && visibleRows.length === 0
         ? { emptyMessage: 'No matching items.' }
         : {}),
     });
     const lines = rendered.replace(/\n$/, '').split('\n');
     const cursorLine = lines.findIndex((line) => line.includes('› '));
-    const contentHeight = Math.max(1, terminal.rows - 3);
+    const hints = hintLines(
+      colors,
+      mode === 'search' ? SEARCH_HINTS : mode === 'add' ? ADD_HINTS : MAIN_HINTS,
+      width,
+    );
+
+    const inlineStatus = status.length > 0 ? `  ${status}` : '';
+    const statusPlain =
+      mode === 'search'
+        ? `/ ${input}${inlineStatus}`
+        : mode === 'add'
+          ? `add: ${input}${inlineStatus}`
+          : status;
+    const statusStyle =
+      mode === 'search' || mode === 'add' ? colors.cyan : (text: string) => colors.dim(text);
+
+    // The prompt input stays on one truncated line; navigation status, such as
+    // a copied URL, wraps and keeps as many lines as it needs, leaving at least
+    // one viewport row and every footer hint visible.
+    let statusLines: string[];
+    if (mode === 'search' || mode === 'add') {
+      const prompt = width === undefined ? statusPlain : truncateText(statusPlain, width);
+      statusLines = [prompt];
+    } else if (width === undefined) {
+      statusLines = [statusPlain];
+    } else {
+      statusLines = wrapStatus(statusPlain, width);
+    }
+
+    const maxStatusLines = Math.max(1, terminal.rows - hints.length - 2);
+    if (statusLines.length > maxStatusLines) {
+      statusLines = statusLines.slice(0, maxStatusLines);
+      const last = statusLines.length - 1;
+      const limit = width ?? Number.MAX_SAFE_INTEGER;
+      statusLines[last] = `${truncateText(statusLines[last] ?? '', Math.max(1, limit - 1))}…`;
+    }
+
+    const contentHeight = Math.max(1, terminal.rows - 1 - statusLines.length - hints.length);
     const start =
       cursorLine < 0
         ? 0
@@ -187,20 +286,10 @@ export async function runInteractiveDashboard(
       viewport.push('');
     }
 
-    const inlineStatus = status.length > 0 ? colors.dim(`  ${status}`) : '';
-    const statusLine =
-      mode === 'search'
-        ? `${colors.cyan(`/ ${input}`)}${inlineStatus}`
-        : mode === 'add'
-          ? `${colors.cyan(`add: ${input}`)}${inlineStatus}`
-          : status.length > 0
-            ? colors.dim(status)
-            : '';
-    const hints = hintLine(
-      colors,
-      mode === 'search' ? SEARCH_HINTS : mode === 'add' ? ADD_HINTS : MAIN_HINTS,
-    );
-    terminal.write(`\u001b[H\u001b[2J${viewport.join('\n')}\n${statusLine}\n${hints}`);
+    const statusBlock = statusLines
+      .map((line) => (line.length === 0 ? '' : statusStyle(line)))
+      .join('\n');
+    terminal.write(`\u001b[H\u001b[2J${viewport.join('\n')}\n${statusBlock}\n${hints.join('\n')}`);
   };
 
   const cancelFetch = (): void => {

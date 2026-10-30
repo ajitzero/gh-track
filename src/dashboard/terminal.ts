@@ -17,18 +17,34 @@ interface OpenCommand {
   opener: string;
 }
 
-function clipboardCommands(platform: NodeJS.Platform): ClipboardCommand[] {
+/** Termux exposes its own clipboard and opener helpers instead of the X11 ones. */
+function isTermux(env: NodeJS.ProcessEnv): boolean {
+  return (
+    (env.TERMUX_VERSION !== undefined && env.TERMUX_VERSION.length > 0) ||
+    env.PREFIX?.includes('com.termux') === true
+  );
+}
+
+function clipboardCommands(
+  platform: NodeJS.Platform,
+  env: NodeJS.ProcessEnv = process.env,
+): ClipboardCommand[] {
   if (platform === 'darwin') {
     return [{ command: 'pbcopy', args: [] }];
   }
   if (platform === 'win32') {
     return [{ command: 'clip', args: [] }];
   }
-  return [
+  const commands: ClipboardCommand[] = [];
+  if (isTermux(env)) {
+    commands.push({ command: 'termux-clipboard-set', args: [] });
+  }
+  commands.push(
     { command: 'wl-copy', args: [] },
     { command: 'xclip', args: ['-selection', 'clipboard'] },
     { command: 'xsel', args: ['--clipboard', '--input'] },
-  ];
+  );
+  return commands;
 }
 
 async function tryClipboardCommand(command: ClipboardCommand, text: string): Promise<boolean> {
@@ -49,14 +65,29 @@ async function tryClipboardCommand(command: ClipboardCommand, text: string): Pro
   });
 }
 
-function openCommand(platform: NodeJS.Platform, url: string): OpenCommand {
+function openCommands(
+  platform: NodeJS.Platform,
+  url: string,
+  env: NodeJS.ProcessEnv = process.env,
+): OpenCommand[] {
   if (platform === 'darwin') {
-    return { command: 'open', args: [url], opener: 'open' };
+    return [{ command: 'open', args: [url], opener: 'open' }];
   }
   if (platform === 'win32') {
-    return { command: 'cmd', args: ['/c', 'start', '', url], opener: 'start' };
+    return [{ command: 'cmd', args: ['/c', 'start', '', url], opener: 'start' }];
   }
-  return { command: 'xdg-open', args: [url], opener: 'xdg-open' };
+  if (isTermux(env)) {
+    return [
+      { command: 'termux-open', args: [url], opener: 'termux-open' },
+      { command: 'termux-open-url', args: [url], opener: 'termux-open-url' },
+      {
+        command: 'am',
+        args: ['start', '-a', 'android.intent.action.VIEW', '-d', url],
+        opener: 'am',
+      },
+    ];
+  }
+  return [{ command: 'xdg-open', args: [url], opener: 'xdg-open' }];
 }
 
 interface LaunchOutcome {
@@ -99,10 +130,24 @@ export async function openInBrowser(
   url: string,
   platform: NodeJS.Platform = process.platform,
   runCommand: (command: OpenCommand) => Promise<LaunchOutcome> = tryOpenCommand,
+  env: NodeJS.ProcessEnv = process.env,
 ): Promise<OpenUrlResult> {
-  const command = openCommand(platform, url);
-  const outcome = await runCommand(command);
-  return { opened: outcome.ok, opener: command.opener, missing: outcome.missing };
+  const commands = openCommands(platform, url, env);
+  let last: OpenCommand | undefined;
+  let missing = false;
+  for (const command of commands) {
+    last = command;
+    const outcome = await runCommand(command);
+    if (outcome.ok) {
+      return { opened: true, opener: command.opener, missing: false };
+    }
+    missing = outcome.missing;
+  }
+  return {
+    opened: false,
+    opener: last?.opener ?? 'xdg-open',
+    missing,
+  };
 }
 
 export function osc52ClipboardSequence(text: string): string {
@@ -115,8 +160,9 @@ export async function copyToSystemClipboard(
   platform: NodeJS.Platform = process.platform,
   osc52?: (sequence: string) => void,
   runCommand: (command: ClipboardCommand, value: string) => Promise<boolean> = tryClipboardCommand,
+  env: NodeJS.ProcessEnv = process.env,
 ): Promise<boolean> {
-  for (const command of clipboardCommands(platform)) {
+  for (const command of clipboardCommands(platform, env)) {
     if (await runCommand(command, text)) {
       return true;
     }
@@ -135,6 +181,9 @@ export function createProcessDashboardTerminal(): DashboardTerminal {
   return {
     get rows() {
       return process.stdout.rows ?? 24;
+    },
+    get cols() {
+      return process.stdout.columns;
     },
     enter() {
       emitKeypressEvents(process.stdin);

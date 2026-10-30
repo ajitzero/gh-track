@@ -485,3 +485,94 @@ test('clipboard falls back to an OSC 52 terminal sequence', async () => {
   assert.equal(copied, true);
   assert.deepEqual(output, ['\u001b]52;c;aHR0cHM6Ly9naXRodWIuY29tL29jdG9jYXQ=\u0007']);
 });
+
+test('a narrow terminal stacks rows and wraps the footer inside the width', async () => {
+  const frames: string[] = [];
+  const terminal: DashboardTerminal = {
+    rows: 12,
+    cols: 40,
+    enter: () => undefined,
+    leave: () => undefined,
+    write: (text) => {
+      frames.push(text);
+    },
+    onKeypress: (callback) => {
+      callback(key('q'));
+      return () => undefined;
+    },
+    onResize: () => () => undefined,
+    copy: async () => true,
+    open: async () => ({ opened: true, opener: 'xdg-open', missing: false }),
+  };
+
+  await runInteractiveDashboard({
+    result,
+    layout: 'compact',
+    colors: createColors(false),
+    terminal,
+    refresh: async () => ({ result, text: '', warnings: [] }),
+  });
+
+  const frame = (frames.at(-1) ?? '')
+    .replace(/\u001b\[[0-9;]*m/g, '')
+    .replace(/\u001b\[[0-9;]*[A-Za-z]/g, '');
+  const lines = frame.split('\n');
+  assert.ok(lines.every((line) => line.length <= 40));
+  assert.ok(frame.includes('followers'));
+  assert.ok(frame.includes('q quit'));
+});
+
+test('a copied URL wraps across status lines instead of being truncated', async () => {
+  const longResult: DashboardResult = {
+    layout: 'compact',
+    range: { from: 'previous', to: 'latest' },
+    rows: [
+      {
+        kind: 'repo',
+        subject: 'repo:very-long-owner-name/very-long-repository-name-here',
+        source: null,
+        from: null,
+        to: null,
+        metrics: { stars: { value: null, from: null, delta: null } },
+      },
+    ],
+  };
+  const frames: string[] = [];
+  const terminal: DashboardTerminal = {
+    rows: 12,
+    cols: 32,
+    enter: () => undefined,
+    leave: () => undefined,
+    write: (text) => {
+      frames.push(text);
+    },
+    onKeypress: (callback) => {
+      callback(key('c'));
+      callback(key('q'));
+      return () => undefined;
+    },
+    onResize: () => () => undefined,
+    copy: async () => true,
+    open: async () => ({ opened: true, opener: 'xdg-open', missing: false }),
+  };
+
+  await runInteractiveDashboard({
+    result: longResult,
+    layout: 'compact',
+    colors: createColors(false),
+    terminal,
+    refresh: async () => ({ result: longResult, text: '', warnings: [] }),
+  });
+
+  const frame = (frames.at(-1) ?? '')
+    .replace(/\u001b\[[0-9;]*m/g, '')
+    .replace(/\u001b\[[0-9;]*[A-Za-z]/g, '');
+  const lines = frame.split('\n');
+  assert.ok(lines.every((line) => line.length <= 32));
+  assert.match(frame, /Copied/);
+  assert.doesNotMatch(frame, /Copied[^\n]*…/);
+  const joined = lines.join('');
+  assert.ok(
+    joined.includes('https://github.com/very-long-owner-name/very-long-repository-name-here'),
+  );
+});

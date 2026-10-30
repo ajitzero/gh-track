@@ -24,6 +24,7 @@ export const GLOBAL_OPTIONS: readonly HelpOption[] = [
   { flags: '--config <path>', summary: 'Config file (default: XDG config path)' },
   { flags: '--data-dir <path>', summary: 'Data directory (default: XDG data path)' },
   { flags: '--format <fmt>', summary: 'table (default) or json; export also accepts jsonl/csv' },
+  { flags: '--width <n>', summary: 'Wrap output to n columns (default: terminal width)' },
   { flags: '--no-color', summary: 'Disable ANSI color' },
   { flags: '--yes', summary: 'Assume "yes" for confirmations; never prompt' },
   { flags: '--verbose', summary: 'Extra diagnostics on stderr' },
@@ -221,7 +222,7 @@ const DASHBOARD: HelpNode = {
     { flags: '--from <ref>', summary: 'Baseline: previous observation, run id, day, or 1y' },
     { flags: '--to <ref>', summary: 'Current point: latest, run id, day, or 1y' },
     { flags: '--subject <s>', summary: 'Repeatable; override the selected subjects (or a URL)' },
-    { flags: '--layout <fmt>', summary: 'compact (default) or columns' },
+    { flags: '--layout <fmt>', summary: 'compact (default), columns, or narrow' },
     { flags: '--no-interactive', summary: 'Print a static table even in a TTY' },
   ],
   examples: [
@@ -273,7 +274,7 @@ const TRACK_VIEW_SAVE: HelpNode = {
   arguments: [{ name: 'name', summary: 'lowercase view name' }],
   options: [
     { flags: '--item <s>=<m>', summary: 'Repeatable; omit to use the picker' },
-    { flags: '--layout <fmt>', summary: 'compact or columns' },
+    { flags: '--layout <fmt>', summary: 'compact, columns, or narrow' },
     { flags: '--from <ref>', summary: 'Baseline: previous, run id, day, or 1y' },
     { flags: '--to <ref>', summary: 'Current reference: latest, run id, day, or 1y' },
   ],
@@ -331,17 +332,80 @@ export function findHelpNode(path: readonly string[]): HelpNode | null {
   return node;
 }
 
+function wrapText(text: string, width: number): string[] {
+  const words = text.split(/\s+/).filter((word) => word.length > 0);
+  if (words.length === 0) {
+    return [''];
+  }
+  const lines: string[] = [];
+  let current = '';
+  for (const word of words) {
+    if (current.length === 0) {
+      current = word;
+      continue;
+    }
+    if (current.length + 1 + word.length <= width) {
+      current = `${current} ${word}`;
+      continue;
+    }
+    lines.push(current);
+    current = word;
+  }
+  if (current.length > 0) {
+    lines.push(current);
+  }
+  return lines;
+}
+
+/**
+ * Renders labeled entries.
+ *
+ * Wide output keeps the aligned `label  summary` shape. When the terminal is
+ * too narrow for that, each summary moves under its label and wraps, which is
+ * what makes `--help` usable on a phone-sized terminal.
+ */
 function renderColumns(
   title: string,
   entries: readonly { label: string; summary: string }[],
+  width?: number | undefined,
 ): string {
   if (entries.length === 0) {
     return '';
   }
-  const width = entries.reduce((max, entry) => Math.max(max, entry.label.length), 0);
-  const lines = entries.map((entry) =>
-    `  ${entry.label.padEnd(width)}  ${entry.summary}`.replace(/\s+$/, ''),
-  );
+  const labelWidth = entries.reduce((max, entry) => Math.max(max, entry.label.length), 0);
+  const indent = 2;
+  const gap = 2;
+  const inline = width === undefined || width >= indent + labelWidth + gap + 24;
+  const lines: string[] = [];
+
+  for (const entry of entries) {
+    if (inline) {
+      const summaryWidth =
+        width === undefined
+          ? Number.POSITIVE_INFINITY
+          : Math.max(8, width - indent - labelWidth - gap);
+      const [first = '', ...rest] = wrapText(entry.summary, summaryWidth);
+      lines.push(
+        `${' '.repeat(indent)}${entry.label.padEnd(labelWidth)}${' '.repeat(gap)}${first}`.replace(
+          /\s+$/,
+          '',
+        ),
+      );
+      const continuation = ' '.repeat(indent + labelWidth + gap);
+      for (const line of rest) {
+        lines.push(`${continuation}${line}`.replace(/\s+$/, ''));
+      }
+      continue;
+    }
+
+    lines.push(`${' '.repeat(indent)}${entry.label}`.replace(/\s+$/, ''));
+    const summaryWidth =
+      width === undefined ? Number.POSITIVE_INFINITY : Math.max(8, width - indent - 2);
+    for (const line of wrapText(entry.summary, summaryWidth)) {
+      lines.push(`${' '.repeat(indent + 2)}${line}`.replace(/\s+$/, ''));
+    }
+  }
+
   return `${title}:\n${lines.join('\n')}`;
 }
 
@@ -349,19 +413,38 @@ function sections(parts: readonly string[]): string {
   return parts.filter((part) => part.length > 0).join('\n\n');
 }
 
+export interface HelpRenderOptions {
+  /** Terminal width; omitted renders the aligned layout at any length. */
+  width?: number | undefined;
+}
+
 /** Renders help for a command path. Returns null when the path is unknown. */
-export function renderHelp(path: readonly string[]): string | null {
+export function renderHelp(
+  path: readonly string[],
+  options: HelpRenderOptions = {},
+): string | null {
   const node = findHelpNode(path);
   if (node === null) {
     return null;
   }
+  const width = options.width;
 
   const title =
     path.length === 0
       ? `${node.name} — ${node.summary}`
       : `${['gh-track', ...path].join(' ')} — ${node.summary}`;
+  const titleLines = width === undefined ? [title] : wrapText(title, width);
 
-  const usage = `Usage:\n${node.usage.map((line) => `  ${line}`).join('\n')}`;
+  const wrapIndented = (line: string): string[] => {
+    if (width === undefined) {
+      return [`  ${line}`];
+    }
+    return wrapText(line, Math.max(10, width - 4)).map((part, index) =>
+      index === 0 ? `  ${part}` : `    ${part}`,
+    );
+  };
+
+  const usage = `Usage:\n${node.usage.flatMap(wrapIndented).join('\n')}`;
 
   const argumentSection = renderColumns(
     'Arguments',
@@ -369,6 +452,7 @@ export function renderHelp(path: readonly string[]): string | null {
       label: argument.name,
       summary: argument.summary,
     })),
+    width,
   );
 
   const optionSection = renderColumns(
@@ -377,6 +461,7 @@ export function renderHelp(path: readonly string[]): string | null {
       label: option.flags,
       summary: option.summary,
     })),
+    width,
   );
 
   const childSection = renderColumns(
@@ -385,6 +470,7 @@ export function renderHelp(path: readonly string[]): string | null {
       label: child.name,
       summary: child.summary,
     })),
+    width,
   );
 
   const globalSection = renderColumns(
@@ -393,15 +479,16 @@ export function renderHelp(path: readonly string[]): string | null {
       label: option.flags,
       summary: option.summary,
     })),
+    width,
   );
 
   const exampleSection =
     node.examples !== undefined && node.examples.length > 0
-      ? `Examples:\n${node.examples.map((example) => `  ${example}`).join('\n')}`
+      ? `Examples:\n${node.examples.flatMap(wrapIndented).join('\n')}`
       : '';
 
   return `${sections([
-    title,
+    titleLines.join('\n'),
     usage,
     argumentSection,
     optionSection,

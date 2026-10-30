@@ -108,6 +108,20 @@ gh-track dashboard --view my-repos
 
 Selections live in `[tracking]`; named views live in `[views]` in the same TOML file. A compacted-history value carries a `~` marker, and `--format json` returns per-row `source` values (`raw`, `compacted`, `mixed`, or `null`).
 
+### Narrow terminals and phones
+
+Output follows the terminal width. Tables shrink to fit, help moves each summary under its flag, and a dashboard narrower than 60 columns stacks every metric under its subject instead of using one wide row. `--layout narrow` forces that stacked view at any width. Status messages such as a copied URL wrap across lines rather than being truncated, so they stay selectable on a phone.
+
+```bash
+# Preview a phone-sized layout from a desktop terminal
+gh-track --width 45
+gh-track --width 45 --layout narrow
+```
+
+`--width <n>` or `GH_TRACK_WIDTH=<n>` overrides detection, which matters when piping into a viewer. Piped output stays at its natural width unless one of them is set.
+
+On Termux the dashboard copies through `termux-clipboard-set` and opens URLs through `termux-open` (falling back to `am`), then to an OSC 52 sequence and a status hint. Add `Esc` and `Ctrl` to the extra-keys row so you can leave search mode and send Ctrl-C.
+
 ## Configuration
 
 `watch add` creates and updates the TOML config atomically. A minimal file looks like this:

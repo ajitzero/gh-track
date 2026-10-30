@@ -14,6 +14,7 @@ Global options may appear before or after the command. Command options win over 
 --config <path>       Config file (default: $XDG_CONFIG_HOME/gh-track/config.toml)
 --data-dir <path>     Data directory (default: $XDG_DATA_HOME/gh-track)
 --format <fmt>        table (default) | json; export also accepts jsonl | csv
+--width <n>           Wrap table and help output to n columns (min 20)
 --no-color            Disable ANSI color
 --yes                 Assume "yes" for confirmations; never prompt
 --verbose             Extra diagnostics on stderr
@@ -27,6 +28,7 @@ Rules:
 - `--help` always wins over other work and exits `0`.
 - `--format` values are validated per command. Unsupported values exit `2`.
 - `NO_COLOR` is honored. Color is used only when stdout is a TTY, `--no-color` is absent, and the format is `table`.
+- Output width comes from `--width`, then `GH_TRACK_WIDTH`, then the TTY's column count. Piped output with none of these stays at its natural width. Tables shrink to the width by truncating flexible columns with an ellipsis, and help wraps option summaries under their flags below 60 columns.
 - The process exits without waiting when a command completes; no background work.
 
 ## 2. Commands
@@ -182,7 +184,7 @@ gh-track [options]
   --from <ref>             Baseline bound (default: previous observation)
   --to <ref>               Current bound (default: latest)
   --subject <s>            Repeatable; override the item set with configured subjects
-  --layout <fmt>           compact (default) or columns
+  --layout <fmt>           compact (default), columns, or narrow
   --no-interactive         Print a static table even in a TTY
 ```
 
@@ -194,14 +196,15 @@ gh-track [options]
 - A subject with no observations is included with `—`.
 - On an interactive TTY with table output and without `--yes` or `--no-interactive`, the dashboard opens an alternate-screen list. `--no-interactive`, JSON output, and non-TTY output keep the static renderer; `--no-interactive` also skips first-run setup prompts.
 - In interactive mode, `↑`/`↓` and `j`/`k` move the highlight; `g`/`G` and Home/End jump to the first/last item. Movement clamps at either end. `/` starts a live, case-insensitive substring search. Enter keeps the filter; Escape clears it, and Escape with no filter or `q` in navigation mode quits. Ctrl-C quits with exit code 130 and aborts an in-flight fetch. While entering a query, arrow keys move the highlight and all printable characters (including `j` and `k`) are searchable.
-- Compact search matches visible account/repository names; full `owner/name` repository names also match. A tracked account remains visible when one of its nested repositories matches; matching the account shows its whole group. Columns layout filters rows independently.
-- `c` copies the highlighted user's profile URL or repository URL to the clipboard. It tries the platform clipboard utility first and falls back to OSC 52. `o` opens the same URL with the platform opener (`xdg-open`, `open`, or `start`); when the opener is missing or fails, it copies the URL and names the missing dependency in the status line. `r` runs the full `fetch` command against the watchlist, then refreshes dashboard observations without changing the selected subjects, range, filter, or highlighted subject. Fetch errors and partial-run status stay visible in the dashboard.
+- Compact search matches visible account/repository names; full `owner/name` repository names also match. A tracked account remains visible when one of its nested repositories matches; matching the account shows its whole group. The columns layout filters rows independently; the narrow layout groups like compact.
+- `c` copies the highlighted user's profile URL or repository URL to the clipboard. It tries the platform clipboard utility first (`termux-clipboard-set` on Termux) and falls back to OSC 52. `o` opens the same URL with the platform opener (`xdg-open`, `open`, `start`, or `termux-open` with an `am start` fallback); when the opener is missing or fails, it copies the URL and names the missing dependency in the status line. Status messages wrap across as many lines as the terminal needs, leaving at least one list row, so a copied URL stays complete and long-press selectable; only the search and add prompts truncate. `r` runs the full `fetch` command against the watchlist, then refreshes dashboard observations without changing the selected subjects, range, filter, or highlighted subject. Fetch errors and partial-run status stay visible in the dashboard.
 - `a` opens an inline add prompt. A bare login, `owner/name`, canonical `user:` / `repo:` subject, or GitHub profile/repository URL is accepted on Enter; the subject is added to the watchlist and default selection, fetched on its own, and the table is rebuilt with the new row highlighted. A newly created subject records a tracked-since baseline, so observations from before the add are ignored and the row shows `—` until the scoped fetch lands. Escape cancels. Invalid input keeps the prompt open with the error. Existing subjects keep their stored resources and metrics.
 - `d` removes the highlighted subject from the watchlist, default selection, and every saved view; views left empty are removed. The table updates immediately, so repositories that were nested under a deleted account become top-level rows with their full `owner/name`. The subject's ETag cache entries are deleted and historical runs and compacted history are kept.
-- The interactive footer hints are ordered alphabetically by key and swap with the input mode (D040). Navigation reads search, add, copy, delete, open, movement, quit, then refresh; search and add mode read Enter, Escape, typing, then movement. Each key renders white and its label dim grey; `NO_COLOR` disables that styling. Quitting restores the terminal and leaves no dashboard output in the regular scrollback; use `--no-interactive` to print a static table instead.
+- The interactive footer hints are ordered alphabetically by key and swap with the input mode (D040). Navigation reads search, add, copy, delete, open, movement, quit, then refresh; search and add mode read Enter, Escape, typing, then movement. Each key renders white and its label dim grey; `NO_COLOR` disables that styling. Hints wrap onto extra lines when the terminal is narrow, and the list height shrinks to match. Quitting restores the terminal and leaves no dashboard output in the regular scrollback; use `--no-interactive` to print a static table instead.
 - In the compact layout, every selected metric of a subject shares one line, in the fixed order `stars`, `forks`, `followers`, separated by two spaces. `NAME` and `SINCE` appear once per subject.
 - In the compact layout, a selected repository whose owner is also a selected account is nested under that account: the group sits at the earliest selection position of any member, the account renders first, and its repositories follow in selection order, indented two spaces with the `owner/` prefix removed. Owner matching is case-insensitive. Repositories without a selected owner keep their full name and position. The columns layout and `--format json` rows are unchanged.
 - In the compact layout, each metric's count and delta fields are sized to the widest formatted value and delta in the list; there is no fixed minimum. The count field stays at least one character so `—` fits, the `~` marker slot is reserved only when a compacted value is present, and values widen rather than truncate. The columns layout and `--format json` are unaffected.
+- The narrow layout (`--layout narrow`) groups subjects like compact, then puts `NAME` and `SINCE` on one line with each metric on its own indented line, so the widest fixed content is a metric line rather than a whole table. The title range `(from … to …)` moves to its own line under `gh-track dashboard`. Names are truncated with `…` when they do not fit. A terminal narrower than 60 columns renders the narrow layout automatically, even when a saved view asks for compact or columns; `--format json` and `result.layout` keep the saved layout.
 - `--from previous` selects each row's observation immediately before its `to` observation.
 - `--from latest` uses the same observation as `to`, so deltas are zero.
 - A run-id reference must name a complete run on disk, matching `diff`.

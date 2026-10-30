@@ -38,14 +38,15 @@ function itemCell(item: SelectionItem): string {
   return `${item.subject}=${item.metrics.join(',')}`;
 }
 
-function renderItems(items: readonly SelectionItem[]): string {
+function renderItems(items: readonly SelectionItem[], width?: number | undefined): string {
   return `${renderTable(
     ['SUBJECT', 'METRICS'],
     items.map((item) => [item.subject, item.metrics.join(', ')]),
+    { maxWidth: width },
   )}\n`;
 }
 
-function renderSelection(config: Config): string {
+function renderSelection(config: Config, width?: number | undefined): string {
   const sections: string[] = [];
 
   if (config.tracking.length > 0) {
@@ -53,6 +54,7 @@ function renderSelection(config: Config): string {
       renderTable(
         ['SUBJECT', 'METRICS'],
         config.tracking.map((entry) => [entry.subject, entry.metrics.join(', ')]),
+        { maxWidth: width },
       ),
     );
   } else {
@@ -71,6 +73,7 @@ function renderSelection(config: Config): string {
           view.to,
           view.items.map(itemCell).join('; '),
         ]),
+        { maxWidth: width },
       ),
     );
   }
@@ -164,7 +167,7 @@ async function runEdit(context: CommandContext): Promise<CommandResult> {
 
   return {
     json: asResult(config),
-    text: renderItems(picked.items),
+    text: renderItems(picked.items, context.outputWidth),
     warnings,
   };
 }
@@ -190,7 +193,7 @@ async function runSet(context: CommandContext, args: readonly string[]): Promise
 
   return {
     json: asResult(config),
-    text: renderItems(items),
+    text: renderItems(items, context.outputWidth),
     warnings,
   };
 }
@@ -245,7 +248,7 @@ async function runLs(context: CommandContext, args: readonly string[]): Promise<
   const { config, warnings } = await loadRequired(context);
   return {
     json: asResult(config),
-    text: renderSelection(config),
+    text: renderSelection(config, context.outputWidth),
     warnings,
   };
 }

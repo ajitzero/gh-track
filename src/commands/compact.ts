@@ -7,7 +7,7 @@ import { runCompaction } from '../store/compact.js';
 import { acquireLock } from '../store/lock.js';
 import type { CommandContext, CommandResult, CompactionResult } from '../types.js';
 
-function renderSummary(result: CompactionResult): string {
+function renderSummary(result: CompactionResult, width?: number | undefined): string {
   const verb = result.dryRun ? 'Would compact' : 'Compacted';
   const pruneVerb = result.dryRun ? 'would prune' : 'pruned';
   const lines = [
@@ -18,6 +18,7 @@ function renderSummary(result: CompactionResult): string {
       renderTable(
         ['DATE', 'REPOS', 'USERS'],
         result.compacted.map((day) => [day.date, String(day.repos), String(day.users)]),
+        { maxWidth: width },
       ),
     );
   }
@@ -53,7 +54,7 @@ export async function runCompact(context: CommandContext): Promise<CommandResult
 
   return {
     json: result,
-    text: renderSummary(result),
+    text: renderSummary(result, context.outputWidth),
     warnings: loaded === null ? [] : [...loaded.warnings],
   };
 }

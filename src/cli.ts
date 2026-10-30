@@ -19,6 +19,7 @@ import { CliError, UsageError, toCliError } from './errors.js';
 import { renderHelp } from './help.js';
 import { createColors, shouldUseColor } from './output/color.js';
 import { renderJson } from './output/json.js';
+import { resolveOutputWidth } from './output/width.js';
 import { canPrompt } from './prompts/gate.js';
 import { createPrompts } from './prompts/index.js';
 import { invocationSecrets, redactSecrets } from './redact.js';
@@ -39,6 +40,8 @@ export interface CliIO {
   stdinIsTTY: boolean;
   stdoutIsTTY: boolean;
   stderrIsTTY: boolean;
+  /** `process.stdout.columns` when available; tests usually leave it absent. */
+  stdoutColumns?: number | undefined;
   env: NodeJS.ProcessEnv;
   cwd: string;
   platform: NodeJS.Platform;
@@ -71,6 +74,7 @@ const OPTION_SPECS: readonly OptionSpec[] = [
   { name: 'config', flags: ['--config'], value: 'required' },
   { name: 'data-dir', flags: ['--data-dir'], value: 'required' },
   { name: 'format', flags: ['--format'], value: 'required' },
+  { name: 'width', flags: ['--width'], value: 'required' },
   { name: 'no-color', flags: ['--no-color'], value: 'none' },
   { name: 'yes', flags: ['--yes'], value: 'none' },
   { name: 'verbose', flags: ['--verbose'], value: 'none' },
@@ -116,6 +120,7 @@ const GLOBAL_OPTIONS = new Set([
   'config',
   'data-dir',
   'format',
+  'width',
   'no-color',
   'yes',
   'verbose',
@@ -386,6 +391,42 @@ function peekFormat(argv: readonly string[]): OutputFormat {
   return value === 'json' ? 'json' : 'table';
 }
 
+function peekWidth(argv: readonly string[]): string | undefined {
+  let value: string | undefined;
+  for (let index = 0; index < argv.length; index += 1) {
+    const token = argv[index];
+    if (token === undefined) {
+      break;
+    }
+    if (token === '--') {
+      break;
+    }
+    if (token === '--width') {
+      value = argv[index + 1];
+      index += 1;
+      continue;
+    }
+    if (token.startsWith('--width=')) {
+      value = token.slice('--width='.length);
+    }
+  }
+  return value;
+}
+
+/** Help tolerates a malformed `--width`; the renderer falls back to its natural layout. */
+function helpWidth(argv: readonly string[], io: CliIO): number | undefined {
+  try {
+    return resolveOutputWidth({
+      override: peekWidth(argv),
+      env: io.env,
+      stdoutIsTTY: io.stdoutIsTTY,
+      columns: io.stdoutColumns,
+    });
+  } catch {
+    return undefined;
+  }
+}
+
 function resolveFormat(command: string | undefined, value: string | undefined): OutputFormat {
   if (command === 'export') {
     const format = value ?? 'jsonl';
@@ -442,6 +483,12 @@ function buildContext(
 
   const paths = resolvePaths(overrides);
   const yes = options.has('yes');
+  const outputWidth = resolveOutputWidth({
+    override: options.get('width'),
+    env: io.env,
+    stdoutIsTTY: io.stdoutIsTTY,
+    columns: io.stdoutColumns,
+  });
   const colors = createColors(
     shouldUseColor({
       noColor: options.has('no-color'),
@@ -467,6 +514,7 @@ function buildContext(
     }),
     prompts: io.prompts,
     ...(io.dashboardTerminal === undefined ? {} : { dashboardTerminal: io.dashboardTerminal }),
+    outputWidth,
     env: io.env,
     signal: runOptions.signal,
     ...(runOptions.now === undefined ? {} : { now: runOptions.now }),
@@ -501,6 +549,7 @@ function renderError(
   verbose: boolean,
   io: CliIO,
   secrets: readonly string[],
+  width?: number | undefined,
 ): void {
   if (format === 'json') {
     const body: Record<string, unknown> = {
@@ -516,7 +565,7 @@ function renderError(
 
   io.stderr(redactSecrets(`gh-track: ${error.code}: ${error.message}\n`, secrets));
   if (error instanceof UsageError && error.showUsage) {
-    const help = renderHelp([]);
+    const help = renderHelp([], { width });
     if (help !== null) {
       io.stderr(help);
     }
@@ -534,11 +583,12 @@ export async function run(
   let format = peekFormat(argv);
   const verbose = argv.includes('--verbose');
   const secrets = invocationSecrets(argv, io.env);
+  const renderWidth = helpWidth(argv, io);
 
   try {
     if (hasHelpFlag(argv)) {
       const path = helpPath(argv);
-      const rendered = renderHelp(path);
+      const rendered = renderHelp(path, { width: renderWidth });
       if (rendered === null) {
         throw unknownCommandError(path);
       }
@@ -565,7 +615,7 @@ export async function run(
     format = resolveFormat(command, options.get('format'));
 
     if (command === 'help') {
-      io.stdout(renderHelpCommand(rest));
+      io.stdout(renderHelpCommand(rest, renderWidth));
       return 0;
     }
 
@@ -580,7 +630,7 @@ export async function run(
     return result.exitCode ?? 0;
   } catch (error) {
     const cliError = toCliError(error);
-    renderError(cliError, format, verbose, io, secrets);
+    renderError(cliError, format, verbose, io, secrets, renderWidth);
     return cliError.exitCode;
   }
 }
@@ -592,6 +642,7 @@ function createProcessIO(): CliIO {
     stdinIsTTY: Boolean(process.stdin.isTTY),
     stdoutIsTTY: Boolean(process.stdout.isTTY),
     stderrIsTTY: Boolean(process.stderr.isTTY),
+    stdoutColumns: process.stdout.columns,
     env: process.env,
     cwd: process.cwd(),
     platform: process.platform,

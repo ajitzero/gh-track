@@ -44,7 +44,7 @@ export interface Config {
 
 export type Metric = 'stars' | 'forks' | 'followers';
 
-export type DashboardLayout = 'compact' | 'columns';
+export type DashboardLayout = 'compact' | 'columns' | 'narrow';
 
 /** One subject in the default dashboard selection. */
 export interface TrackingEntry {
@@ -122,6 +122,8 @@ export interface OpenUrlResult {
 /** Small terminal boundary so interactive behavior can be tested without a TTY. */
 export interface DashboardTerminal {
   readonly rows: number;
+  /** Current column count; absent when the runtime cannot report one. */
+  readonly cols?: number | undefined;
   enter(): void;
   leave(): void;
   write(text: string): void;
@@ -429,6 +431,11 @@ export interface CommandContext {
   prompts: PromptApi;
   /** Present only for the real process IO adapter or interactive tests. */
   dashboardTerminal?: DashboardTerminal | undefined;
+  /**
+   * Terminal width used to shrink tables; absent when output is a pipe and no
+   * override was requested, which leaves tables at their natural width.
+   */
+  outputWidth?: number | undefined;
   /** Environment used to resolve token_env and platform-specific defaults. */
   env: NodeJS.ProcessEnv;
   /** Aborted by SIGINT so long-running commands can stop gracefully. */

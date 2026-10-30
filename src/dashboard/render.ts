@@ -1,6 +1,14 @@
-/** Dashboard table rendering for the compact and columns layouts. */
+/** Dashboard table rendering for the compact, columns, and narrow layouts. */
 
-import { renderTable, richCell, type CellSegment, type TableCell } from '../output/table.js';
+import {
+  renderTable,
+  richCell,
+  truncateText,
+  type CellSegment,
+  type TableCell,
+  type TableOptions,
+} from '../output/table.js';
+import { isNarrowWidth } from '../output/width.js';
 import type {
   Colors,
   DashboardLayout,
@@ -66,6 +74,23 @@ export interface DashboardRenderOptions {
   interactive?: boolean;
   highlightedSubject?: string | undefined;
   emptyMessage?: string | undefined;
+  /** Terminal width. When narrow, the dashboard stacks metrics under each name. */
+  width?: number | undefined;
+}
+
+/**
+ * Picks the layout actually used for output. A terminal narrower than the
+ * narrow threshold switches to the stacked layout even when a view saved
+ * `compact` or `columns`, which keeps saved views usable on a phone.
+ */
+export function resolveDashboardLayout(
+  layout: DashboardLayout,
+  width: number | undefined,
+): DashboardLayout {
+  if (layout === 'narrow' || isNarrowWidth(width)) {
+    return 'narrow';
+  }
+  return layout;
 }
 
 function nameCell(
@@ -315,11 +340,93 @@ function section(
     ...metrics.map((metric) => columnCell(row, metric, colors)),
     sinceCell(row, colors),
   ]);
-  return `${heading}\n${renderTable(headers, body)}`;
+  return `${heading}\n${renderTable(headers, body, compactTableOptions(options))}`;
 }
 
 function unionMetrics(rows: readonly DashboardRow[]): Metric[] {
   return METRIC_ORDER.filter((metric) => rows.some((row) => hasMetric(row, metric)));
+}
+
+function sinceText(row: DashboardRow): string {
+  if (row.from === null) {
+    return '—';
+  }
+  return `${row.from.id.slice(0, 10)}${row.from.finishedAt === null ? '~' : ''}`;
+}
+
+function paintName(row: DashboardRow, colors: Colors, text: string): string {
+  return row.kind === 'repo' ? colors.bold(colors.blue(text)) : colors.bold(colors.magenta(text));
+}
+
+/**
+ * One subject per block: `name` and `since` share the first line, every metric
+ * follows on its own indented line. Fits a phone-sized terminal because the
+ * widest fixed content is a metric line, not the whole table.
+ */
+function renderNarrow(
+  result: DashboardResult,
+  colors: Colors,
+  options: DashboardRenderOptions,
+): string {
+  const width = options.width;
+  const lines: string[] = [];
+
+  for (const display of groupDashboardRows(result.rows)) {
+    const row = display.row;
+    const selected = options.highlightedSubject === row.subject;
+    const marker = options.interactive ? (selected ? '› ' : '  ') : '';
+    const indent = display.nested ? '  ' : '';
+    const since = sinceText(row);
+    const name = `${indent}${display.label}`;
+    const budget =
+      width === undefined ? undefined : Math.max(1, width - marker.length - since.length - 1);
+    const shown = budget === undefined ? name : truncateText(name, budget);
+    const gap =
+      width === undefined ? 2 : Math.max(1, width - marker.length - shown.length - since.length);
+    lines.push(
+      `${selected && options.interactive ? colors.cyan(marker) : marker}${paintName(row, colors, shown)}${' '.repeat(gap)}${colors.dim(since)}`,
+    );
+
+    const metrics = compactMetrics(row);
+    const metricIndent = `${indent}  `;
+    if (metrics.length === 0) {
+      continue;
+    }
+    for (const metric of metrics) {
+      const value = metricValue(row, metric);
+      if (value === undefined) {
+        continue;
+      }
+      const label = `${colors.dim(`${METRIC_LABELS[metric]} `)}`;
+      if (value.value === null) {
+        lines.push(`${metricIndent}${label}${colors.dim('—')}`);
+        continue;
+      }
+      let line = `${metricIndent}${label}${colors.bold(formatCount(value.value))}`;
+      if (compacted(row)) {
+        line += colors.dim('~');
+      }
+      if (value.delta !== null) {
+        line += ` ${deltaPaint(colors, value.delta)(formatDelta(value.delta))}`;
+      }
+      lines.push(line);
+    }
+  }
+
+  return lines.join('\n');
+}
+
+function compactTableOptions(
+  options: DashboardRenderOptions,
+  align?: readonly ('left' | 'right')[],
+  headerAlign?: readonly ('left' | 'right')[],
+): TableOptions {
+  return {
+    ...(align === undefined ? {} : { align }),
+    ...(headerAlign === undefined ? {} : { headerAlign }),
+    maxWidth: options.width,
+    flex: [0],
+  };
 }
 
 function renderCompact(
@@ -327,10 +434,11 @@ function renderCompact(
   colors: Colors,
   options: DashboardRenderOptions,
 ): string {
-  return renderTable(['NAME', 'METRICS', 'SINCE'], compactRows(result, colors, options), {
-    align: ['left', 'right', 'left'],
-    headerAlign: ['left', 'left', 'left'],
-  });
+  return renderTable(
+    ['NAME', 'METRICS', 'SINCE'],
+    compactRows(result, colors, options),
+    compactTableOptions(options, ['left', 'right', 'left'], ['left', 'left', 'left']),
+  );
 }
 
 function renderColumns(
@@ -361,7 +469,16 @@ export function renderDashboard(
   const label =
     result.view === undefined ? 'gh-track dashboard' : `gh-track dashboard — ${result.view}`;
   const range = `(from ${result.range.from} to ${result.range.to})`;
-  const lines = [colors.dim(`${label} ${range}`), ''];
+  const heading = `${label} ${range}`;
+  const narrow = layout === 'narrow' || isNarrowWidth(options.width);
+  const headingLines = narrow
+    ? [colors.dim(label), colors.dim(range)]
+    : options.width === undefined || heading.length <= options.width
+      ? [colors.dim(heading)]
+      : range.length + 2 <= options.width
+        ? [colors.dim(label), colors.dim(range)]
+        : [colors.dim(truncateText(heading, options.width))];
+  const lines = [...headingLines, ''];
 
   if (result.rows.length === 0) {
     lines.push(colors.dim(options.emptyMessage ?? 'No observations.'));
@@ -369,9 +486,11 @@ export function renderDashboard(
   }
 
   lines.push(
-    layout === 'columns'
-      ? renderColumns(result, colors, options)
-      : renderCompact(result, colors, options),
+    layout === 'narrow'
+      ? renderNarrow(result, colors, options)
+      : layout === 'columns'
+        ? renderColumns(result, colors, options)
+        : renderCompact(result, colors, options),
   );
 
   if (result.rows.some((row) => compacted(row) || row.from?.finishedAt === null)) {

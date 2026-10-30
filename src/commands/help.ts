@@ -9,8 +9,8 @@ export function unknownCommandError(path: readonly string[]): UsageError {
   return new UsageError(`Unknown command: ${label}`, { showUsage: true });
 }
 
-export function renderHelpCommand(path: readonly string[]): string {
-  const rendered = renderHelp(path);
+export function renderHelpCommand(path: readonly string[], width?: number | undefined): string {
+  const rendered = renderHelp(path, { width });
   if (rendered === null) {
     throw unknownCommandError(path);
   }

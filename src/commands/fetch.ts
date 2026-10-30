@@ -345,7 +345,7 @@ function parseKeepRawDays(raw: string | undefined): number | undefined {
 // Dry run
 // ---------------------------------------------------------------------------
 
-function renderPlanText(plan: FetchPlan, cap: number): string {
+function renderPlanText(plan: FetchPlan, cap: number, width?: number | undefined): string {
   if (plan.requests.length === 0) {
     return `Dry run: no requests planned; effective cap ${cap}.\n`;
   }
@@ -357,6 +357,7 @@ function renderPlanText(plan: FetchPlan, cap: number): string {
       String(request.page),
       request.conditional ? 'yes' : 'no',
     ]),
+    { maxWidth: width },
   );
   return `Dry run: ${plan.requests.length} request(s) planned; effective cap ${cap}.\n\n${table}\n`;
 }
@@ -391,7 +392,7 @@ async function runDryRun(context: CommandContext): Promise<CommandResult> {
       estimatedRequests: plan.estimatedRequests,
       plan: plan.requests,
     },
-    text: renderPlanText(plan, cap),
+    text: renderPlanText(plan, cap, context.outputWidth),
     warnings,
   };
 }

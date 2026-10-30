@@ -502,3 +502,11 @@ test('diff requires stored runs', async (t) => {
   assert.equal(result.code, 1);
   assert.match(result.stderr, /not_enough_runs/);
 });
+
+test('--width wraps help output to a phone-sized terminal', async () => {
+  const result = await invoke(['dashboard', '--help', '--width', '40']);
+  assert.equal(result.code, 0);
+  const lines = result.stdout.split('\n');
+  assert.ok(lines.every((line) => line.length <= 40));
+  assert.match(result.stdout, /gh-track dashboard/);
+});

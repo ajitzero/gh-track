@@ -11,7 +11,7 @@ import {
   type ObservationSubject,
 } from '../dashboard/observations.js';
 import { pickSelection } from '../dashboard/picker.js';
-import { renderDashboard } from '../dashboard/render.js';
+import { renderDashboard, resolveDashboardLayout } from '../dashboard/render.js';
 import {
   parseLayout,
   resolveSelection,
@@ -189,6 +189,7 @@ export async function runDashboard(context: CommandContext): Promise<CommandResu
     };
   };
   const result = await buildResult(selection);
+  const renderLayout = resolveDashboardLayout(selection.layout, context.outputWidth);
 
   if (
     context.canPrompt &&
@@ -224,7 +225,8 @@ export async function runDashboard(context: CommandContext): Promise<CommandResu
 
     const interactive = await runInteractiveDashboard({
       result,
-      layout: selection.layout,
+      layout: renderLayout,
+      width: context.outputWidth,
       colors: context.colors,
       terminal: context.dashboardTerminal,
       signal: context.signal,
@@ -321,7 +323,9 @@ export async function runDashboard(context: CommandContext): Promise<CommandResu
 
   return {
     json: result,
-    text: renderDashboard(result, selection.layout, context.colors),
+    text: renderDashboard(result, renderLayout, context.colors, {
+      width: context.outputWidth,
+    }),
     warnings: [...loaded.warnings],
   };
 }

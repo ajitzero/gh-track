@@ -164,6 +164,7 @@ async function listSubjects(context: CommandContext, args: string[]): Promise<Co
             subject.lastRun === null ? '' : String(subject.lastRun.repos),
             subject.lastRun === null ? '' : String(subject.lastRun.followers),
           ]),
+          { maxWidth: context.outputWidth },
         )}\n`;
 
   return { json: result, text, warnings: [...loaded.warnings] };

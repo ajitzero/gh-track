@@ -33,7 +33,7 @@ Recorded as [D023](03_DECISIONS.md) and [D032](03_DECISIONS.md).
 
 ```
 gh-track dashboard [--view <name>] [--from <ref>] [--to <ref>]
-                   [--subject <s>]... [--layout compact|columns] [--no-interactive]
+                   [--subject <s>]... [--layout compact|columns|narrow] [--no-interactive]
 gh-track [same dashboard options]          # dashboard is the default command
 gh-track dashboard add [user <login> | repo <owner/name> | repo <owner> | <subject>]
 gh-track track edit
@@ -178,6 +178,7 @@ octocat  1,204~ (+9)  2026-09-01
 - The compact layout renders every selected metric of a subject on one line, in the fixed order `stars`, `forks`, `followers`, separated by two spaces. `NAME` and `SINCE` appear once per subject.
 - In `compact`, a repository whose owner is also a selected account is nested under that account. The group sits at the earliest selection position of any member; the account renders first, then its repositories in selection order, each indented two spaces with the `owner/` prefix removed. Owner matching is case-insensitive. Repositories without a selected owner keep their full name and their place in the selection.
 - `columns` keeps its separate Repositories and Accounts sections and always renders full names, since a repository there cannot sit directly under its account. JSON rows keep selection order and full `subject` values in both layouts.
+- `narrow` stacks each subject: `NAME` and `SINCE` share the first line and every metric gets its own indented line. The title's `(from … to …)` range moves onto its own line under the title. It groups subjects like `compact` and truncates a name with `…` when it cannot share the line with `SINCE`. A terminal below 60 columns selects it automatically, even when a view saved `compact` or `columns`; `--format json` keeps the saved `layout`.
 - Compact metric values are right-aligned within the `METRICS` column; the header stays at the column's left edge. Each metric keeps a variable-width label (`stars`, `forks`, `followers`) followed by count and delta fields that are exactly as wide as the largest formatted value or delta in the list. The count field is at least one character so `—` still fits, and the delta field collapses to zero when no row has a baseline. Values widen their fields instead of truncating.
 - When any displayed value is compacted, the `~` marker has its own one-character slot after the count, so compacted and raw values keep the same count and delta alignment. A list with no compacted values does not reserve the slot.
 - A value without a baseline leaves the delta slot blank; a subject with no observation at all renders one `—` in the metrics block and `—` in `SINCE`.
@@ -188,7 +189,7 @@ octocat  1,204~ (+9)  2026-09-01
 - Empty sections and unselected metric columns are omitted.
 - No totals, averages, or leaderboards.
 
-`output/table.ts` measures the plain text of a styled cell and paints it on render, so ANSI codes do not break alignment. It also supports per-column alignment and trims trailing whitespace.
+`output/table.ts` measures the plain text of a styled cell and paints it on render, so ANSI codes do not break alignment. It also supports per-column alignment, trims trailing whitespace, and shrinks to a `maxWidth` by narrowing flexible columns and ending cut cells with `…`.
 
 ## JSON
 

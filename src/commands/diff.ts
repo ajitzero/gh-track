@@ -133,7 +133,7 @@ function formatIdentities(
   return identities.map((identity) => identity.login).join(', ');
 }
 
-function renderDiff(result: DiffResult): string {
+function renderDiff(result: DiffResult, width?: number | undefined): string {
   const lines = [
     `From ${result.from.id} to ${result.to.id} (source: ${result.source})`,
     `Range: ${result.from.day} to ${result.to.day} (UTC days)`,
@@ -162,6 +162,7 @@ function renderDiff(result: DiffResult): string {
           entry.change,
           formatFields(entry),
         ]),
+        { maxWidth: width },
       ),
     );
   }
@@ -178,6 +179,7 @@ function renderDiff(result: DiffResult): string {
           formatIdentities(entry.followers.added),
           formatIdentities(entry.followers.removed),
         ]),
+        { maxWidth: width },
       ),
     );
   }
@@ -230,5 +232,5 @@ export async function runDiff(context: CommandContext): Promise<CommandResult> {
     users: users.filter((entry) => userMatches(entry, filters)),
   };
 
-  return { json: result, text: renderDiff(result), warnings: [] };
+  return { json: result, text: renderDiff(result, context.outputWidth), warnings: [] };
 }

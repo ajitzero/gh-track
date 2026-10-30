@@ -223,6 +223,7 @@ async function askLayout(initial: DashboardLayout): Promise<DashboardLayout | nu
     options: [
       { value: 'compact', label: 'Compact', hint: 'one metrics column' },
       { value: 'columns', label: 'Columns', hint: 'one column per metric' },
+      { value: 'narrow', label: 'Narrow', hint: 'stacked for phones' },
     ],
     initialValue: initial,
   });

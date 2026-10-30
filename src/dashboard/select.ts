@@ -80,8 +80,10 @@ export function parseOptionalLayout(value: string | undefined): DashboardLayout 
   if (value === undefined) {
     return undefined;
   }
-  if (value !== 'compact' && value !== 'columns') {
-    throw new UsageError(`Unsupported --layout value: ${value}. Expected compact or columns.`);
+  if (value !== 'compact' && value !== 'columns' && value !== 'narrow') {
+    throw new UsageError(
+      `Unsupported --layout value: ${value}. Expected compact, columns, or narrow.`,
+    );
   }
   return value;
 }

@@ -69,3 +69,18 @@ test('findHelpNode walks the registry', () => {
   assert.equal(findHelpNode(['watch', 'add'])?.name, 'add');
   assert.equal(findHelpNode(['bogus']), null);
 });
+
+test('narrow help moves summaries under their labels and wraps them', () => {
+  const text = renderHelp(['dashboard'], { width: 40 });
+  assert.ok(text !== null);
+  const lines = text.split('\n');
+  assert.ok(lines.every((line) => line.length <= 40));
+  assert.match(text, /Print a static table even in a TTY/);
+});
+
+test('wide help keeps flags and summaries on one line', () => {
+  const text = renderHelp(['dashboard']);
+  assert.ok(text !== null);
+  assert.match(text, /\n  --no-interactive {2,}Print a static table even in a TTY\n/);
+  assert.match(text, /compact \(default\), columns, or narrow/);
+});

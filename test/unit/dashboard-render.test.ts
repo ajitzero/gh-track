@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { renderDashboard } from '../../src/dashboard/render.js';
+import { renderDashboard, resolveDashboardLayout } from '../../src/dashboard/render.js';
 import { createColors } from '../../src/output/color.js';
 import { renderTable, richCell } from '../../src/output/table.js';
 import type { DashboardResult } from '../../src/types.js';
@@ -275,4 +275,57 @@ test('styled cells are measured by their plain text', () => {
   const plainFirst = first.replace(/\u001b\[[0-9;]*m/g, '');
   assert.equal(plainFirst.indexOf('12'), header.indexOf('VALUE'));
   assert.equal(plainFirst.indexOf('12'), 'much-longer-name'.length + 2);
+});
+
+test('narrow rendering stacks metrics under each name and fits the width', () => {
+  const result: DashboardResult = { ...RESULT, layout: 'narrow' };
+  const plain = renderDashboard(result, 'narrow', createColors(false), { width: 40 });
+  const lines = plain.split('\n');
+  const hello = lines.find((line) => line.includes('hello-world')) ?? '';
+  assert.match(hello, /^\s*hello-world\s+2026-10-01$/);
+  assert.match(plain, /\n {2,4}stars 1,204 \(\+24\)\n/);
+  assert.match(plain, /\n {2,4}forks 4 \(−1\)\n/);
+  assert.match(plain, /\n {2}followers 1,204~ \(0\)\n/);
+  assert.ok(lines.every((line) => line.length <= 40));
+});
+
+test('narrow rendering truncates a long name instead of wrapping', () => {
+  const result: DashboardResult = {
+    layout: 'narrow',
+    range: { from: 'previous', to: 'latest' },
+    rows: [
+      {
+        kind: 'repo',
+        subject: 'repo:someone/a-repository-with-a-very-long-name',
+        source: null,
+        from: null,
+        to: null,
+        metrics: { stars: { value: null, from: null, delta: null } },
+      },
+    ],
+  };
+  const plain = renderDashboard(result, 'narrow', createColors(false), { width: 30 });
+  assert.ok(plain.split('\n').every((line) => line.length <= 30));
+  assert.match(plain, /…/);
+});
+
+test('a narrow terminal switches compact and columns layouts to narrow output', () => {
+  assert.equal(resolveDashboardLayout('compact', 40), 'narrow');
+  assert.equal(resolveDashboardLayout('columns', 40), 'narrow');
+  assert.equal(resolveDashboardLayout('compact', 80), 'compact');
+  assert.equal(resolveDashboardLayout('columns', 80), 'columns');
+  assert.equal(resolveDashboardLayout('narrow', 80), 'narrow');
+  assert.equal(resolveDashboardLayout('compact', undefined), 'compact');
+});
+
+test('narrow rendering puts the range on its own title line', () => {
+  const plain = renderDashboard(RESULT, 'narrow', createColors(false), { width: 40 });
+  const [first, second] = plain.split('\n');
+  assert.equal(first, 'gh-track dashboard');
+  assert.equal(second, '(from previous to latest)');
+});
+
+test('wide rendering keeps the range on the title line', () => {
+  const plain = renderDashboard(RESULT, 'compact', createColors(false), { width: 120 });
+  assert.match(plain, /^gh-track dashboard \(from previous to latest\)\n/);
 });
